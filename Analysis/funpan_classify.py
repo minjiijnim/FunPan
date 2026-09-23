@@ -1205,41 +1205,41 @@ ESTABLISHED_STRAINS = [
     # Other reference strains (non-Aspergillus or different section)
     {"name": "Aspergillus nidulans FGSC A4", "patterns": [r"\bFGSC\s*A4\b", r"\baspergillus\s+nidulans\b.*\bA4\b"], "class": "Environmental", "subtype": "Reference strain"},
 
-    # ── Strain-name reclassifications for previously Unknown strains ──
+    # Strain-name rules for strains without isolation-source metadata
     # These strains have no/insufficient isolation source metadata in NCBI.
     # Classifications assigned based on published literature.
 
     # Fumigatus: clinical strains with no isolation source metadata
-    # Ref: Fedorova et al. (2008) PLoS Genet 4:e1000046 — CEA10 lineage
-    # Ref: Rybak et al. (2019) mBio 10:e02213-18 — A1160 is CEA10 pyrG1 derivative
+    # Ref: Fedorova et al. (2008) PLoS Genet 4:e1000046, CEA10 lineage
+    # Ref: Rybak et al. (2019) mBio 10:e02213-18, A1160 is CEA10 pyrG1 derivative
     {"name": "Aspergillus fumigatus A1160", "patterns": [r"\bA1160\b"], "class": "Human", "subtype": "Clinical reference (CEA10 pyrG1 derivative)"},
-    # Ref: Valsecchi et al. (2022) Microbiol Spectr — pksP deletion in clinical isolates
+    # Ref: Valsecchi et al. (2022) Microbiol Spectr, pksP deletion in clinical isolates
     {"name": "Aspergillus fumigatus IP_23", "patterns": [r"\bIP[-_\s]?23\b"], "class": "Human", "subtype": "Clinical pksP variant, France"},
     {"name": "Aspergillus fumigatus IP_24", "patterns": [r"\bIP[-_\s]?24\b"], "class": "Human", "subtype": "Clinical pksP variant, France"},
-    # Ref: Zheng et al. (2007) Appl Microbiol Biotechnol 74:233-239 — dye decolorization from rice straw
+    # Ref: Zheng et al. (2007) Appl Microbiol Biotechnol 74:233-239, dye decolorization from rice straw
     {"name": "Aspergillus fumigatus XC6", "patterns": [r"\bXC[-\s]?6\b"], "class": "Environmental", "subtype": "Isolated from rice straw"},
 
     # Niger: known strains with ambiguous metadata
-    # Ref: ATCC product page (https://www.atcc.org/products/10864) — type strain from soil
-    # Ref: Braunsdorf et al. (2017) Stand Genomic Sci 12:53 — biofilm-forming cellulase producer
+    # Ref: ATCC product page (https://www.atcc.org/products/10864), type strain from soil
+    # Ref: Braunsdorf et al. (2017) Stand Genomic Sci 12:53, biofilm-forming cellulase producer
     {"name": "Aspergillus niger ATCC 10864", "patterns": [r"\bATCC\s*10864\b"], "class": "Environmental", "subtype": "Soil isolate, cellulase producer"},
-    # Ref: Samson et al. (2007) Stud Mycol 59:1-10 — A. niger neotype, gallic acid production
+    # Ref: Samson et al. (2007) Stud Mycol 59:1-10, A. niger neotype, gallic acid production
     {"name": "Aspergillus niger CBS 554.65", "patterns": [r"\bCBS\s*554\.?65\b"], "class": "Industrial", "subtype": "Neotype strain, tannase/gallic acid production"},
-    # Ref: Seekles et al. (2022) G3 12:jkac124 — 24 A. niger sensu stricto strains; leather isolate
+    # Ref: Seekles et al. (2022) G3 12:jkac124, 24 A. niger sensu stricto strains; leather isolate
     {"name": "Aspergillus niger CBS 113.50", "patterns": [r"\bCBS\s*113\.?50\b"], "class": "Environmental", "subtype": "Leather isolate"},
-    # Ref: Seekles et al. (2022) G3 12:jkac124 — 24 A. niger sensu stricto strains; raisin isolate
+    # Ref: Seekles et al. (2022) G3 12:jkac124, 24 A. niger sensu stricto strains; raisin isolate
     {"name": "Aspergillus niger CBS 147323", "patterns": [r"\bCBS\s*147323\b"], "class": "Plant", "subtype": "Raisin isolate"},
-    # Ref: Takahashi et al. (2023) Microbiol Spectr — taxonomy of Aspergillus series Nigri
+    # Ref: Takahashi et al. (2023) Microbiol Spectr, taxonomy of Aspergillus series Nigri
     {"name": "Aspergillus niger IFM 59636", "patterns": [r"\bIFM\s*59636\b"], "class": "Human", "subtype": "Abdominal drain isolate"},
-    # CCTCC = China Center of Industrial Culture Collection — industrial deposit
+    # CCTCC = China Center of Industrial Culture Collection, industrial deposit
     {"name": "Aspergillus niger CCTCC 206047", "patterns": [r"\bCCTCC\s*206047\b"], "class": "Industrial", "subtype": "Industrial culture collection"},
 
     # Oryzae: fermentation/koji strains with no metadata
-    # Ref: Watarai et al. (2019) Microbiol Spectr — soy sauce koji comparison
-    # Ref: Zhao et al. (2023) Microbiol Spectr 11:e00836-22 — industrial A. oryzae comparison
+    # Ref: Watarai et al. (2019) Microbiol Spectr, soy sauce koji comparison
+    # Ref: Zhao et al. (2023) Microbiol Spectr 11:e00836-22, industrial A. oryzae comparison
     {"name": "Aspergillus oryzae RIB326", "patterns": [r"\bRIB[-\s]?326\b"], "class": "Industrial", "subtype": "Soy sauce koji strain"},
-    # Ref: Umemura et al. (2012) Genome Biol Evol 4:1169-1186 — Tokyo Tech koji collection
-    # Ref: Machida et al. (2008) Adv Appl Microbiol 64:159-167 — history of koji mold genomics
+    # Ref: Umemura et al. (2012) Genome Biol Evol 4:1169-1186, Tokyo Tech koji collection
+    # Ref: Machida et al. (2008) Adv Appl Microbiol 64:159-167, history of koji mold genomics
     {"name": "Aspergillus oryzae TK-13", "patterns": [r"\bTK[-\s]?13\b"], "class": "Industrial", "subtype": "Tokyo Tech fermentation strain"},
     {"name": "Aspergillus oryzae TK-17", "patterns": [r"\bTK[-\s]?17\b"], "class": "Industrial", "subtype": "Tokyo Tech fermentation strain"},
     {"name": "Aspergillus oryzae TK-18", "patterns": [r"\bTK[-\s]?18\b"], "class": "Industrial", "subtype": "Tokyo Tech fermentation strain"},
@@ -1503,10 +1503,8 @@ def classify_isolation_source(
     pheno_scores["Industrial-trait"] = it_score
     pheno_matched["Industrial-trait"] = it_matched
 
-    # Lab phenotype removed — reference/model strains are classified by their
-    # original isolation phenotype (Human, Plant, Industrial, etc.)
-    # Lab scoring patterns still run but contribute to provenance (Culture-derived),
-    # not to phenotype.
+    # Reference and model strains take their original isolation phenotype.
+    # Lab patterns contribute to provenance (Culture-derived), not to phenotype.
 
     # Environmental phenotype (default, no specific association)
     env_pheno_score, env_pheno_matched = _score_patterns(combined, _R_PHENO_ENVIRONMENTAL, WEIGHT_MEDIUM)
@@ -2130,89 +2128,6 @@ def summarize_classification(df: pd.DataFrame, class_col: str = "Phenotype") -> 
     return class_counts.to_frame("count")
 
 
-def audit_classification(
-    df: pd.DataFrame,
-    sample_n: int = 5,
-    focus_phenotype: Optional[str] = None,
-    focus_provenance: Optional[str] = None,
-    focus_confidence: Optional[str] = None
-) -> None:
-    """
-    Print detailed audit information for sample classifications.
-
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Classified DataFrame.
-    sample_n : int
-        Number of samples to audit.
-    focus_phenotype : str, optional
-        If specified, only audit this phenotype.
-    focus_provenance : str, optional
-        If specified, only audit this provenance.
-    focus_confidence : str, optional
-        If specified, only audit this confidence level.
-    """
-    subset = df.copy()
-
-    if focus_phenotype and "Phenotype" in subset.columns:
-        subset = subset[subset["Phenotype"] == focus_phenotype]
-
-    if focus_provenance and "Provenance" in subset.columns:
-        subset = subset[subset["Provenance"] == focus_provenance]
-
-    if focus_confidence:
-        if "PhenotypeConfidence" in subset.columns:
-            subset = subset[subset["PhenotypeConfidence"] == focus_confidence]
-        elif "ClassificationConfidence" in subset.columns:
-            subset = subset[subset["ClassificationConfidence"] == focus_confidence]
-
-    if len(subset) == 0:
-        print("No samples match the audit criteria.")
-        return
-
-    sample = subset.sample(min(sample_n, len(subset)))
-
-    print("\n" + "=" * 80)
-    print("TWO-TIER CLASSIFICATION AUDIT")
-    print("=" * 80)
-
-    for idx, row in sample.iterrows():
-        print(f"\n--- {row.get('Assembly Accession', idx)} ---")
-        print(f"Species: {row.get('Species', 'N/A')}")
-
-        # Two-tier classification
-        prov = row.get('Provenance', 'N/A')
-        prov_conf = row.get('ProvenanceConfidence', 'N/A')
-        pheno = row.get('Phenotype', 'N/A')
-        pheno_conf = row.get('PhenotypeConfidence', 'N/A')
-
-        print(f"PROVENANCE: {prov} (confidence: {prov_conf})")
-        print(f"PHENOTYPE:  {pheno} (confidence: {pheno_conf})")
-
-        for fld in ["Isolation Source", "Strain", "Comment", "BioProject Title"]:
-            if fld in row and pd.notna(row[fld]):
-                val = str(row[fld])[:80]
-                print(f"{fld}: {val}{'...' if len(str(row[fld])) > 80 else ''}")
-
-        # Show matched patterns for both tiers
-        if "ProvenanceMatched" in row and pd.notna(row["ProvenanceMatched"]):
-            try:
-                prov_patterns = json.loads(row["ProvenanceMatched"])
-                if prov_patterns:
-                    print(f"Provenance matched: {prov_patterns}")
-            except Exception:
-                pass
-
-        if "PhenotypeMatched" in row and pd.notna(row["PhenotypeMatched"]):
-            try:
-                pheno_patterns = json.loads(row["PhenotypeMatched"])
-                if pheno_patterns:
-                    print(f"Phenotype matched: {pheno_patterns}")
-            except Exception:
-                pass
-
-
 # =============================================================================
 # GEOGRAPHIC VISUALIZATION FUNCTIONS  
 # =============================================================================
@@ -2238,23 +2153,6 @@ GEOCODE_CACHE_PATH = os.path.join(RESULTS_BASE, 'geocode_cache.json')
 MANUAL_LATLON_PATH = os.path.join(RESULTS_BASE, 'manual_latlon_additions.txt')
 
 
-def load_geocode_cache(cache_path: str = None) -> dict:
-    """Load geocoding cache from JSON file."""
-    path = cache_path or GEOCODE_CACHE_PATH
-    if os.path.exists(path):
-        with open(path, 'r') as f:
-            return json.load(f)
-    return {}
-
-
-def save_geocode_cache(cache: dict, cache_path: str = None):
-    """Save geocoding cache to JSON file."""
-    path = cache_path or GEOCODE_CACHE_PATH
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, 'w') as f:
-        json.dump(cache, f)
-
-
 def normalize_location_key(loc: str) -> str:
     """Normalize location string for matching (lowercase, collapse whitespace)."""
     if not loc:
@@ -2264,277 +2162,6 @@ def normalize_location_key(loc: str) -> str:
     s = re.sub(r'\s*:\s*', ':', s)  # Remove spaces around colons
     s = re.sub(r'\s*,\s*', ', ', s)  # Normalize comma spacing
     return s
-
-
-def load_manual_latlon(latlon_path: str = None) -> dict:
-    """Load manually curated lat/lon coordinates from txt file.
-    
-    Returns a dict mapping normalized location strings to (lat, lon) tuples.
-    """
-    path = latlon_path or MANUAL_LATLON_PATH
-    manual_coords = {}
-    if not os.path.exists(path):
-        return manual_coords
-    
-    try:
-        with open(path, 'r') as f:
-            lines = f.readlines()
-        
-        current_location = None
-        current_lat = None
-        current_lon = None
-        
-        for line in lines:
-            line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-            
-            if line.startswith('Location:'):
-                current_location = line.replace('Location:', '').strip()
-            elif line.startswith('Latitude:'):
-                try:
-                    current_lat = float(line.replace('Latitude:', '').strip())
-                except ValueError:
-                    current_lat = None
-            elif line.startswith('Longitude:'):
-                try:
-                    current_lon = float(line.replace('Longitude:', '').strip())
-                except ValueError:
-                    current_lon = None
-            elif line.startswith('Notes:'):
-                if current_location and current_lat is not None and current_lon is not None:
-                    key = normalize_location_key(current_location)
-                    manual_coords[key] = (current_lat, current_lon)
-                current_location = None
-                current_lat = None
-                current_lon = None
-        
-        if current_location and current_lat is not None and current_lon is not None:
-            key = normalize_location_key(current_location)
-            manual_coords[key] = (current_lat, current_lon)
-        
-        if manual_coords:
-            print(f"Loaded {len(manual_coords)} manual lat/lon entries from {path}")
-    except Exception as e:
-        print(f"Warning: Could not load manual lat/lon file: {e}")
-    
-    return manual_coords
-
-
-def parse_lat_lon(lat_lon_str: str) -> Tuple[Optional[float], Optional[float]]:
-    """Parse Lat/Lon string like '35.6762 N 139.6503 E' to (lat, lon)."""
-    if pd.isna(lat_lon_str) or not lat_lon_str:
-        return None, None
-    if str(lat_lon_str).lower() in ['not collected', 'nan', 'missing']:
-        return None, None
-    try:
-        s = str(lat_lon_str).strip()
-        parts = s.replace(',', ' ').split()
-        if len(parts) >= 4:
-            lat = float(parts[0])
-            if parts[1].upper() == 'S':
-                lat = -lat
-            lon = float(parts[2])
-            if parts[3].upper() == 'W':
-                lon = -lon
-            return lat, lon
-        elif len(parts) == 2:
-            return float(parts[0]), float(parts[1])
-    except:
-        pass
-    return None, None
-
-
-def geocode_location(location_str: str, geolocator, cache: dict) -> Tuple[Optional[float], Optional[float]]:
-    """Geocode a location string to (lat, lon) using cache."""
-    if pd.isna(location_str) or not location_str:
-        return None, None
-    if str(location_str).lower() in ['not collected', 'missing', 'unknown', 'nan']:
-        return None, None
-    
-    loc_key = str(location_str).strip().lower()
-    if loc_key in cache:
-        return tuple(cache[loc_key]) if cache[loc_key][0] is not None else (None, None)
-    
-    try:
-        loc_clean = location_str.replace(':', ',').strip()
-        location = geolocator.geocode(loc_clean, timeout=10)
-        if location:
-            result = [location.latitude, location.longitude]
-            cache[loc_key] = result
-            return tuple(result)
-    except Exception:
-        pass
-    
-    cache[loc_key] = [None, None]
-    return None, None
-
-
-def extract_coordinates(
-    df: pd.DataFrame,
-    lat_lon_col: str = 'Lat/Lon',
-    geo_loc_col: str = 'Geo Location',
-    species_col: str = 'Species',
-    accession_col: str = 'Assembly Accession',
-    isolation_col: str = 'Isolation Source',
-    strain_col: str = 'Organism Infraspecific Names Strain',
-    use_geocoding: bool = True,
-    cache_path: str = None,
-    manual_latlon_path: str = None
-) -> Tuple[pd.DataFrame, dict]:
-    """Extract geographic coordinates from a DataFrame.
-    
-    Tries multiple sources in order:
-    1. Lat/Lon column (direct coordinates)
-    2. Geo Location (geocoded via API/cache)
-    3. Manual additions (from txt file)
-    
-    Returns:
-        Tuple of (coords_df, stats_dict)
-    """
-    # Initialize geocoder
-    geolocator = None
-    if use_geocoding and HAS_GEOPY:
-        geolocator = Nominatim(user_agent="aspergillus_strain_analysis_v1")
-    
-    geo_cache = load_geocode_cache(cache_path)
-    initial_cache_size = len(geo_cache)
-    manual_latlon = load_manual_latlon(manual_latlon_path)
-    
-    # Check column existence
-    lat_lon_col = lat_lon_col if lat_lon_col in df.columns else None
-    geo_loc_col = geo_loc_col if geo_loc_col in df.columns else None
-    
-    coords_data = []
-    n_from_latlon = 0
-    n_from_geocode = 0
-    n_from_cache = 0
-    n_from_manual = 0
-    
-    for idx, row in df.iterrows():
-        lat, lon = None, None
-        source = None
-        
-        # Try Lat/Lon first
-        if lat_lon_col and pd.notna(row.get(lat_lon_col)):
-            lat, lon = parse_lat_lon(row[lat_lon_col])
-            if lat is not None:
-                source = 'Lat/Lon'
-                n_from_latlon += 1
-        
-        # Fall back to Geo Location (geocoding)
-        if lat is None and geo_loc_col and pd.notna(row.get(geo_loc_col)) and geolocator:
-            loc_key = str(row[geo_loc_col]).strip().lower()
-            was_cached = loc_key in geo_cache
-            lat, lon = geocode_location(row[geo_loc_col], geolocator, geo_cache)
-            if lat is not None:
-                source = 'Geo Location'
-                if was_cached:
-                    n_from_cache += 1
-                else:
-                    n_from_geocode += 1
-        
-        # Fall back to manual lat/lon entries
-        if lat is None and manual_latlon:
-            if geo_loc_col and pd.notna(row.get(geo_loc_col)):
-                loc_key = normalize_location_key(row[geo_loc_col])
-                if loc_key in manual_latlon:
-                    lat, lon = manual_latlon[loc_key]
-                    source = 'Manual'
-                    n_from_manual += 1
-            
-            # Try matching strain name
-            if lat is None and strain_col in df.columns:
-                strain = str(row.get(strain_col, '')).strip()
-                for manual_key, (m_lat, m_lon) in manual_latlon.items():
-                    if strain and strain.lower() in manual_key.lower():
-                        lat, lon = m_lat, m_lon
-                        source = 'Manual (strain)'
-                        n_from_manual += 1
-                        break
-        
-        if lat is not None and lon is not None:
-            coords_data.append({
-                'lat': lat,
-                'lon': lon,
-                'species': row.get(species_col, 'Unknown'),
-                'accession': row.get(accession_col, ''),
-                'isolation_source': row.get(isolation_col, ''),
-                'source': source
-            })
-    
-    # Save geocode cache if it grew
-    if len(geo_cache) > initial_cache_size:
-        save_geocode_cache(geo_cache, cache_path)
-    
-    df_coords = pd.DataFrame(coords_data)
-    
-    stats = {
-        'total': len(df),
-        'mapped': len(df_coords),
-        'from_latlon': n_from_latlon,
-        'from_geocode': n_from_geocode,
-        'from_cache': n_from_cache,
-        'from_manual': n_from_manual
-    }
-    
-    return df_coords, stats
-
-
-def plot_strain_world_map(
-    df_coords: pd.DataFrame,
-    species_colors: dict = None,
-    output_path: str = None,
-    figsize: Tuple[int, int] = (16, 10),
-    title: str = 'Aspergillus Strain Isolation Locations'
-):
-    """Plot strain locations on a world map."""
-    import matplotlib.pyplot as plt
-    
-    if species_colors is None:
-        species_colors = {
-            'A. fumigatus': '#e74c3c',
-            'A. flavus': '#ffd500',
-            'A. niger': '#1a1aff',
-            'A. oryzae': '#27ae60',
-        }
-    
-    if HAS_CARTOPY:
-        fig, ax = plt.subplots(figsize=figsize, subplot_kw={'projection': ccrs.Robinson()})
-        ax.set_global()
-        ax.add_feature(cfeature.LAND, facecolor='wheat', edgecolor='none')
-        ax.add_feature(cfeature.OCEAN, facecolor='aliceblue')
-        ax.add_feature(cfeature.COASTLINE, linewidth=0.5)
-        ax.add_feature(cfeature.BORDERS, linewidth=0.3, linestyle=':')
-        
-        for species in df_coords['species'].unique():
-            subset = df_coords[df_coords['species'] == species]
-            color = species_colors.get(species, '#888888')
-            ax.scatter(
-                subset['lon'], subset['lat'],
-                c=color, s=50, alpha=0.7, label=species,
-                transform=ccrs.PlateCarree(), edgecolor='white', linewidth=0.5
-            )
-        
-        ax.legend(loc='lower left', fontsize=10)
-        ax.set_title(title, fontsize=14, fontweight='bold')
-    else:
-        fig, ax = plt.subplots(figsize=figsize)
-        for species in df_coords['species'].unique():
-            subset = df_coords[df_coords['species'] == species]
-            color = species_colors.get(species, '#888888')
-            ax.scatter(subset['lon'], subset['lat'], c=color, s=50, alpha=0.7, label=species)
-        ax.legend()
-        ax.set_xlabel('Longitude')
-        ax.set_ylabel('Latitude')
-        ax.set_title(title)
-    
-    plt.tight_layout()
-    
-    if output_path:
-        plt.savefig(output_path, dpi=150, bbox_inches='tight')
-        print(f"Map saved to: {output_path}")
-    
 
 
 # =============================================================================
@@ -2562,102 +2189,6 @@ def create_sample_id_mappings(df: pd.DataFrame, id_col: str = 'Assembly Accessio
             mappings[norm_id] = full_id
             mappings[full_id] = full_id
     return mappings
-
-
-def create_cross_sample_mappings(
-    pheno_sample_ids: List[str],
-    pca_sample_ids: List[str],
-    feature_sample_ids: List[str]
-) -> dict:
-    """Create cross-mappings between phenotype, PCA, and feature matrix sample IDs.
-
-    Handles format mismatches like:
-    - GCA_000002855.2 (metadata format)
-    - GCF_000002855.4_ASM285v2 (PCA/kinship format)
-    """
-    # Normalize all IDs
-    pheno_norm = {normalize_sample_id(s): s for s in pheno_sample_ids}
-    pca_norm = {normalize_sample_id(s): s for s in pca_sample_ids}
-    feature_norm = {normalize_sample_id(s): s for s in feature_sample_ids}
-
-    # Create mappings
-    pheno_to_pca = {}
-    pheno_to_feature = {}
-
-    for norm_id, pheno_id in pheno_norm.items():
-        if norm_id in pca_norm:
-            pheno_to_pca[pheno_id] = pca_norm[norm_id]
-        if norm_id in feature_norm:
-            pheno_to_feature[pheno_id] = feature_norm[norm_id]
-
-    # Find common samples (in all three)
-    common_norm = set(pheno_norm.keys()) & set(pca_norm.keys()) & set(feature_norm.keys())
-    common_samples = [pheno_norm[n] for n in common_norm]
-
-    return {
-        'pheno_to_pca': pheno_to_pca,
-        'pheno_to_feature': pheno_to_feature,
-        'common_samples': common_samples,
-        'pheno_norm': pheno_norm,
-        'pca_norm': pca_norm,
-        'feature_norm': feature_norm
-    }
-
-
-# =============================================================================
-# PHENOTYPE FILE CREATION FUNCTIONS
-# =============================================================================
-
-def create_phenotype_files(samples: pd.DataFrame, contrasts: dict, output_dir: str):
-    """
-    Create binary phenotype files for each contrast.
-    
-    strict: high-confidence only
-    broad: high + medium confidence
-    lenient: all confidence levels (high + medium + low)
-    """
-    os.makedirs(output_dir, exist_ok=True)
-    
-    phenotype_files = {}
-    
-    for contrast_name, contrast_config in contrasts.items():
-        case_labels = contrast_config['case']
-        control_labels = contrast_config['control']
-        
-        for stringency in ['strict', 'broad', 'lenient']:
-            if stringency == 'strict':
-                valid_conf = ['high']
-            elif stringency == 'broad':
-                valid_conf = ['high', 'medium']
-            else:
-                valid_conf = ['high', 'medium', 'low']
-            
-            # Filter samples
-            case_mask = (samples['label_short'].isin(case_labels)) & (samples['confidence'].isin(valid_conf))
-            ctrl_mask = (samples['label_short'].isin(control_labels)) & (samples['confidence'].isin(valid_conf))
-            
-            case_samples = samples[case_mask]['sample_id'].tolist()
-            ctrl_samples = samples[ctrl_mask]['sample_id'].tolist()
-            
-            # Create phenotype DataFrame
-            pheno_data = []
-            for s in case_samples:
-                pheno_data.append({'sample_id': s, 'phenotype': 1})
-            for s in ctrl_samples:
-                pheno_data.append({'sample_id': s, 'phenotype': 0})
-            
-            if len(pheno_data) > 0:
-                pheno_df = pd.DataFrame(pheno_data)
-                filename = f"{contrast_name}_{stringency}.tsv"
-                filepath = os.path.join(output_dir, filename)
-                pheno_df.to_csv(filepath, sep='\t', index=False)
-                phenotype_files[f"{contrast_name}_{stringency}"] = {
-                    'path': filepath,
-                    'n_case': len(case_samples),
-                    'n_control': len(ctrl_samples)
-                }
-    
-    return phenotype_files
 
 
 # =============================================================================
@@ -2771,131 +2302,6 @@ def calculate_genomic_inflation(pvalues: np.ndarray) -> float:
     return lambda_gc
 
 
-def apply_genomic_control(results_df, lambda_gc=None):
-    """Apply genomic control correction to pan-GWAS results.
-
-    Divides chi-squared statistics by lambda_gc to correct for
-    population structure inflation, then recomputes p-values and FDR.
-    """
-    from scipy import stats
-    from statsmodels.stats.multitest import multipletests
-
-    df = results_df.copy()
-    pvals = df['pvalue'].values.astype(float)
-
-    if lambda_gc is None:
-        lambda_gc = calculate_genomic_inflation(pvals)
-
-    if lambda_gc <= 1.0:
-        df['pvalue_gc'] = pvals
-    else:
-        valid = (pvals > 0) & (pvals < 1) & ~np.isnan(pvals)
-        pvals_gc = np.full_like(pvals, np.nan)
-        chi2 = stats.chi2.ppf(1 - pvals[valid], df=1)
-        chi2_corrected = chi2 / lambda_gc
-        pvals_gc[valid] = 1 - stats.chi2.cdf(chi2_corrected, df=1)
-        df['pvalue_gc'] = pvals_gc
-
-    mask = ~np.isnan(df['pvalue_gc'])
-    df['fdr_gc'] = np.nan
-    if mask.sum() > 0:
-        df.loc[mask, 'fdr_gc'] = multipletests(
-            df.loc[mask, 'pvalue_gc'], method='fdr_bh'
-        )[1]
-
-    return df
-
-
-def plot_qq(pvalues: np.ndarray, ax=None, title: str = 'QQ Plot'):
-    """Plot QQ plot of p-values."""
-    import matplotlib.pyplot as plt
-    from scipy import stats
-    
-    pvalues = np.array(pvalues)
-    pvalues = pvalues[~np.isnan(pvalues)]
-    pvalues = pvalues[pvalues > 0]
-    
-    observed = -np.log10(np.sort(pvalues))
-    expected = -np.log10(np.linspace(1/len(pvalues), 1, len(pvalues)))
-    
-    if ax is None:
-        fig, ax = plt.subplots(figsize=(6, 6))
-    
-    ax.scatter(expected, observed, alpha=0.5, s=10)
-    max_val = max(max(expected), max(observed))
-    ax.plot([0, max_val], [0, max_val], 'r--', label='Expected')
-    
-    lambda_gc = calculate_genomic_inflation(pvalues)
-    ax.set_xlabel('Expected -log10(p)')
-    ax.set_ylabel('Observed -log10(p)')
-    ax.set_title(f'{title}\nλ = {lambda_gc:.3f}')
-    ax.legend()
-    
-    return ax
-
-
-def plot_manhattan(
-    results: pd.DataFrame,
-    pval_col: str = 'pvalue',
-    feature_col: str = 'feature',
-    ax=None,
-    title: str = 'Manhattan Plot',
-    significance_threshold: float = 0.05
-):
-    """Plot Manhattan-style plot of association results."""
-    import matplotlib.pyplot as plt
-    
-    if ax is None:
-        fig, ax = plt.subplots(figsize=(12, 4))
-    
-    results = results.sort_values(feature_col)
-    results['idx'] = range(len(results))
-    
-    log_p = -np.log10(results[pval_col].values)
-    
-    ax.scatter(results['idx'], log_p, alpha=0.5, s=10)
-    
-    # Significance line
-    if significance_threshold:
-        ax.axhline(-np.log10(significance_threshold), color='red', linestyle='--', 
-                   label=f'p = {significance_threshold}')
-        
-        # Bonferroni line
-        bonf = significance_threshold / len(results)
-        ax.axhline(-np.log10(bonf), color='blue', linestyle=':', 
-                   label=f'Bonferroni ({bonf:.2e})')
-    
-    ax.set_xlabel('Feature Index')
-    ax.set_ylabel('-log10(p-value)')
-    ax.set_title(title)
-    ax.legend()
-    
-    return ax
-
-
-def create_diagnostic_plots(
-    results: pd.DataFrame,
-    output_path: str = None,
-    title_prefix: str = ''
-):
-    """Create QQ and Manhattan diagnostic plots."""
-    import matplotlib.pyplot as plt
-    
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-    
-    plot_qq(results['pvalue'].values, ax=axes[0], 
-            title=f'{title_prefix} QQ Plot')
-    plot_manhattan(results, ax=axes[1], 
-                   title=f'{title_prefix} Manhattan Plot')
-    
-    plt.tight_layout()
-    
-    if output_path:
-        plt.savefig(output_path, dpi=150, bbox_inches='tight')
-        print(f"Diagnostic plots saved to: {output_path}")
-    
-
-
 # --- Functions extracted from NB0_DataPrep notebook ---
 
 # =============================================================================
@@ -2918,26 +2324,32 @@ except ImportError:
     HAS_CARTOPY = False
 
 # ---- Geocoding helpers ----
-def load_geocode_cache():
-    # Try NB0 cache first, use NB0 cache
-    nb0_cache = os.path.join(RESULTS_BASE, 'geocode_cache.json')
-    for path in [nb0_cache, GEOCODE_CACHE_PATH]:
+def load_geocode_cache(results_base=None):
+    # Prefer the caller's results dir, then the module default
+    base = results_base or RESULTS_BASE
+    for path in [os.path.join(base, 'geocode_cache.json'), GEOCODE_CACHE_PATH]:
         if os.path.exists(path):
             with open(path, 'r') as f:
                 return json.load(f)
     return {}
 
-def save_geocode_cache(cache):
-    out = os.path.join(RESULTS_BASE, 'geocode_cache.json')
+def save_geocode_cache(cache, results_base=None):
+    base = results_base or RESULTS_BASE
+    os.makedirs(base, exist_ok=True)
+    out = os.path.join(base, 'geocode_cache.json')
     with open(out, 'w') as f:
         json.dump(cache, f)
 
-def load_manual_latlon():
+def load_manual_latlon(results_base=None):
     manual_coords = {'by_location': {}, 'by_strain': {}}
-    if not os.path.exists(MANUAL_LATLON_PATH):
+    path = (os.path.join(results_base, 'manual_latlon_additions.txt')
+            if results_base else MANUAL_LATLON_PATH)
+    if not os.path.exists(path):
+        print(f'  NOTE: no manual coordinate file at {path}; '
+              'strains that rely on it will be missing from the map.')
         return manual_coords
     current_location = current_lat = current_lon = current_notes = None
-    with open(MANUAL_LATLON_PATH, 'r') as f:
+    with open(path, 'r') as f:
         lines = f.readlines()
     for line in lines:
         line = line.strip()
@@ -3031,7 +2443,7 @@ def geocode_location(location_str, geolocator, cache):
     cache[loc_key] = [None, None]
     return None, None
 
-def build_strain_coordinates(df_analysis, species_colors=None):
+def build_strain_coordinates(df_analysis, species_colors=None, results_base=None):
     """Extract geographic coordinates for all strains in df_analysis.
 
     Returns
@@ -3044,9 +2456,9 @@ def build_strain_coordinates(df_analysis, species_colors=None):
         species_colors = SPECIES_COLORS
 
     print('Extracting coordinates for strain locations...')
-    manual_coords = load_manual_latlon()
+    manual_coords = load_manual_latlon(results_base)
     geolocator = Nominatim(user_agent='aspergillus_strain_analysis_v1') if HAS_GEOPY else None
-    geo_cache = load_geocode_cache()
+    geo_cache = load_geocode_cache(results_base)
     initial_cache_size = len(geo_cache)
 
     coords_data = []
@@ -3087,7 +2499,7 @@ def build_strain_coordinates(df_analysis, species_colors=None):
             })
 
     if len(geo_cache) > initial_cache_size:
-        save_geocode_cache(geo_cache)
+        save_geocode_cache(geo_cache, results_base)
         print(f'Geocode cache updated: {len(geo_cache)} locations')
 
     df_coords = pd.DataFrame(coords_data)
@@ -3176,6 +2588,380 @@ def plot_strain_world_map_from_coords(df_coords, results_base, species_colors=No
     map_path = os.path.join(results_base, 'strain_world_map.png')
     fig.savefig(map_path, dpi=dpi, bbox_inches='tight')
     print(f'\nMap saved to: {map_path}')
+
+
+def plot_strain_world_map_with_marginals(
+        df_coords, results_base, species_colors=None,
+        fontsize=15, dpi=400, marker_size=90, figsize=(18, 12),
+        n_lon_bins=72, n_lat_bins=36, hist_frac=0.16, pad_frac=0.012,
+        hist_alpha=0.45, hist_density=False, hist_mode='hist+kde', kde_bw=0.03, kde_unit_deg=10,
+        filename='strain_world_map_marginals.png'):
+    """World map of strain locations with marginal density histograms.
+
+    Same map as ``plot_strain_world_map_from_coords``, but with overlapping
+    per-species histograms along the top (longitude) and right (latitude)
+    edges, so overlapping markers do not hide sampling density.
+    The species distributions are drawn on top of one another (translucent
+    fill + solid outline), not stacked.
+
+    Points are binned in *projected* map coordinates, not in raw degrees, so
+    every bar sits directly above/beside the column of dots it counts. Under
+    Robinson, y depends only on latitude, and x is linear in longitude along
+    the equator, so bin edges are evenly spaced in degrees at the equator
+    (10 deg per bin with the defaults).
+
+    Parameters
+    ----------
+    df_coords : pd.DataFrame
+        Output of ``build_strain_coordinates``.
+    results_base : str
+        Directory for saving the plot.
+    species_colors : dict, optional
+        Species-to-color mapping (defaults to SPECIES_COLORS_DISPLAY).
+    fontsize : int
+        Base font size (title is +3, legend title is +1, hist ticks are -4).
+    dpi : int
+        Resolution of saved PNG.
+    marker_size : int
+        Scatter marker area in points^2.
+    figsize : tuple
+        Figure size in inches.
+    n_lon_bins, n_lat_bins : int
+        Number of bins in the top and right histograms.
+    hist_frac : float
+        Height/width of the marginal panels, as a fraction of figure size.
+    pad_frac : float
+        Gap between the map and its marginal panels, as a fraction of figure size.
+    hist_mode : {'hist+kde', 'kde', 'overlap', 'ridge'}
+        'hist+kde' (default) draws the exact per-bin counts as faint bars with a
+        smooth curve over them: the bars remain countable, the curve carries the
+        shape. 'kde' drops the bars, leaving only smooth curves -- readable, but
+        a peak's height is then a density, NOT the number of strains there.
+        'overlap' is bars only. 'ridge' separates the species into one lane each.
+    kde_unit_deg : float
+        'kde' mode only. The KDE is built from the exact coordinates, so it needs
+        no bins; this is purely the reference width used to express the smooth
+        density as a strain count, and it is stated in the axis label ("Strains
+        per 10°"). n_lon_bins / n_lat_bins are ignored in this mode.
+    kde_bw : float
+        Kernel width as a fraction of the axis span, the SAME for every species
+        (so curve heights are comparable). Smaller = tighter, spikier curves that
+        track individual clusters; larger = smoother. 0.03 keeps the US / Europe /
+        East-Asia peaks distinct without turning duplicate coordinates into
+        needles.
+    hist_alpha : float
+        Fill opacity under the curves ('kde') or bars ('overlap'); outlines stay
+        solid. Unused by 'ridge', whose lanes never overlap.
+    hist_density : bool
+        False (default) plots strain counts, so panel height reflects how many
+        genomes were sampled. True plots each species as its own normalised
+        distribution, which makes the shape of a small species (e.g. A. niger,
+        n=16) comparable to a large one, at the cost of hiding sample size.
+    filename : str
+        Output file name inside ``results_base``.
+    """
+    import matplotlib.pyplot as plt
+    from matplotlib.ticker import MaxNLocator
+
+    if species_colors is None:
+        from funpan_utils import SPECIES_COLORS_DISPLAY
+        species_colors = SPECIES_COLORS_DISPLAY
+
+    if len(df_coords) == 0:
+        print('\nNo coordinates available for mapping.')
+        return
+
+    color_lookup = dict(species_colors)
+    species_order = sorted(df_coords['species'].unique())
+    FS = fontsize
+
+    fig = plt.figure(figsize=figsize)
+
+    # Leave room on the top/right for the marginal panels. The map keeps its
+    # own aspect ratio, so its *drawn* box is smaller than the box requested
+    # here -- we read the real box back after a draw and align the panels to it.
+    map_box = [0.06, 0.06, 1.0 - 0.12 - hist_frac, 1.0 - 0.12 - hist_frac]
+
+    if HAS_CARTOPY:
+        proj = ccrs.Robinson()
+        data_crs = ccrs.PlateCarree()
+        ax = fig.add_axes(map_box, projection=proj)
+        ax.set_global()
+        ax.add_feature(cfeature.LAND, facecolor='#f0f0f0')
+        ax.add_feature(cfeature.OCEAN, facecolor='#e6f3ff')
+        ax.add_feature(cfeature.COASTLINE, linewidth=0.5)
+        ax.add_feature(cfeature.BORDERS, linewidth=0.3, linestyle=':', alpha=0.5)
+        scatter_kw = dict(transform=data_crs)
+        # Marker positions in projected (map) coordinates -- these are what the
+        # marginal histograms count.
+        pts = proj.transform_points(data_crs,
+                                    df_coords['lon'].to_numpy(float),
+                                    df_coords['lat'].to_numpy(float))
+        px, py = pts[:, 0], pts[:, 1]
+    else:
+        ax = fig.add_axes(map_box)
+        ax.set_xlim(-180, 180); ax.set_ylim(-90, 90)
+        ax.set_aspect('equal')
+        ax.set_xlabel('Longitude', fontsize=FS); ax.set_ylabel('Latitude', fontsize=FS)
+        ax.tick_params(axis='both', labelsize=FS)
+        ax.grid(True, alpha=0.3); ax.set_facecolor('#f5f5f5')
+        scatter_kw = {}
+        px, py = df_coords['lon'].to_numpy(float), df_coords['lat'].to_numpy(float)
+
+    for species in species_order:
+        sp_data = df_coords[df_coords['species'] == species]
+        ax.scatter(sp_data['lon'], sp_data['lat'],
+                   c=color_lookup.get(species, '#333333'), s=marker_size, alpha=0.75,
+                   label=f'{species} (n={len(sp_data)})',
+                   edgecolors='white', linewidth=0.7, zorder=5, **scatter_kw)
+
+    ax.legend(loc='lower left', fontsize=FS, title='Species',
+              title_fontsize=FS + 1, framealpha=0.95)
+
+    # Resolve the map's true drawn box (aspect ratio shrinks it inside map_box).
+    fig.canvas.draw()
+    pos = ax.get_position()
+    xlim, ylim = ax.get_xlim(), ax.get_ylim()
+
+    lon_edges = np.linspace(xlim[0], xlim[1], n_lon_bins + 1)
+    lat_edges = np.linspace(ylim[0], ylim[1], n_lat_bins + 1)
+    count_label = 'Density' if hist_density else 'Strains'
+
+    def _counts(vals, edges):
+        c, _ = np.histogram(vals, bins=edges, density=hist_density)
+        return c
+
+    masks = {sp: (df_coords['species'] == sp).to_numpy() for sp in species_order}
+
+    if hist_mode in ('kde', 'hist+kde'):
+        # All species on ONE shared baseline, but as smooth density curves rather
+        # than bars. Curves are scaled to counts (density x n x bin width) so a
+        # peak's height is still readable as "how many strains", and so the
+        # y-axis means the same thing it did in the bar version.
+        ax_top = fig.add_axes([pos.x0, pos.y1 + pad_frac, pos.width, hist_frac])
+        ax_right = fig.add_axes([pos.x1 + pad_frac, pos.y0, hist_frac, pos.height])
+        grid_x = np.linspace(xlim[0], xlim[1], 512)
+        grid_y = np.linspace(ylim[0], ylim[1], 512)
+        with_bars = (hist_mode == 'hist+kde')
+
+        if with_bars:
+            # Bars carry the EXACT per-bin counts; the smooth curve is scaled to
+            # the same bin width and laid over them, so it is a readable guide to
+            # the shape without replacing the countable truth underneath it.
+            lon_w = lon_edges[1] - lon_edges[0]
+            lat_w = lat_edges[1] - lat_edges[0]
+            lon_unit = 360.0 / n_lon_bins
+            lat_unit = 180.0 / n_lat_bins
+            top_label = ('Density' if hist_density else f'Strains per {lon_unit:g}°')
+            right_label = ('Density' if hist_density else f'Strains per {lat_unit:g}°')
+        else:
+            # The KDE uses the exact coordinates; n_lon_bins and n_lat_bins do
+            # not quantise it. kde_unit_deg is the reference width that converts
+            # the density to a strain count, and is named in the axis label.
+            lon_w = (xlim[1] - xlim[0]) * kde_unit_deg / 360.0
+            lat_w = (ylim[1] - ylim[0]) * kde_unit_deg / 180.0
+            top_label = right_label = ('Density' if hist_density
+                                       else f'Strains per {kde_unit_deg:g}°')
+
+        def _curve(vals, grid, bin_w):
+            """Count-scaled density curve on a fixed, species-independent kernel.
+
+            ``gaussian_kde``'s bw_method is a MULTIPLIER on each dataset's own
+            spread, which would give tightly-clustered A. oryzae a needle-thin
+            kernel and far-flung A. fumigatus a broad one -- the curves would not
+            be comparable. So the kernel width is pinned to an absolute fraction
+            of the axis span (``kde_bw``), identical for every species, and the
+            curve is evaluated directly.
+            """
+            vals = np.asarray(vals, dtype=float)
+            n = len(vals)
+            if n == 0:
+                return np.zeros_like(grid)
+            sigma = kde_bw * float(np.ptp(grid))
+            # Sum of identical gaussians, one per strain: integral = n, so
+            # multiplying by bin width puts the curve on the same scale as a
+            # histogram of counts with that bin width.
+            dens = np.exp(-0.5 * ((grid[None, :] - vals[:, None]) / sigma) ** 2).sum(axis=0)
+            dens /= (sigma * np.sqrt(2 * np.pi))
+            return dens / n if hist_density else dens * bin_w
+
+        def _through_bars(vals, edges, grid):
+            """Smooth curve that passes exactly through the histogram bar tops.
+
+            PCHIP is shape-preserving: it hits every (bin centre, count) knot with
+            no overshoot, so the curve never invents a peak the bars do not show
+            and never undershoots one they do. Padded with zeros half a bin beyond
+            each end so the curve lands on the baseline rather than floating.
+            """
+            from scipy.interpolate import PchipInterpolator
+            counts, _ = np.histogram(np.asarray(vals, dtype=float), bins=edges,
+                                     density=hist_density)
+            centres = 0.5 * (edges[:-1] + edges[1:])
+            w = edges[1] - edges[0]
+            xs = np.concatenate(([centres[0] - w], centres, [centres[-1] + w]))
+            ys = np.concatenate(([0.0], counts.astype(float), [0.0]))
+            curve = PchipInterpolator(xs, ys)(grid)
+            return np.clip(curve, 0, None)
+
+        for species in species_order:
+            m = masks[species]
+            color = color_lookup.get(species, '#333333')
+            if with_bars:
+                # Exact counts, drawn faintly so the curves stay legible on top.
+                ax_top.hist(px[m], bins=lon_edges, density=hist_density,
+                            histtype='stepfilled', color=color, alpha=hist_alpha,
+                            zorder=2)
+                ax_right.hist(py[m], bins=lat_edges, density=hist_density,
+                              orientation='horizontal', histtype='stepfilled',
+                              color=color, alpha=hist_alpha, zorder=2)
+            if with_bars:
+                # The curve must AGREE with the bars, so it is not a KDE (a KDE
+                # redistributes mass and always undershoots a tall spike). It is a
+                # shape-preserving interpolation through the bar tops: it passes
+                # exactly through every bin count and just smooths the corners.
+                cx = _through_bars(px[m], lon_edges, grid_x)
+                cy = _through_bars(py[m], lat_edges, grid_y)
+            else:
+                cx = _curve(px[m], grid_x, lon_w)
+                cy = _curve(py[m], grid_y, lat_w)
+            if not with_bars:
+                ax_top.fill_between(grid_x, 0, cx, color=color, alpha=hist_alpha,
+                                    linewidth=0, zorder=2)
+                ax_right.fill_betweenx(grid_y, 0, cy, color=color, alpha=hist_alpha,
+                                       linewidth=0, zorder=2)
+            ax_top.plot(grid_x, cx, color=color, linewidth=2.2, zorder=4)
+            ax_right.plot(cy, grid_y, color=color, linewidth=2.2, zorder=4)
+
+        ax_top.set_xlim(xlim); ax_top.set_xticks([]); ax_top.set_ylim(bottom=0)
+        ax_right.set_ylim(ylim); ax_right.set_yticks([]); ax_right.set_xlim(left=0)
+        ax_top.set_ylabel(top_label, fontsize=FS - 2)
+        ax_right.set_xlabel(right_label, fontsize=FS - 2)
+        for hax in (ax_top, ax_right):
+            hax.tick_params(axis='both', labelsize=FS - 4)
+            for side in ('top', 'right'):
+                hax.spines[side].set_visible(False)
+            hax.set_facecolor('none')
+        ax_top.spines['bottom'].set_visible(False)
+        ax_right.spines['left'].set_visible(False)
+        ax_top.yaxis.set_major_locator(MaxNLocator(integer=not hist_density, nbins=4))
+        ax_right.xaxis.set_major_locator(MaxNLocator(integer=not hist_density, nbins=4))
+        ax_top.grid(axis='y', alpha=0.25, linewidth=0.5)
+        ax_right.grid(axis='x', alpha=0.25, linewidth=0.5)
+        ax_top.set_axisbelow(True); ax_right.set_axisbelow(True)
+    elif hist_mode == 'ridge':
+        # One lane per species, each with its OWN baseline, sharing the map's
+        # axis. Nothing overlaps, so every species is read against zero instead
+        # of against whatever is stacked/blended underneath it.
+        n_sp = len(species_order)
+        h_each = hist_frac / n_sp
+        top_c = {sp: _counts(px[masks[sp]], lon_edges) for sp in species_order}
+        right_c = {sp: _counts(py[masks[sp]], lat_edges) for sp in species_order}
+        # Shared count scale across lanes, so bar heights stay comparable.
+        top_max = max(c.max() for c in top_c.values()) or 1
+        right_max = max(c.max() for c in right_c.values()) or 1
+        lon_ctr = 0.5 * (lon_edges[:-1] + lon_edges[1:])
+        lat_ctr = 0.5 * (lat_edges[:-1] + lat_edges[1:])
+        lon_w = lon_edges[1] - lon_edges[0]
+        lat_w = lat_edges[1] - lat_edges[0]
+
+        top_axes, right_axes = [], []
+        for i, sp in enumerate(species_order):
+            color = color_lookup.get(sp, '#333333')
+            # Lanes run bottom-up so the first species sits nearest the map.
+            axt = fig.add_axes([pos.x0, pos.y1 + pad_frac + i * h_each,
+                                pos.width, h_each])
+            axt.bar(lon_ctr, top_c[sp], width=lon_w, color=color,
+                    edgecolor=color, linewidth=0.3, zorder=3)
+            axt.set_xlim(xlim); axt.set_ylim(0, top_max * 1.12)
+            axt.set_xticks([])
+            # Label inside the lane, over the empty Pacific at its left edge --
+            # keeps the space above the right-hand panel free for its own labels.
+            axt.text(0.012, 0.62, sp, transform=axt.transAxes, ha='left',
+                     va='center', fontsize=FS - 7, color=color,
+                     fontweight='bold', clip_on=False)
+            top_axes.append(axt)
+
+            axr = fig.add_axes([pos.x1 + pad_frac + i * (hist_frac / n_sp), pos.y0,
+                                hist_frac / n_sp, pos.height])
+            axr.barh(lat_ctr, right_c[sp], height=lat_w, color=color,
+                     edgecolor=color, linewidth=0.3, zorder=3)
+            axr.set_ylim(ylim); axr.set_xlim(0, right_max * 1.12)
+            axr.set_yticks([])
+            axr.text(0.5, 1.008, sp.replace('A. ', ''), transform=axr.transAxes,
+                     ha='left', va='bottom', fontsize=FS - 7, color=color,
+                     fontweight='bold', rotation=90, clip_on=False)
+            right_axes.append(axr)
+
+        for axx in top_axes + right_axes:
+            for side in ('top', 'right'):
+                axx.spines[side].set_visible(False)
+            axx.set_facecolor('none')
+            axx.tick_params(axis='both', labelsize=FS - 6)
+        # Only the lane nearest the map carries the count ticks; the rest share
+        # its scale, so one labelled axis is enough and the panel stays clean.
+        for axx in top_axes[1:]:
+            axx.set_yticks([])
+            axx.spines['left'].set_visible(False)
+        for axx in right_axes[1:]:
+            axx.set_xticks([])
+            axx.spines['bottom'].set_visible(False)
+        top_axes[0].yaxis.set_major_locator(MaxNLocator(integer=not hist_density, nbins=3))
+        right_axes[0].xaxis.set_major_locator(MaxNLocator(integer=not hist_density, nbins=3))
+        top_axes[0].set_ylabel(count_label, fontsize=FS - 3)
+        right_axes[0].set_xlabel(count_label, fontsize=FS - 3)
+        for axx in top_axes:
+            axx.spines['bottom'].set_visible(True)
+            axx.spines['bottom'].set_color('#bbbbbb')
+        for axx in right_axes:
+            axx.spines['left'].set_visible(True)
+            axx.spines['left'].set_color('#bbbbbb')
+        ax_top, ax_right = top_axes[-1], right_axes[0]
+    else:
+        ax_top = fig.add_axes([pos.x0, pos.y1 + pad_frac, pos.width, hist_frac])
+        ax_right = fig.add_axes([pos.x1 + pad_frac, pos.y0, hist_frac, pos.height])
+
+        # Overlapping (NOT stacked) distributions: each species is its own
+        # translucent filled histogram with a solid outline, so a species hidden
+        # behind a bigger one is still readable through the fill.
+        for species in species_order:
+            m = masks[species]
+            color = color_lookup.get(species, '#333333')
+            fill_kw = dict(histtype='stepfilled', color=color, alpha=hist_alpha,
+                           density=hist_density, zorder=2)
+            line_kw = dict(histtype='step', color=color, linewidth=1.6,
+                           density=hist_density, zorder=3)
+            ax_top.hist(px[m], bins=lon_edges, **fill_kw)
+            ax_top.hist(px[m], bins=lon_edges, **line_kw)
+            ax_right.hist(py[m], bins=lat_edges, orientation='horizontal', **fill_kw)
+            ax_right.hist(py[m], bins=lat_edges, orientation='horizontal', **line_kw)
+
+        # Panels share the map's coordinate range so bars line up with the markers.
+        ax_top.set_xlim(xlim); ax_top.set_xticks([])
+        ax_right.set_ylim(ylim); ax_right.set_yticks([])
+        ax_top.set_ylabel(count_label, fontsize=FS - 2)
+        ax_right.set_xlabel(count_label, fontsize=FS - 2)
+        for hax in (ax_top, ax_right):
+            hax.tick_params(axis='both', labelsize=FS - 4)
+            for side in ('top', 'right'):
+                hax.spines[side].set_visible(False)
+            hax.set_facecolor('none')
+        ax_top.spines['bottom'].set_visible(False)
+        ax_right.spines['left'].set_visible(False)
+        ax_top.yaxis.set_major_locator(MaxNLocator(integer=not hist_density, nbins=4))
+        ax_right.xaxis.set_major_locator(MaxNLocator(integer=not hist_density, nbins=4))
+        ax_top.grid(axis='y', alpha=0.25, linewidth=0.5)
+        ax_right.grid(axis='x', alpha=0.25, linewidth=0.5)
+        ax_top.set_axisbelow(True)
+        ax_right.set_axisbelow(True)
+
+    fig.text(pos.x0 + pos.width / 2, pos.y1 + pad_frac + hist_frac + 0.03,
+             f'Geographic Distribution of Aspergillus Strains (n={len(df_coords)})',
+             ha='center', va='bottom', fontsize=FS + 3, fontweight='bold')
+
+    map_path = os.path.join(results_base, filename)
+    fig.savefig(map_path, dpi=dpi, bbox_inches='tight')
+    print(f'\nMap with marginal histograms saved to: {map_path}')
+    return fig
 
 
 # =============================================================================

@@ -1,0 +1,54 @@
+gene,category,description,locus_tag,uniprot,source_key
+amyB,Taka-amylase,Alpha-amylase isoform B major taka-amylase,AO090120000196,,Machida2005
+glaA,Glucoamylase,Secreted glucoamylase A liquid-culture isoform,AO090003000504,,Tada1991
+glaB,Glucoamylase,Solid-state koji-specific glucoamylase B,AO090010000746,,Tada1991
+agdA,Alpha-glucosidase,Alpha-glucosidase A secreted GH31 enzyme,,,Machida2005
+alpA,Alkaline protease,Oryzin alkaline serine protease subtilisin-like koji workhorse,AO090003001036,,Machida2005
+nptA,Neutral protease,Neutral metalloprotease I deuterolysin-like,AO090011000036,,Machida2005
+nptB,Neutral protease,Neutral metalloprotease II major koji protease,AO090003000950,,Machida2005
+kex2,Subtilisin-like,Kex2 endoprotease pro-protein processing,,,Machida2005
+gtaA,Glutaminase,Salt-tolerant glutaminase A umami flavor in koji,AO090009000466,,Hisada2013
+cutL,Cutinase,Cutinase CutL1 polyester-degrading lipolytic L1,AO090102000130,,Machida2005
+xynG1,Xylanase,"Endo-1,4-beta-xylanase GH11 family shoyu koji",AO090010000363,,Machida2005
+xynG2,Xylanase,"Endo-1,4-beta-xylanase G2 GH10 family",,,Machida2005
+xynF1,Xylanase,"Endo-1,4-beta-xylanase F1",,,Machida2005
+phyA,Phytase,Phytase A myo-inositol hexakisphosphate hydrolysis,AO090120000049,,Machida2005
+phyB,Phytase,Phytase B koji-specific isoform,,,Machida2005
+tanA,Tannase,Tannin acyl hydrolase A,,,Machida2005
+tanB,Tannase,Tannin acyl hydrolase B,,,Machida2005
+suc1,Beta-fructosidase,Beta-fructofuranosidase invertase FOS production,,,Machida2005
+kojA,Kojic-acid,FAD-dependent oxidoreductase kojic acid biosynthesis,AO090113000136,,Marui2011
+kojR,Kojic-acid,Zn2Cys6 transcription factor kojic acid cluster regulator,AO090113000137,,Marui2011
+kojT,Kojic-acid,MFS transporter kojic acid efflux,AO090113000138,,Marui2011
+aflR,Aflatoxin-cluster-relic,Zn2Cys6 TF aflatoxin cluster regulator silenced in RIB40,,,Tominaga2006
+aflS,Aflatoxin-cluster-relic,aflJ co-activator nonfunctional in A. oryzae RIB40,,,Tominaga2006
+aflC,Aflatoxin-cluster-relic,Polyketide synthase pksA aflatoxin biosynthesis relic,,,Tominaga2006
+aflD,Aflatoxin-cluster-relic,Norsolorinic acid reductase nor-1 cluster relic,,,Tominaga2006
+aflM,Aflatoxin-cluster-relic,Versicolorin dehydrogenase ver-1 cluster relic,,,Tominaga2006
+aflO,Aflatoxin-cluster-relic,O-methyltransferase B aflatoxin cluster relic,,,Tominaga2006
+aflP,Aflatoxin-cluster-relic,O-methyltransferase A omtA cluster relic,,,Tominaga2006
+aflQ,Aflatoxin-cluster-relic,Cytochrome P450 ordA cluster relic,,,Tominaga2006
+aflT,Aflatoxin-cluster-relic,MFS transporter aflatoxin cluster relic,,,Tominaga2006
+laeA,Velvet/development,Global SM regulator methyltransferase velvet complex,AO090012000049,,Calvo2002
+veA,Velvet/development,Velvet protein VeA light-dependent development regulator,AO090010000007,,Calvo2002
+velB,Velvet/development,Velvet family protein VelB development SM,,,Calvo2002
+velC,Velvet/development,Velvet family protein VelC,,,Calvo2002
+vosA,Velvet/development,Velvet protein VosA conidia maturation viability,,,Calvo2002
+amyR,Transcription regulator,Zn2Cys6 TF amylolytic gene activator,,,Marui2010
+malR,Transcription regulator,Zn2Cys6 TF maltose utilization regulator,,,Marui2010
+xlnR,Transcription regulator,Zn2Cys6 TF xylanolytic / cellulolytic activator,,,Marui2010
+araR,Transcription regulator,Zn2Cys6 TF arabinose pentose catabolism regulator,,,Marui2010
+manR,Transcription regulator,Zn2Cys6 TF mannanolytic regulator,,,Marui2010
+prtR,Transcription regulator,Zn2Cys6 TF proteolytic gene master regulator,AO090003001577,,Marui2010
+farA,Transcription regulator,Zn2Cys6 TF fatty acid lipase regulator,,,Marui2010
+faeR,Transcription regulator,Ferulic acid esterase regulator,,,Marui2010
+creA,Carbon catabolite,C2H2 TF carbon catabolite repressor master regulator,,,Marui2010
+creB,Carbon catabolite,Deubiquitinating enzyme CCR component,,,Marui2010
+creC,Carbon catabolite,WD40-repeat protein CCR component,,,Marui2010
+creD,Carbon catabolite,Arrestin domain protein CCR component,,,Marui2010
+hacA,UPR/secretion,bZIP transcription factor master UPR regulator,,,Mulder2004
+ireA,UPR/secretion,ER stress sensor kinase / endoribonuclease,,,Mulder2004
+srgA,UPR/secretion,Secretion-related GTPase Rab-family vesicle transport,,,Mulder2004
+srpA,UPR/secretion,Signal recognition particle ER targeting,,,Mulder2004
+rolA,Domestication-related,Hydrophobin class I PBSA degradation accessory,AO090020000588,,Gibbons2012
+hsbA,Domestication-related,Hydrophobic surface binding protein A,,,Gibbons2012

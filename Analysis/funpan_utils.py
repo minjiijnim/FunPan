@@ -637,7 +637,6 @@ def plot_qc_metrics_per_species(df, species_list, references, metrics=None, figs
     plt.tight_layout()
 
 
-
 # =============================================================================
 # EGGNOG I/O FUNCTIONS (from functions_for_analysis_1_2.py)
 # =============================================================================
@@ -717,7 +716,7 @@ def load_emapper_for_accessions(eggnog_dir: str, accessions) -> pd.DataFrame:
         if not os.path.exists(ann):
             hits = glob.glob(os.path.join(eggnog_dir, f"{acc}*.emapper.annotations"))
             if not hits:
-                print(f"[eggNOG] Missing for {acc} — skipping")
+                print(f"[eggNOG] Missing for {acc}, skipping")
                 continue
             ann = hits[0]
         try:
@@ -806,12 +805,12 @@ def load_dbcan_for_accessions(dbcan_dir: str, accessions) -> pd.DataFrame:
             if hits:
                 acc_dir = hits[0]
             else:
-                print(f"[dbCAN] Missing dir for {acc} — skipping")
+                print(f"[dbCAN] Missing dir for {acc}, skipping")
                 continue
 
         overview = os.path.join(acc_dir, "overview.tsv")
         if not os.path.exists(overview):
-            print(f"[dbCAN] No overview.tsv for {acc} — skipping")
+            print(f"[dbCAN] No overview.tsv for {acc}, skipping")
             continue
 
         try:
@@ -890,14 +889,14 @@ def load_interproscan_for_accessions(interproscan_dir: str, accessions) -> pd.Da
         acc_pattern = os.path.join(interproscan_dir, f"{acc}*")
         hits = [h for h in glob.glob(acc_pattern) if os.path.isdir(h)]
         if not hits:
-            print(f"[InterProScan] Missing dir for {acc} — skipping")
+            print(f"[InterProScan] Missing dir for {acc}, skipping")
             continue
         acc_dir = hits[0]
 
         tsv_pattern = os.path.join(acc_dir, f"{acc}*.tsv")
         tsv_files = glob.glob(tsv_pattern)
         if not tsv_files:
-            print(f"[InterProScan] No TSV for {acc} in {acc_dir} — skipping")
+            print(f"[InterProScan] No TSV for {acc} in {acc_dir}, skipping")
             continue
 
         tsv_file = tsv_files[0]
@@ -973,7 +972,7 @@ def load_signalp_for_accessions(signalp_dir: str, accessions) -> pd.DataFrame:
             if hits and os.path.isdir(hits[0]):
                 acc_dir = hits[0]
             else:
-                print(f"[SignalP] Missing dir for {acc} — skipping")
+                print(f"[SignalP] Missing dir for {acc}, skipping")
                 continue
 
         sp6_file = os.path.join(acc_dir, "prediction_results.txt")
@@ -986,15 +985,13 @@ def load_signalp_for_accessions(signalp_dir: str, accessions) -> pd.DataFrame:
             except Exception as e:
                 print(f"[SignalP] Failed to parse SignalP6 for {acc}: {e}")
 
-        print(f"[SignalP] No output files for {acc} — skipping")
+        print(f"[SignalP] No output files for {acc}, skipping")
 
     if frames:
         out = pd.concat(frames, ignore_index=True)
     else:
         out = pd.DataFrame(columns=["Protein_ID", "Assembly Accession"] + SIGNALP_KEEP)
     return out
-
-
 
 
 # =============================================================================
@@ -1011,7 +1008,7 @@ SPECIES_LIST = ['fumigatus', 'flavus', 'niger', 'oryzae']
 # but filtered when loaded by the analysis functions).
 ANI_EXCLUDED = {
     'flavus':    {'GCA_023653635'},   # A. parasiticus, ANI ~94.08% to A. flavus reference
-    'fumigatus': set(),
+    'fumigatus': {'GCA_049901915'},   # NCBI-flagged contaminated 
     'niger':     set(),               # A. tubingensis already removed at directory level
     'oryzae':    set(),
 }
@@ -1058,17 +1055,17 @@ SPECIES_DISPLAY = {
 
 SPECIES_COLORS = {
     'fumigatus': '#e74c3c',
-    'flavus':    '#ffd500',
+    'flavus':    '#27ae60',
     'niger':     '#1a1aff',
-    'oryzae':    '#27ae60',
+    'oryzae':    '#ffd500',
 }
 
 # Display-name keyed version (used by world map and other plots)
 SPECIES_COLORS_DISPLAY = {
     'A. fumigatus': '#e74c3c',
-    'A. flavus':    '#ffd500',
+    'A. flavus':    '#27ae60',
     'A. niger':     '#1a1aff',
-    'A. oryzae':    '#27ae60',
+    'A. oryzae':    '#ffd500',
 }
 
 ISOLATION_CLASSES = [
@@ -1205,7 +1202,6 @@ def _run_fastani_for_species(species, genus='Aspergillus', threads=8):
 
     Returns list of dicts with 'accession' and 'ani', or empty list on failure.
     """
-    import subprocess, tempfile
     genome_dir = f'/datadrive/Species/{genus}/{species}/filtered_genome'
     if not os.path.isdir(genome_dir):
         print(f'  {species}: No filtered_genome directory')
@@ -1228,33 +1224,9 @@ def _run_fastani_for_species(species, genus='Aspergillus', threads=8):
     if not queries:
         return []
 
-    with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as ql:
-        ql.write('\n'.join(queries))
-        ql_path = ql.name
-
-    out_path = ql_path + '.ani'
-    try:
-        subprocess.run(
-            ['fastANI', '--ql', ql_path, '--ref', ref, '-o', out_path, '-t', str(threads)],
-            capture_output=True, text=True, timeout=600
-        )
-    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
-        print(f'  {species}: fastANI failed ({e})')
-        os.unlink(ql_path)
-        return []
-
-    records = []
-    if os.path.exists(out_path):
-        with open(out_path) as f:
-            for line in f:
-                parts = line.strip().split('\t')
-                if len(parts) >= 3:
-                    m = re.search(r'(GC[AF]_\d+\.\d+)', parts[0])
-                    if m:
-                        records.append({'accession': m.group(1), 'ani': float(parts[2])})
-        os.unlink(out_path)
-    os.unlink(ql_path)
-    return records
+    records = run_fastani(queries, ref, threads=threads, timeout=600)
+    # Keep only rows whose query field yielded a real accession
+    return [r for r in records if _ACCESSION_RE.fullmatch(r['accession'])]
 
 
 def load_ani_results(species_list, results_dir, genus='Aspergillus', threads=8):
@@ -1287,7 +1259,7 @@ def load_ani_results(species_list, results_dir, genus='Aspergillus', threads=8):
                             records.append({'accession': m.group(1), 'ani': ani_val})
         else:
             # Compute with fastANI
-            print(f'  {species}: No cached ANI results — running fastANI...')
+            print(f'  {species}: No cached ANI results, running fastANI...')
             records = _run_fastani_for_species(species, genus, threads)
             if records:
                 # Save for next time
@@ -1359,6 +1331,262 @@ def plot_ani_verification(ani_results_all, species_list, results_base):
     plt.tight_layout()
     plt.savefig(os.path.join(results_base, 'ani_verification.png'), dpi=150, bbox_inches='tight')
     print('\nThreshold: 95% ANI -- samples below are likely different species')
+
+
+# =============================================================================
+# SECTION NIGRI IDENTITY CHECK (NB0 Section 2.3)
+# =============================================================================
+
+# Sister species within Aspergillus section Nigri that A. niger is routinely
+# mis-deposited as, with the reference assembly used to test against each.
+NIGRI_REFS = {
+    'welwitschiae': 'GCF_003344945.1',  # CBS 139.54b (Aspwel1)
+    'tubingensis':  'GCA_001890745.1',  # CBS 134.48  (Asptu1)
+}
+
+ANI_SPECIES_THRESHOLD = 95.0
+
+_ACCESSION_RE = re.compile(r'(GC[AF]_\d+\.\d+)')
+
+
+def run_fastani(query_paths, ref_path, out_path=None, threads=8, timeout=3600):
+    """Run fastANI for a set of query genomes against one reference.
+
+    Parameters
+    ----------
+    query_paths : iterable of str or Path
+        Genome FASTAs to test.
+    ref_path : str or Path
+        Reference genome FASTA.
+    out_path : str or Path, optional
+        Where to keep the fastANI table. If omitted, a temporary file is used
+        and deleted afterwards.
+    threads, timeout : int
+        Passed to fastANI and to the subprocess timeout.
+
+    Returns
+    -------
+    list of dict
+        ``{'accession': str, 'ani': float}`` per hit, empty list on failure.
+        ``accession`` falls back to the raw query field if no GCA/GCF
+        accession can be parsed out of it.
+    """
+    import subprocess
+    import tempfile
+
+    query_paths = [str(p) for p in query_paths]
+    if not query_paths:
+        return []
+
+    keep = out_path is not None
+    if keep:
+        out_path = Path(out_path)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        ql_path = str(out_path.with_suffix('.querylist.txt'))
+        out_path = str(out_path)
+        with open(ql_path, 'w') as fh:
+            fh.write('\n'.join(query_paths) + '\n')
+    else:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as fh:
+            fh.write('\n'.join(query_paths) + '\n')
+            ql_path = fh.name
+        out_path = ql_path + '.ani'
+
+    def _cleanup():
+        if keep:
+            return
+        for path in (ql_path, out_path):
+            if os.path.exists(path):
+                os.unlink(path)
+
+    try:
+        subprocess.run(
+            ['fastANI', '--ql', ql_path, '--ref', str(ref_path),
+             '-o', out_path, '-t', str(threads)],
+            capture_output=True, text=True, timeout=timeout
+        )
+    except FileNotFoundError:
+        print('  ERROR: fastANI not found in PATH (activate the funpan env).')
+        _cleanup()
+        return []
+    except subprocess.TimeoutExpired:
+        print('  ERROR: fastANI timed out.')
+        _cleanup()
+        return []
+
+    records = []
+    if os.path.exists(out_path):
+        with open(out_path) as fh:
+            for line in fh:
+                parts = line.strip().split('\t')
+                if len(parts) >= 3:
+                    m = _ACCESSION_RE.search(parts[0])
+                    records.append({'accession': m.group(1) if m else parts[0],
+                                    'ani': float(parts[2])})
+    _cleanup()
+    return records
+
+
+def download_ncbi_genome(accession, out_dir):
+    """Download one genome FASTA from the NCBI datasets API.
+
+    Skips the download if the FASTA is already present in ``out_dir``.
+
+    Returns
+    -------
+    Path or None
+        Path to the genomic FASTA, or None if the download or extraction failed.
+    """
+    import subprocess
+    import zipfile
+
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    existing = list(out_dir.glob(f'{accession}*_genomic.fna'))
+    if existing:
+        return existing[0]
+
+    zip_path = out_dir / f'{accession}.zip'
+    url = ('https://api.ncbi.nlm.nih.gov/datasets/v2/genome/accession/'
+           f'{accession}/download?include_annotation_type=GENOME_FASTA')
+    try:
+        result = subprocess.run(['wget', '-q', url, '-O', str(zip_path)],
+                                capture_output=True, text=True, timeout=300)
+        if result.returncode != 0:
+            print(f'    ERROR: download failed for {accession}')
+            return None
+    except FileNotFoundError:
+        print('    ERROR: wget not found')
+        return None
+    except subprocess.TimeoutExpired:
+        print(f'    ERROR: download timed out for {accession}')
+        return None
+
+    try:
+        with zipfile.ZipFile(zip_path) as archive:
+            for member in archive.namelist():
+                if member.endswith('.fna') and 'genomic' in member:
+                    out_genome = out_dir / f'{accession}_genomic.fna'
+                    out_genome.write_bytes(archive.read(member))
+                    zip_path.unlink(missing_ok=True)
+                    return out_genome
+    except Exception as exc:
+        print(f'    ERROR extracting {accession}: {exc}')
+    return None
+
+
+def _find_species_reference(species_root):
+    """First GCF reference FASTA under a species directory, or None."""
+    for sub in ('filtered_genome', 'genome', 'busco_output'):
+        directory = Path(species_root) / sub
+        if directory.exists():
+            refs = [g for g in sorted(directory.glob('GCF_*_genomic.fna'))
+                    if 'renamed' not in str(g)]
+            if refs:
+                return refs[0]
+    return None
+
+
+def _species_genomes(species_root, filtered=True):
+    """Genome FASTAs for a species, excluding renamed and .map files."""
+    directory = Path(species_root) / ('filtered_genome' if filtered else 'genome')
+    if not directory.exists():
+        return []
+    return [f for f in sorted(directory.glob('*_genomic.fna'))
+            if 'renamed' not in str(f) and '.map' not in str(f)]
+
+
+def check_section_nigri(results_base, species_root=None, species='niger', genus=None,
+                        nigri_refs=None, ani_threshold=ANI_SPECIES_THRESHOLD,
+                        threads=8, save=True):
+    """Re-test low-ANI A. niger genomes against the sister section Nigri species.
+
+    Genomes deposited as *A. niger* that fall below the species ANI threshold are
+    re-run against the *A. tubingensis* and *A. welwitschiae* references, since
+    those are the species they are most often mis-deposited as.
+
+    Requires ``fastANI``, ``wget`` and internet access. The first run downloads
+    the two sister references into ``<species_root>/nigri_references``.
+
+    Parameters
+    ----------
+    results_base : str
+        Where to write ``nigri_check/`` and the summary CSV.
+    species_root : str or Path, optional
+        Directory holding the species genomes. Defaults to
+        ``/datadrive/Species/<genus>/<species>``; pass it explicitly to point at
+        your own layout.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns ``genome``, ``vs_species``, ``ani``, ``is_match``. Empty if the
+        reference is missing or every genome already passes the threshold.
+    """
+    if genus is None:
+        genus = GENUS
+    if nigri_refs is None:
+        nigri_refs = NIGRI_REFS
+    if species_root is None:
+        species_root = f'/datadrive/Species/{genus}/{species}'
+
+    species_root = Path(species_root)
+    out_dir = Path(results_base) / 'nigri_check'
+
+    print('=' * 80)
+    print(f'SECTION NIGRI CHECK -- low-ANI A. {species} genomes')
+    print('=' * 80)
+
+    summary = []
+    species_ref = _find_species_reference(species_root)
+    if species_ref is None:
+        print(f'No A. {species} GCF reference found -- skipping section Nigri check.')
+        return pd.DataFrame(columns=['genome', 'vs_species', 'ani', 'is_match'])
+
+    genomes = _species_genomes(species_root, filtered=True)
+    print(f'A. {species} reference: {species_ref.name}')
+    print(f'Filtered genomes:   {len(genomes)}')
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    ref_rows = run_fastani(genomes, species_ref,
+                           out_dir / f'{species}_vs_{species}_ref.tsv', threads=threads)
+    low = sorted([r for r in ref_rows if r['ani'] < ani_threshold],
+                 key=lambda x: x['ani'])
+    print(f'Below {ani_threshold}% ANI to A. {species}: {len(low)}')
+    for row in low:
+        print(f"  {row['accession']}  ANI={row['ani']:.2f}%")
+
+    if not low:
+        print(f'All filtered A. {species} genomes pass the species threshold '
+              '-- nothing to reassign.')
+        return pd.DataFrame(columns=['genome', 'vs_species', 'ani', 'is_match'])
+
+    low_accs = {r['accession'].split('.')[0] for r in low}
+    low_paths = [g for g in genomes if any(a in g.name for a in low_accs)]
+    ref_root = species_root / 'nigri_references'
+
+    for sister, accession in nigri_refs.items():
+        print(f'\n--- vs A. {sister} ({accession}) ---')
+        ref_genome = download_ncbi_genome(accession, ref_root)
+        if ref_genome is None:
+            print('    Could not obtain reference -- skipping.')
+            continue
+        rows = run_fastani(low_paths, ref_genome,
+                           out_dir / f'{species}_low_ani_vs_{sister}.tsv', threads=threads)
+        for row in sorted(rows, key=lambda x: -x['ani']):
+            is_match = row['ani'] >= ani_threshold
+            print(f"  {row['accession']}  ANI={row['ani']:.2f}%  "
+                  f"{'MATCH' if is_match else '-'}")
+            summary.append({'genome': row['accession'], 'vs_species': sister,
+                            'ani': row['ani'], 'is_match': is_match})
+
+    nigri_df = pd.DataFrame(summary, columns=['genome', 'vs_species', 'ani', 'is_match'])
+    if save and not nigri_df.empty:
+        nigri_csv = os.path.join(results_base, 'niger_section_nigri_reassignment.csv')
+        nigri_df.to_csv(nigri_csv, index=False)
+        print(f'\nSaved: {nigri_csv}')
+    return nigri_df
 
 
 def build_qc_summary_tables(df_all, species_list, references):
@@ -1606,7 +1834,7 @@ def plot_phenotype_distribution(df_analysis, results_base, class_col='Phenotype'
     pheno_counts = df_analysis[class_col].value_counts()
     colors = [UNIFIED_COLORS.get(c, '#7f8c8d') for c in pheno_counts.index]
 
-    # ============================== FIGURE 1: PIE ==============================
+    # ============================== PIE PANEL ==================================
     fig_pie, ax_pie = plt.subplots(figsize=pie_figsize)
 
     n_pheno = len(pheno_counts)
@@ -1650,10 +1878,9 @@ def plot_phenotype_distribution(df_analysis, results_base, class_col='Phenotype'
     fig_pie.tight_layout()
     pie_path = os.path.join(results_base, 'phenotype_distribution_pie.png')
     fig_pie.savefig(pie_path, dpi=dpi, bbox_inches='tight')
-    fig_pie.savefig(pie_path.replace('.png', '.pdf'), bbox_inches='tight')
-    print(f'Saved to {pie_path}  (+ .pdf)')
+    print(f'Saved to {pie_path}')
 
-    # ============================== FIGURE 2: BAR ==============================
+    # ============================== BAR PANEL ==================================
     fig_bar, ax_bar = plt.subplots(figsize=bar_figsize)
     species_pheno = df_analysis.groupby(['Species', class_col]).size().unstack(fill_value=0)
     species_pheno = species_pheno[[c for c in pheno_counts.index if c in species_pheno.columns]]
@@ -1675,8 +1902,7 @@ def plot_phenotype_distribution(df_analysis, results_base, class_col='Phenotype'
     fig_bar.tight_layout()
     bar_path = os.path.join(results_base, 'phenotype_distribution_bar.png')
     fig_bar.savefig(bar_path, dpi=dpi, bbox_inches='tight')
-    fig_bar.savefig(bar_path.replace('.png', '.pdf'), bbox_inches='tight')
-    print(f'Saved to {bar_path}  (+ .pdf)')
+    print(f'Saved to {bar_path}')
 
     return fig_pie, fig_bar
 
@@ -1714,4 +1940,70 @@ def print_nb0_summary(df_classified, df_analysis, species_list, results_base):
     print('=' * 70)
 
     return crosstab, crosstab_prov
+
+
+# =============================================================================
+# NB0 STANDALONE SECTION LOADERS
+# =============================================================================
+#
+# Each NB0 section opens with a bootstrap cell that calls the loader(s) for the
+# artefacts it needs, so any section can run from a fresh kernel without first
+# executing the sections above it.
+
+NB0_RESULTS_BASE = '/datadrive/Analysis/NB0_Results'
+
+# Species exclusions applied to the QC-passed set in NB0 Section 2.
+# Accessions carry the assembly VERSION suffix, unlike the module-level
+# ANI_EXCLUDED used by is_ani_excluded().
+NB0_ANI_EXCLUDED = {
+    'flavus': {'GCA_023653635.1'},     # A. parasiticus (ANI 94.01% to A. flavus ref)
+    'fumigatus': {'GCA_049901915.1'},  # NCBI-flagged contaminated assembly
+}
+
+
+def _nb0_read_csv(filename, section, results_base=None):
+    """Read one NB0 artefact, naming the section to run if it is missing."""
+    path = os.path.join(results_base or NB0_RESULTS_BASE, filename)
+    if not os.path.exists(path):
+        raise FileNotFoundError(
+            f'{path} not found. Run NB0 {section} first, or pass a different '
+            'results_base.'
+        )
+    return pd.read_csv(path)
+
+
+def load_qc_state(genus=None, species_list=None, ani_excluded=None):
+    """Rebuild the Section 2 QC state.
+
+    There is no cached table for ``df_all``, so this re-derives it from the
+    Species/ tree and re-applies the ANI exclusions. Takes a few seconds.
+
+    Returns
+    -------
+    df_all : pd.DataFrame
+        All genomes, with ``passed_filter`` already reflecting ANI exclusions.
+    filtered_accs : dict
+        ``{species: set_of_accessions}`` after ANI exclusion.
+    references : dict
+        Per-species reference genome/proteome info.
+    all_passed_accs : set
+        Union of accessions passing QC and ANI verification.
+    """
+    df_all, filtered_accs, _proteome_accs, references = load_and_prepare_metadata(
+        genus=genus, species_list=species_list
+    )
+    if ani_excluded is None:
+        ani_excluded = NB0_ANI_EXCLUDED
+    all_passed_accs = apply_ani_exclusions(df_all, filtered_accs, ani_excluded)
+    return df_all, filtered_accs, references, all_passed_accs
+
+
+def load_classified(results_base=None):
+    """df_classified: every QC-passed genome, including Unknown and Lab phenotypes."""
+    return _nb0_read_csv('qc_passed_classified_all.csv', 'Section 3.2', results_base)
+
+
+def load_analysis_set(results_base=None):
+    """df_analysis: the pan-GWAS subset, excluding Unknown and Lab phenotypes."""
+    return _nb0_read_csv('qc_passed_classified_known.csv', 'Section 3.2', results_base)
 

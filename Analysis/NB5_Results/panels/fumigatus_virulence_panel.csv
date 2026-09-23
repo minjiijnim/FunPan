@@ -1,0 +1,91 @@
+gene,category,description,locus_tag,uniprot,source_key
+pksP,Melanin/conidia,Polyketide synthase / DHN-melanin heptaketide synthase / alb1,AFUA_2G17600,,Tsai1999
+ayg1,Melanin/conidia,YWA1 hydrolase / heptaketide shortening,AFUA_2G17550,,Tsai1999
+arp2,Melanin/conidia,Tetrahydroxynaphthalene reductase,AFUA_2G17560,,Tsai1999
+gliP,Gliotoxin,Bimodular NRPS / Phe-Ser dipeptide synthesis,AFUA_6G09660,,Cromer2007
+gliZ,Gliotoxin,Zn2Cys6 transcription factor of gli cluster,AFUA_6G09630,,Cromer2007
+gliT,Gliotoxin,Gliotoxin oxidoreductase / self-protection,AFUA_6G09740,,Cromer2007
+gliA,Gliotoxin,MFS transporter / gliotoxin efflux,AFUA_6G09710,,Cromer2007
+gliC,Gliotoxin,Cytochrome P450 monooxygenase,AFUA_6G09680,,Cromer2007
+gliG,Gliotoxin,Glutathione S-transferase / sulfurization,AFUA_6G09690,,Cromer2007
+gliK,Gliotoxin,Gamma-glutamyl cyclotransferase,AFUA_6G09730,,Cromer2007
+gliN,Gliotoxin,N-methyltransferase,AFUA_6G09720,,Cromer2007
+gliF,Gliotoxin,Cytochrome P450 monooxygenase,AFUA_6G09670,,Cromer2007
+gliM,Gliotoxin,O-methyltransferase,AFUA_6G09650,,Cromer2007
+gliI,Gliotoxin,Aminocyclopropane carboxylate synthase,AFUA_6G09700,,Cromer2007
+gliJ,Gliotoxin,Dipeptidase,AFUA_6G09640,,Cromer2007
+gliH,Gliotoxin,Hypothetical protein required for gliotoxin biosynthesis,AFUA_6G09745,,Cromer2007
+hasA,Hexadehydroastechrome,Nonribosomal peptide synthetase HAS cluster,AFUA_3G12920,,Yin2013
+hasB,Hexadehydroastechrome,Dimethylallyl tryptophan synthase,AFUA_3G12930,,Yin2013
+hasC,Hexadehydroastechrome,O-methyltransferase,AFUA_3G12910,,Yin2013
+hasD,Hexadehydroastechrome,FAD binding domain protein,AFUA_3G12950,,Yin2013
+hasE,Hexadehydroastechrome,Cytochrome P450 monooxygenase,AFUA_3G12960,,Yin2013
+hasF,Hexadehydroastechrome,Zn2Cys6 transcription factor / HAS regulator,AFUA_3G12890,,Yin2013
+sidA,Siderophore/iron,L-ornithine N5-monooxygenase / first committed step,AFUA_2G07680,,Haas2014
+sidF,Siderophore/iron,Transacylase / TAFC biosynthesis,AFUA_3G03400,,Haas2014
+sidH,Siderophore/iron,Mevalonyl-CoA hydratase,AFUA_3G03390,,Haas2014
+sidD,Siderophore/iron,NRPS for fusarinine C biosynthesis,AFUA_3G03420,,Haas2014
+sidI,Siderophore/iron,Mevalonyl-CoA ligase,AFUA_1G17200,,Haas2014
+sidC,Siderophore/iron,NRPS for ferricrocin biosynthesis,AFUA_1G17190,,Haas2014
+sidG,Siderophore/iron,N5-transacetylase / TAFC final step,AFUA_3G03650,,Haas2014
+sidL,Siderophore/iron,Transacetylase / ferricrocin biosynthesis,AFUA_1G04450,,Haas2014
+sidJ,Siderophore/iron,Esterase / intracellular siderophore hydrolysis,AFUA_3G03410,,Haas2014
+hapX,Iron homeostasis,bZIP transcription factor / iron starvation response,AFUA_5G03920,,Haas2014
+fks1,Cell wall/glucan,Beta-1-3-glucan synthase catalytic subunit,AFUA_6G12400,,Latge2017
+rho1,Cell wall,Rho1 GTPase / glucan synthase regulator,AFUA_1G15400,,Latge2017
+ags3,Cell wall/glucan,Alpha-1-3-glucan synthase 3,AFUA_2G14661,,Latge2017
+gel2,Cell wall/glucan,Beta-1-3-glucanosyltransferase 2,AFUA_6G11390,,Latge2017
+gel4,Cell wall/glucan,Beta-1-3-glucanosyltransferase 4 / essential,AFUA_2G05340,,Latge2017
+chsG,Cell wall/chitin,Chitin synthase G,AFUA_3G14420,,Specht1996
+mnt1,Cell wall,Alpha-1-2-mannosyltransferase,AFUA_5G10760,,Latge2017
+glfA,Cell wall,UDP-galactopyranose mutase,AFUA_3G12690,,Latge2017
+uge3,GAG,UDP-glucose-4-epimerase / GAG biosynthesis,AFUA_3G07910,,Gravelat2013
+agd3,GAG,Deacetylase / GalNAc to GalN,AFUA_3G07870,,Gravelat2013
+ega3,GAG,Endo-alpha-1-4-galactosaminidase,AFUA_3G07890,,Gravelat2013
+sph3,GAG,Glycoside hydrolase / GAG biosynthesis,AFUA_3G07900,,Gravelat2013
+medA,GAG,Transcription factor / GAG and adhesion regulator,AFUA_2G13260,,Gravelat2013
+cyp51A,Azole/ergosterol,Lanosterol 14-alpha-demethylase / azole target,AFUA_4G06890,,Mellado2007
+hmg1,Azole/ergosterol,HMG-CoA reductase / ergosterol pathway,AFUA_2G03700,,Mellado2007
+erg6,Azole/ergosterol,Sterol C-24 methyltransferase,AFUA_4G09190,,Mellado2007
+erg3,Azole/ergosterol,C-5 sterol desaturase,AFUA_6G05140,,Mellado2007
+cdr1B,Azole/ergosterol,ABC transporter / azole efflux,AFUA_1G14330,,Mellado2007
+atrR,Transcription regulator,Zn2Cys6 TF / coregulates cyp51A and cdr1B,AFUA_7G01900,,Latge2019
+srbA,Hypoxia,SREBP transcription factor / hypoxia and ergosterol regulator,AFUA_2G01260,,Willger2008
+srbB,Hypoxia,SREBP-related transcription factor / hypoxia,AFUA_4G03460,,Willger2008
+cnaA,Calcineurin,Calcineurin catalytic subunit A,AFUA_5G09360,,Steinbach2007
+cnaB,Calcineurin,Calcineurin regulatory subunit B,AFUA_3G10690,,Steinbach2007
+crzA,Calcineurin,Calcineurin-responsive transcription factor,AFUA_1G06900,,Steinbach2007
+rasA,Signaling,Ras GTPase / morphogenesis and virulence,AFUA_5G11230,,Latge2019
+rasB,Signaling,Ras-family GTPase,AFUA_2G07770,,Latge2019
+mpkA,MAP kinase,Cell wall integrity MAPK / Slt2 ortholog,AFUA_4G13720,,Valiante2008
+mpkC,MAP kinase,MAPK / cooperates with sakA,AFUA_5G09100,,Valiante2008
+sakA,MAP kinase,Hog1-like stress-activated MAPK,AFUA_1G12940,,Valiante2008
+mkk2,MAP kinase,MAPKK / cell wall integrity pathway,AFUA_1G05800,,Valiante2008
+pkcA,Signaling,Protein kinase C / cell wall integrity,AFUA_5G08570,,Latge2019
+fos1,Signaling,Histidine kinase / two-component signaling,AFUA_6G10240,,Latge2019
+laeA,SM regulator,Putative methyltransferase / global SM regulator,AFUA_1G14660,,Bok2004
+veA,SM regulator,Velvet complex protein / development and SM,AFUA_1G12490,,Bok2004
+velB,SM regulator,Velvet-family regulator,AFUA_1G04830,,Bok2004
+vosA,SM regulator,Velvet-family regulator / conidial maturation,AFUA_1G04150,,Bok2004
+stuA,Conidia/development,APSES TF / development and SM,AFUA_2G07900,,Etxebeste2013
+aspf3,Oxidative stress,Peroxiredoxin / allergen Asp f 3,AFUA_6G02280,,Paris2003
+aspf1,Protease/allergen,Ribotoxin / mitogillin / Asp f 1,AFUA_5G02330,,Bowyer2011
+aspf2,Zinc homeostasis,Zinc-binding cell wall protein / Asp f 2,AFUA_4G09580,,Amich2014
+hacA,Secretion/UPR,bZIP TF / unfolded protein response,AFUA_3G13390,,Richie2009
+ireA,Secretion/UPR,ER stress sensor / IRE1 ortholog,AFUA_2G07340,,Richie2009
+pacC,pH/stress,Zinc finger TF / pH-responsive regulator,AFUA_3G11970,,Bertuzzi2014
+zafA,Zinc homeostasis,Zinc-responsive transcription factor,AFUA_1G10080,,Amich2014
+zrfC,Zinc homeostasis,ZIP zinc transporter C / alkaline zinc-limiting,AFUA_4G09560,,Amich2014
+pyrG,Amino acid biosynth,Orotidine-5-monophosphate decarboxylase / uridine biosynthesis,AFUA_2G08360,,Krappmann2007
+pabaA,Amino acid biosynth,Para-aminobenzoic acid synthase,AFUA_6G04820,,Krappmann2007
+cpcA,Amino acid biosynth,Cross-pathway control bZIP TF / amino acid starvation,AFUA_4G12470,,Krappmann2007
+hsp90,Thermotolerance,Heat shock protein 90 / drug tolerance,AFUA_5G04170,,Lamoth2014
+cgrA,Thermotolerance,Nucleolar protein / 37C growth,AFUA_5G14550,,Lamoth2014
+afpA,Adhesion,Antifungal protein / cell-surface,AFUA_6G14470,,Sheppard2011
+pes3,Other-SM,NRPS pes3 / SM modulator,AFUA_5G12270,,Bignell2016
+ppoA,Oxidative stress,Fatty acid oxygenase / oxylipin,AFUA_4G10770,,Paris2003
+ppoB,Oxidative stress,Fatty acid oxygenase / oxylipin,AFUA_4G00180,,Paris2003
+ppoC,Oxidative stress,Fatty acid oxygenase / oxylipin,AFUA_5G02380,,Paris2003
+ganB,Signaling,Galpha subunit / conidial germination,AFUA_1G12930,,Latge2019
+pkaC1,Signaling,cAMP-dependent protein kinase catalytic subunit,AFUA_2G12200,,Latge2019
+acyA,Signaling,Adenylate cyclase,AFUA_6G08520,,Latge2019

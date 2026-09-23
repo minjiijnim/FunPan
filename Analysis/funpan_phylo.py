@@ -18,20 +18,6 @@ from statsmodels.stats.multitest import multipletests
 import warnings
 warnings.filterwarnings('ignore')
 
-# try:
-#     from Bio import SeqIO, Phylo
-# except ImportError:
-#     SeqIO = None
-#     Phylo = None
-
-
-
-# --- From NB0 Cell 48 ---
-# =============================================================================
-# SECTION 9: PHYLOGENETIC TREE WITH PHENOTYPE COLORING
-# =============================================================================
-# Load IQ-TREE results and visualize the phylogeny with strains colored by phenotype
-# Trees were built from Gubbins recombination-filtered SNP alignments using IQ-TREE
 
 from Bio import Phylo
 import re
@@ -42,34 +28,6 @@ import matplotlib.patches as mpatches
 # =============================================================================
 # TRANSFORM = 'sqrt'  # Options: 'none', 'log', 'sqrt', or a float for power (e.g., 0.3)
 # =============================================================================
-
-def parse_iqtree_log(iqtree_file):
-    """Parse IQ-TREE log file to extract key statistics."""
-    stats = {}
-    if not os.path.exists(iqtree_file):
-        return stats
-    
-    with open(iqtree_file, 'r') as f:
-        content = f.read()
-    
-    patterns = {
-        'n_sequences': r'Input data: (\d+) sequences',
-        'n_sites': r'Input data: \d+ sequences with (\d+) nucleotide sites',
-        'parsimony_informative': r'Number of parsimony informative sites: (\d+)',
-        'best_model': r'Best-fit model according to BIC: ([^\n]+)',
-        'log_likelihood': r'Log-likelihood of the tree: ([-\d.]+)',
-        'tree_length': r'Total tree length \(sum of branch lengths\): ([\d.]+)',
-    }
-    
-    for key, pattern in patterns.items():
-        match = re.search(pattern, content)
-        if match:
-            val = match.group(1).strip()
-            try:
-                stats[key] = int(val) if '.' not in val else float(val)
-            except:
-                stats[key] = val
-    return stats
 
 
 def clean_tip_labels(tree):
@@ -218,109 +176,6 @@ def plot_phylogram(tree, ax, df_meta=None, title="", transform='none'):
     return tip_phenotypes
 
 
-# =============================================================================
-# LOAD AND PLOT IQ-TREE RESULTS
-# =============================================================================
-
-# print("="*80)
-# print("SECTION 9: PHYLOGENETIC TREE WITH PHENOTYPE COLORING")
-# print("="*80)
-# print(f"\nSpecies: {SPECIES_DISPLAY}")
-# print("Input: Recombination-filtered SNP alignments from Gubbins")
-# print("Method: IQ-TREE with ModelFinder + UFBoot (1000 replicates)")
-# print(f"Transform: {TRANSFORM}")
-
-# iqtree_dir = f"{SPECIES_DIR}/iqtree_output_snv"
-# tree_file = os.path.join(iqtree_dir, "gubbins_tree.treefile")
-# contree_file = os.path.join(iqtree_dir, "gubbins_tree.contree")
-# iqtree_log = os.path.join(iqtree_dir, "gubbins_tree.iqtree")
-
-# if not os.path.exists(tree_file):
-#     print(f"\n[ERROR] Tree file not found: {tree_file}")
-#     print("Please run IQ-TREE analysis first (run_iqtree_gubbins.sh)")
-#     iqtree_tree = None
-# else:
-#     stats = parse_iqtree_log(iqtree_log)
-#     
-#     tree_to_load = contree_file if os.path.exists(contree_file) else tree_file
-#     print(f"\nLoading tree from: {tree_to_load}")
-#     iqtree_tree = Phylo.read(tree_to_load, "newick")
-#     
-    # Remove .ref duplicate tips (parsnp artifact) BEFORE cleaning names
-#     ref_tips = [t for t in iqtree_tree.get_terminals() if t.name and t.name.endswith('.ref')]
-#     for tip in ref_tips:
-#         iqtree_tree.prune(tip)
-#         print(f"  Pruned .ref duplicate: {tip.name}")
-#     
-#     iqtree_tree = clean_tip_labels(iqtree_tree)
-#     if SPECIES_SHORT in ANI_EXCLUDED:
-#         for exc_acc in ANI_EXCLUDED[SPECIES_SHORT]:
-#             exc_base = re.match(r'(GC[AF]_\d+)', exc_acc).group(1)
-#             for tip in list(iqtree_tree.get_terminals()):
-#                 if exc_base in tip.name:
-#                     iqtree_tree.prune(tip)
-#                     print(f"  Pruned ANI-excluded: {tip.name}")
-#     
-#     terminals = iqtree_tree.get_terminals()
-#     n_tips = len(terminals)
-#     print(f"Tree contains {n_tips} tips (genomes)")
-#     
-#     df_meta = df_analysis if 'df_analysis' in dir() else df_classified
-#     
-#     print(f"\nIQ-TREE Statistics:")
-#     print(f"  Sequences: {stats.get('n_sequences', 'N/A')}")
-#     print(f"  SNP sites: {stats.get('n_sites', 'N/A'):,}" if isinstance(stats.get('n_sites'), int) else f"  SNP sites: {stats.get('n_sites', 'N/A')}")
-#     print(f"  Parsimony informative: {stats.get('parsimony_informative', 'N/A'):,}" if isinstance(stats.get('parsimony_informative'), int) else f"  Parsimony informative: {stats.get('parsimony_informative', 'N/A')}")
-#     print(f"  Best model: {stats.get('best_model', 'N/A')}")
-#     print(f"  Log-L: {stats.get('log_likelihood', 'N/A')}")
-#     
-    # Plot phylogram
-#     print("\n" + "-"*70)
-#     print(f"Phylogram (transform={TRANSFORM})")
-#     print("-"*70)
-#     
-#     fig_height = max(6, n_tips * 0.18)
-#     fig, ax = plt.subplots(figsize=(10, fig_height))
-#     
-#     title = f"A. {SPECIES_SHORT} (n={n_tips}) | Model: {stats.get('best_model', 'N/A')}"
-#     tip_phenotypes = plot_phylogram(iqtree_tree, ax, df_meta=df_meta, title=title, transform=TRANSFORM)
-#     
-    # Add legend
-#     phenotype_counts = pd.Series(tip_phenotypes).value_counts()
-#     legend_handles = []
-#     for phenotype in phenotype_counts.index:
-#         color = get_color_for_phenotype(phenotype)
-#         count = phenotype_counts[phenotype]
-#         legend_handles.append(mpatches.Patch(color=color, label=f'{phenotype} (n={count})'))
-#     
-#     ax.legend(handles=legend_handles, loc='lower right', fontsize=8, framealpha=0.9, title='Phenotype')
-#     
-#     plt.tight_layout()
-#     output_path = f"{RESULTS_DIR}/phylogeny_phenotypes.png"
-#     plt.savefig(output_path, dpi=150, bbox_inches='tight', facecolor='white')
-#     print(f"Saved: {output_path}")
-#     
-    # Summary
-#     print("\n" + "-"*70)
-#     print("Phenotype Distribution in Tree")
-#     print("-"*70)
-#     print(f"\n{'Phenotype':<25} {'Count':>8} {'Percent':>10}")
-#     print("-"*45)
-#     for phenotype, count in phenotype_counts.items():
-#         pct = 100 * count / n_tips
-#         print(f"{phenotype:<25} {count:>8} {pct:>9.1f}%")
-#     print(f"\n{'Total':<25} {n_tips:>8} {100.0:>9.1f}%")
-
-# print("\n" + "="*80)
-# print("TREE LOADING COMPLETE")
-# print("="*80)
-
-
-# --- From NB0 Cell 62 ---
-# =============================================================================
-# SECTION 10.1: MASH SETUP & DISTANCE COMPUTATION (PER-SPECIES)
-# =============================================================================
-
 import subprocess
 import re
 import shutil
@@ -347,7 +202,7 @@ def _find_mash_binary():
     if on_path:
         return on_path
     for env in ('funpan', 'pipeline_test3', 'pipeline_test2'):
-        p = f'/home/user/anaconda3/envs/{env}/bin/mash'
+        p = os.path.expanduser(f'~/anaconda3/envs/{env}/bin/mash')
         if os.path.isfile(p) and os.access(p, os.X_OK):
             return p
     return 'mash'  # let subprocess raise a useful error if it's still missing
@@ -356,24 +211,7 @@ MASH_BIN = _find_mash_binary()
 KMER_SIZE = 21
 SKETCH_SIZE = 1000
 
-# Phenotype color map (reuse from earlier in notebook)
-# PHENOTYPE_COLORS = {
-#     'Human-pathogenic': '#e74c3c', 'Animal-pathogenic': '#d35400',
-#     'Plant-pathogenic': '#27ae60', 'Industrial-trait': '#3498db',
-#     'Environmental': '#9b59b6', 'Lab': '#95a5a6', 'Unknown': '#bdc3c7'
-# }
 
-# Load classified metadata for phenotype annotations
-# meta_path = '/datadrive/Analysis/NB0_Results/qc_passed_classified_all.csv'
-# df_meta_mash = pd.read_csv(meta_path)
-# acc_to_phenotype = dict(zip(
-#     df_meta_mash['Assembly Accession'].str.extract(r'(GC[AF]_\d+\.\d+)')[0],
-#     df_meta_mash['Phenotype']
-# ))
-
-# ---------------------------------------------------------------------------
-# Helper: Find elbow point using second derivative of inertia curve
-# ---------------------------------------------------------------------------
 def find_elbow(k_range, inertias):
     """Find elbow point using the maximum second derivative of inertia curve."""
     if len(k_range) < 3:
@@ -433,7 +271,7 @@ def choose_optimal_k(k_range, inertias, sil_scores, n_samples):
                   f"using silhouette")
         return best_sil_k, elbow_k, best_sil_k, reason
     
-    # Case 6: Real disagreement — best silhouette near elbow neighborhood
+    # Case 6: Real disagreement: best silhouette near elbow neighborhood
     neighborhood = range(max(elbow_k - 1, k_range[0]),
                          min(elbow_k + 3, k_range[-1] + 1))
     neighborhood_sils = {k: sil_scores[k_range.index(k)]
@@ -520,50 +358,6 @@ def parse_mash_distances(dist_file):
 
     return dist_matrix
 
-# ---------------------------------------------------------------------------
-# Run Mash for each species
-# ---------------------------------------------------------------------------
-# mash_results = {}
-
-# for species in SPECIES_LIST_MASH:
-#     print(f"\n{'='*60}")
-#     print(f"  {SPECIES_DISPLAY_MASH[species]} - Mash Distance Computation")
-#     print(f"{'='*60}")
-#     
-#     genome_dir = f'/datadrive/Species/{GENUS}/{species}/filtered_genome'
-    # Build ANI exclusion patterns for this species
-#     _exc_bases = set()
-#     if species in ANI_EXCLUDED:
-#         for exc_acc in ANI_EXCLUDED[species]:
-#             _exc_bases.add(re.match(r'(GC[AF]_\d+)', exc_acc).group(1))
-#     genome_files = sorted([
-#         str(p) for p in Path(genome_dir).glob('*.fna')
-#         if '_renamed' not in p.name
-#         and not any(exc in p.name for exc in _exc_bases)
-#     ])
-#     print(f"  Found {len(genome_files)} genome files")
-#     
-#     sp_output_dir = os.path.join(MASH_OUTPUT_BASE, species)
-#     dist_matrix = run_mash_distances(genome_files, sp_output_dir, species)
-#     
-#     if dist_matrix is not None:
-#         mash_results[species] = dist_matrix
-#         print(f"  Distance matrix shape: {dist_matrix.shape}")
-#     else:
-#         print(f"  FAILED - skipping {species}")
-
-# print(f"\n{'='*60}")
-# print("Mash distance computation complete!")
-# for sp, dm in mash_results.items():
-#     print(f"  {SPECIES_DISPLAY_MASH[sp]}: {dm.shape[0]} genomes")
-# print(f"{'='*60}")
-
-
-# --- From NB0 Cell 72 ---
-# =============================================================================
-# CELL: Issue 7 — Heap's Law by Phenotype Subset (Fumigatus Clinical vs Environmental)
-# Tests whether pangenome closure is a sampling artefact of single ecological context
-# =============================================================================
 
 import pandas as pd
 import numpy as np
@@ -571,62 +365,11 @@ from scipy.optimize import curve_fit
 import warnings
 warnings.filterwarnings('ignore')
 
-# print("=" * 70)
-# print("HEAP'S LAW BY PHENOTYPE SUBSET — A. fumigatus")
-# print("=" * 70)
-# print("Question: Is pangenome closure robust within a single ecological stratum?")
-
-# pav = pd.read_csv('/datadrive/Analysis/NB1_Results/fumigatus/fumigatus_pav.tsv', sep='\t', index_col=0)
-# burden = pd.read_csv('/datadrive/Analysis/NB4_Results/rare_gene_burden_all_genomes.csv')
-# fum_b = burden[burden['Species'] == 'A. fumigatus']
-
-# clinical_genomes = set(fum_b[fum_b['Phenotype'] == 'Human-pathogenic']['Genome'])
-# env_genomes = set(fum_b[fum_b['Phenotype'] == 'Environmental']['Genome'])
-
-# pav_c = pav[[c for c in pav.columns if c in clinical_genomes]]
-# pav_e = pav[[c for c in pav.columns if c in env_genomes]]
 
 def heaps_law(n, kappa, gamma):
     return kappa * (n ** gamma)
 
-def fit_heaps(pav_sub, n_reps=100, seed=42):
-    rng = np.random.default_rng(seed)
-    n_g = pav_sub.shape[1]
-    steps = list(range(1, n_g + 1))
-    means = []
-    for n in steps:
-        sizes = [(pav_sub.iloc[:, rng.choice(n_g, size=n, replace=False)].sum(axis=1) > 0).sum()
-                 for _ in range(n_reps)]
-        means.append(np.mean(sizes))
-    popt, _ = curve_fit(heaps_law, steps, means, p0=[5000, 0.2], maxfev=5000, bounds=([0, 0], [np.inf, 1]))
-    return popt[1], means
 
-# print(f"\nClinical only (n={pav_c.shape[1]})...")
-# g_c, _ = fit_heaps(pav_c)
-# print(f"  gamma = {g_c:.4f}")
-
-# print(f"Environmental only (n={pav_e.shape[1]})...")
-# g_e, _ = fit_heaps(pav_e)
-# print(f"  gamma = {g_e:.4f}")
-
-# print(f"All strains (n={pav.shape[1]})...")
-# g_all, _ = fit_heaps(pav)
-# print(f"  gamma = {g_all:.4f}")
-
-# print("\nCONCLUSION:")
-# print(f"  Clinical-only gamma ({g_c:.4f}) and environmental-only gamma ({g_e:.4f})")
-# print(f"  are both << 0.5 (open threshold), confirming pangenome closure")
-# print(f"  within each ecological stratum independently.")
-
-# results = pd.DataFrame({'subset': ['clinical_only', 'environmental_only', 'all_strains'],
-#                          'n_genomes': [pav_c.shape[1], pav_e.shape[1], pav.shape[1]],
-#                          'heaps_gamma': [g_c, g_e, g_all]})
-# results.to_csv('/datadrive/Analysis/NB0_Results/fumigatus_heaps_phenotype_subset.tsv', sep='\t', index=False)
-# print("\nSaved to NB0_Results/fumigatus_heaps_phenotype_subset.tsv")
-
-
-
-# --- From NB4 Cell 1 ---
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
@@ -644,858 +387,35 @@ plt.rcParams.update({'font.size': 11, 'figure.dpi': 120})
 
 # sys.path.insert(0, '/datadrive/Analysis')
 
-def get_accession(col):
-    """Extract accession (e.g. 'GCA_001599455.1') from OrthoFinder column names
-    like 'GCA_001599455.1_JCM_10253_assembly_v001.proteins'."""
-    m = re.match(r'(GC[AF]_\d+\.\d+)', col)
-    return m.group(1) if m else col
-
-# ---------------------------------------------------------------------------
-# Shared configuration (mirrors NB1 / NB0 / NB3 conventions)
-# ---------------------------------------------------------------------------
-# GENUS = 'Aspergillus'
-# SPECIES_LIST = ['fumigatus', 'flavus', 'niger', 'oryzae']
-# BASE_PATH = f"/datadrive/Species/{GENUS}"
-
-# Combined OrthoFinder output (same as NB3)
-# ORTHOFINDER_DIR = os.path.join(BASE_PATH, 'all_combined', 'orthofinder_output', 'Results_Dec14')
-# GENECOUNT_PATH = os.path.join(ORTHOFINDER_DIR, 'Orthogroups', 'Orthogroups.GeneCount.tsv')
-# ORTHOGROUPS_PATH = os.path.join(ORTHOFINDER_DIR, 'Orthogroups', 'Orthogroups.tsv')
-
-# Upstream theme results
-# NB0_RESULTS = '/datadrive/Analysis/NB0_Results'
-# NB3_RESULTS = '/datadrive/Analysis/NB3_Results'
-# NB1_RESULTS = '/datadrive/Analysis/NB1_Results'
-
-# NB4 output directory
-# RESULTS_DIR = '/datadrive/Analysis/NB4_Results'
-# os.makedirs(RESULTS_DIR, exist_ok=True)
-
-# Per-species config — paths built dynamically from BASE_PATH / NB1_RESULTS
-# SPECIES_CONFIG = {
-#     sp: {
-#         'label': f'A. {sp}',
-#         'annot_path': os.path.join(BASE_PATH, sp, f'{sp}_ortho_annot_long.tsv'),
-#         'pav_path': os.path.join(NB1_RESULTS, sp, f'{sp}_pav.tsv'),
-#         'og_consensus_path': os.path.join(NB1_RESULTS, sp, f'{sp}_og_consensus.tsv'),
-#         'species_filter': f'A. {sp}',
-#     }
-#     for sp in SPECIES_LIST
-# }
-
-# Load phenotype labels (produced by NB0)
-# pheno_df = pd.read_csv(os.path.join(NB0_RESULTS, 'phenotype_classified_for_gwas.csv'))
-# pheno_map = dict(zip(pheno_df['Assembly Accession'], pheno_df['Phenotype']))
-# species_map = dict(zip(pheno_df['Assembly Accession'], pheno_df['Species']))
-# print(f"Loaded phenotype labels for {len(pheno_map)} genomes")
-# print(pheno_df.groupby('Species')['Phenotype'].value_counts().to_string())
-
-# Verify all paths exist
-# print("\n--- Path verification ---")
-# for sp, cfg in SPECIES_CONFIG.items():
-#     print(f"  {cfg['label']} annotation:    {os.path.exists(cfg['annot_path'])}")
-#     print(f"  {cfg['label']} PAV matrix:    {os.path.exists(cfg['pav_path'])}")
-#     print(f"  {cfg['label']} OG consensus:  {os.path.exists(cfg['og_consensus_path'])}")
-# print(f"  OrthoFinder GeneCount:  {os.path.exists(GENECOUNT_PATH)}")
-# print(f"  OrthoFinder Orthogroups: {os.path.exists(ORTHOGROUPS_PATH)}")
-# print(f"  NB0 phenotype data:  {os.path.exists(os.path.join(NB0_RESULTS, 'phenotype_classified_for_gwas.csv'))}")
-
-
-# --- From NB4 Cell 3 ---
-def load_species_data(species_key):
-    """Load pre-built PAV + OG consensus (with Pangenome_Class) from NB1_Results,
-    plus the long annotation table for protein-level queries."""
-    cfg = SPECIES_CONFIG[species_key]
-    print(f"\n{'='*60}")
-    print(f"Loading {cfg['label']}...")
-
-    # Load long annotation table (for protein-level lookups)
-    long_annot = pd.read_csv(cfg['annot_path'], sep='\t', low_memory=False)
-    print(f"  Long annotation: {len(long_annot):,} rows, {long_annot['Orthogroup'].nunique():,} OGs, "
-          f"{long_annot['Assembly Accession'].nunique()} genomes")
-
-    # Load pre-built PAV matrix from NB1_Results, drop any ANI-excluded
-    # genomes that may still be present in the on-disk file.
-    pav = pd.read_csv(cfg['pav_path'], sep='\t', index_col=0)
-    sp_short = cfg.get('species') or cfg['label'].replace('A. ', '').strip()
-    try:
-        from funpan_utils import filter_ani_excluded as _fae
-        pav = _fae(pav, sp_short, axis='cols')
-    except Exception:
-        pass
-    print(f"  PAV matrix (from NB1_Results, ANI-filtered): "
-          f"{pav.shape[0]:,} OGs x {pav.shape[1]} genomes")
-
-    # Load pre-classified OG consensus table from NB1_Results
-    og_consensus = pd.read_csv(cfg['og_consensus_path'], sep='\t')
-    n_core = (og_consensus['Pangenome_Class'] == 'Core').sum()
-    n_acc = (og_consensus['Pangenome_Class'] == 'Accessory').sum()
-    n_rare = (og_consensus['Pangenome_Class'] == 'Rare').sum()
-    n_total = len(og_consensus)
-    print(f"  OG consensus (from NB1_Results): {n_total} OGs")
-    print(f"    Core: {n_core} ({n_core/n_total:.1%}), Accessory: {n_acc} ({n_acc/n_total:.1%}), "
-          f"Rare: {n_rare} ({n_rare/n_total:.1%})")
-
-    # Recover thresholds from the PAV + classification
-    # Core threshold = min presence count among Core OGs
-    # Rare threshold = max presence count among Rare OGs
-    gene_freq = pav.sum(axis=1)
-    core_ogs = set(og_consensus.loc[og_consensus['Pangenome_Class'] == 'Core', 'Orthogroup'])
-    rare_ogs = set(og_consensus.loc[og_consensus['Pangenome_Class'] == 'Rare', 'Orthogroup'])
-    core_freqs = gene_freq[gene_freq.index.isin(core_ogs)]
-    rare_freqs = gene_freq[gene_freq.index.isin(rare_ogs)]
-    core_n = int(core_freqs.min()) if len(core_freqs) > 0 else pav.shape[1]
-    rare_n = int(rare_freqs.max()) if len(rare_freqs) > 0 else 1
-    n_strains = pav.shape[1]
-    print(f"  Thresholds (recovered): core >= {core_n}/{n_strains}, rare <= {rare_n}/{n_strains}")
-
-    return {
-        'long_annot': long_annot,
-        'pav': pav,
-        'og_consensus': og_consensus,
-        'core_n': core_n,
-        'rare_n': rare_n,
-        'n_strains': n_strains,
-    }
-
-# Load all species
-# species_data = {}
-# for sp in SPECIES_LIST:
-#     species_data[sp] = load_species_data(sp)
-
-
-# --- From NB4 Cell 10 ---
-def annotation_rate_by_class(og_consensus, annotation_col, classes=('Core', 'Accessory', 'Rare')):
-    """Compute fraction of OGs with a given annotation, per pangenome class."""
-    results = {}
-    for cls in classes:
-        sub = og_consensus[og_consensus['Pangenome_Class'] == cls]
-        if len(sub) == 0:
-            results[cls] = {'n': 0, 'annotated': 0, 'rate': 0}
-            continue
-        has_annot = sub[annotation_col].apply(
-            lambda x: bool(x) and str(x).strip() not in ('', '-', 'nan')
-        ).sum()
-        results[cls] = {'n': len(sub), 'annotated': int(has_annot), 'rate': has_annot / len(sub)}
-    return results
-
-
-def cog_distribution_by_class(og_consensus, classes=('Core', 'Accessory', 'Rare')):
-    """Get COG category distribution per pangenome class."""
-    COG_NAMES = {
-        'C': 'Energy', 'D': 'Cell cycle', 'E': 'Amino acid', 'F': 'Nucleotide',
-        'G': 'Carbohydrate', 'H': 'Coenzyme', 'I': 'Lipid', 'J': 'Translation',
-        'K': 'Transcription', 'L': 'Replication', 'M': 'Cell wall', 'N': 'Cell motility',
-        'O': 'PTM/chaperone', 'P': 'Inorganic ion', 'Q': 'Secondary metabolites',
-        'S': 'Unknown function', 'T': 'Signal transduction', 'U': 'Trafficking/secretion',
-        'V': 'Defense', 'W': 'Extracellular', 'X': 'Mobilome', 'Z': 'Cytoskeleton',
-    }
-    results = {}
-    for cls in classes:
-        sub = og_consensus[og_consensus['Pangenome_Class'] == cls]
-        cog_counts = Counter()
-        for cog_str in sub['COG_category'].dropna():
-            for c in str(cog_str):
-                if c in COG_NAMES:
-                    cog_counts[c] += 1
-        total = sum(cog_counts.values())
-        results[cls] = {k: v / total if total > 0 else 0 for k, v in cog_counts.items()}
-        results[cls]['_total'] = total
-    return results, COG_NAMES
-
-
-# Compute annotation rates across species
-# print("=== Annotation rates by pangenome class ===\n")
-# annot_cols = ['PFAMs', 'CAZy', 'GOs', 'Description']
-# all_rates = []
-
-# for sp in ['fumigatus', 'flavus', 'niger', 'oryzae']:
-#     ogc = species_data[sp]['og_consensus']
-#     label = SPECIES_CONFIG[sp]['label']
-#     print(f"\n{label}:")
-#     for col in annot_cols:
-#         if col in ogc.columns:
-#             rates = annotation_rate_by_class(ogc, col)
-#             for cls, info in rates.items():
-#                 all_rates.append({
-#                     'Species': label, 'Annotation': col, 
-#                     'Class': cls, 'Rate': info['rate'], 
-#                     'n': info['n'], 'annotated': info['annotated']
-#                 })
-#                 print(f"  {col} - {cls}: {info['annotated']}/{info['n']} ({info['rate']:.1%})")
-
-# rates_df = pd.DataFrame(all_rates)
-# rates_df.to_csv(f'{RESULTS_DIR}/annotation_rates_by_class.csv', index=False)
-
-
-# --- From NB4 Cell 25 ---
-# ── C1 sensitivity: fixed absolute rare-genome thresholds ─────────────────────────────────────────────
-# Current definition: rare = present in ≤5% of conspecific genomes (species-specific threshold)
-#   fumigatus n=89  → ≤4 genomes
-#   flavus    n=71  → ≤3 genomes
-#   niger     n=30  → ≤1 genome
-#   oryzae    n=33  → ≤1 genome
-#
-# Sensitivity check: reassign rare/accessory at fixed thresholds n≤1, n≤2, n≤3
-# Key questions:
-#   (a) Does A. oryzae rare count remain stable across thresholds?
-#   (b) Does A. fumigatus rare-burden phenotype association survive at stricter thresholds?
 
 import pandas as pd
 import numpy as np
 from scipy import stats
 import os, re as _re
 
-# RESULTS_DIR_SENS = '/datadrive/Analysis/NB4_Results'
-# NB1_RESULTS = '/datadrive/Analysis/NB1_Results'
-# NB0_RESULTS = '/datadrive/Analysis/NB0_Results'
-
-# SPECIES_CONFIG_LOCAL = {
-#     'fumigatus': {'label': 'A. fumigatus', 'n': 89, 'current_rare_n': 4, 'pheno_group': 'pathogenic'},
-#     'flavus':    {'label': 'A. flavus',    'n': 71, 'current_rare_n': 3, 'pheno_group': 'pathogenic'},
-#     'niger':     {'label': 'A. niger',     'n': 30, 'current_rare_n': 1, 'pheno_group': 'industrial'},
-#     'oryzae':    {'label': 'A. oryzae',    'n': 33, 'current_rare_n': 1, 'pheno_group': 'industrial'},
-# }
-
-# Load phenotype map
-# Phenotype column values: 'Human-pathogenic', 'Plant-pathogenic', 'Animal-pathogenic',
-#                          'Environmental', 'Industrial-trait', 'Lab'
-# pheno_df_local = pd.read_csv(os.path.join(NB0_RESULTS, 'phenotype_classified_for_gwas.csv'))
-# pheno_map_local = dict(zip(pheno_df_local['Assembly Accession'], pheno_df_local['Phenotype']))
-
-def get_acc_local(col):
-    m = _re.match(r'(GC[AF]_\d+\.\d+)', col)
-    return m.group(1) if m else col
-
-# thresholds = [1, 2, 3]
-# rows = []
-# burden_rows = []
-
-# for sp, cfg in SPECIES_CONFIG_LOCAL.items():
-#     og_path = os.path.join(NB1_RESULTS, sp, f'{sp}_og_consensus.tsv')
-#     pav_path = os.path.join(NB1_RESULTS, sp, f'{sp}_pav.tsv')
-#     ogc = pd.read_csv(og_path, sep='\t')
-#     pav = pd.read_csv(pav_path, sep='\t', index_col=0)
-# 
-#     n_total = len(ogc)
-#     n_genomes = pav.shape[1]
-# 
-#     print(f"\n{'='*60}")
-#     print(f"{cfg['label']}  (n_genomes={n_genomes}, n_OGs={n_total})")
-#     print(f"  Current rare threshold: \u2264{cfg['current_rare_n']} genomes (\u22645% of {n_genomes})")
-# 
-#     current_rare_count = (ogc['Pangenome_Class'] == 'Rare').sum()
-#     rows.append({'Species': cfg['label'], 'Threshold_type': 'Current (≤5%)',
-#                  'Threshold_n': cfg['current_rare_n'], 'n_Rare': current_rare_count,
-#                  'Pct_Rare': current_rare_count/n_total*100})
-# 
-#     for thresh in thresholds:
-#         rare_ogs_fixed = set(ogc.loc[ogc['n_genomes'] <= thresh, 'Orthogroup'])
-#         n_rare = len(rare_ogs_fixed)
-#         rows.append({'Species': cfg['label'], 'Threshold_type': f'Fixed n\u2264{thresh}',
-#                      'Threshold_n': thresh, 'n_Rare': n_rare,
-#                      'Pct_Rare': n_rare/n_total*100})
-#         print(f"  Fixed n\u2264{thresh}: {n_rare} rare OGs ({n_rare/n_total:.1%})")
-# 
-#     if sp in ('fumigatus', 'flavus'):
-#         pheno_map_sp = {col: pheno_map_local.get(get_acc_local(col), 'Unknown') for col in pav.columns}
-# 
-#         for thresh in thresholds:
-#             rare_fixed = set(ogc.loc[ogc['n_genomes'] <= thresh, 'Orthogroup'])
-#             if len(rare_fixed) < 2:
-#                 burden_rows.append({'Species': cfg['label'], 'Threshold': f'n\u2264{thresh}',
-#                                     'n_rare_OGs': len(rare_fixed), 'Group1': 'NA', 'Group2': 'NA',
-#                                     'n_g1': 0, 'n_g2': 0,
-#                                     'mean_g1': np.nan, 'mean_g2': np.nan, 'U_stat': np.nan, 'p_value': np.nan})
-#                 continue
-# 
-#             rare_pav = pav.loc[pav.index.isin(rare_fixed)]
-#             burden = rare_pav.sum(axis=0)
-# 
-            # pathogenic = any *-pathogenic label; environmental = Environmental
-#             g1_burden = burden[[c for c in pav.columns if 'pathogenic' in pheno_map_sp.get(c, '').lower()]].values
-#             g2_burden = burden[[c for c in pav.columns if pheno_map_sp.get(c, '') == 'Environmental']].values
-# 
-#             if len(g1_burden) >= 2 and len(g2_burden) >= 2:
-#                 u_stat, p_val = stats.mannwhitneyu(g1_burden, g2_burden, alternative='two-sided')
-#                 direction = 'higher in pathogenic' if np.mean(g1_burden) > np.mean(g2_burden) else 'lower in pathogenic'
-#                 print(f"  Burden test n\u2264{thresh}: pathogenic mean={np.mean(g1_burden):.1f} (n={len(g1_burden)}) "
-#                       f"vs env mean={np.mean(g2_burden):.1f} (n={len(g2_burden)}), "
-#                       f"U={u_stat:.0f}, P={p_val:.2e} [{direction}]")
-#                 burden_rows.append({'Species': cfg['label'], 'Threshold': f'n\u2264{thresh}',
-#                                     'n_rare_OGs': len(rare_fixed),
-#                                     'Group1': 'Pathogenic', 'Group2': 'Environmental',
-#                                     'n_g1': len(g1_burden), 'n_g2': len(g2_burden),
-#                                     'mean_g1': np.mean(g1_burden), 'mean_g2': np.mean(g2_burden),
-#                                     'U_stat': u_stat, 'p_value': p_val})
-#             else:
-#                 print(f"  Burden test n\u2264{thresh}: insufficient phenotype-labelled genomes "
-#                       f"(pathogenic n={len(g1_burden)}, env n={len(g2_burden)})")
-#                 burden_rows.append({'Species': cfg['label'], 'Threshold': f'n\u2264{thresh}',
-#                                     'n_rare_OGs': len(rare_fixed),
-#                                     'Group1': 'Pathogenic', 'Group2': 'Environmental',
-#                                     'n_g1': len(g1_burden), 'n_g2': len(g2_burden),
-#                                     'mean_g1': np.nan, 'mean_g2': np.nan,
-#                                     'U_stat': np.nan, 'p_value': np.nan})
-
-# print("\n\n=== SENSITIVITY SUMMARY TABLE ===")
-# summary_df = pd.DataFrame(rows)
-# summary_pivot = summary_df.pivot_table(index='Species', columns='Threshold_type', values='n_Rare', aggfunc='first')
-# print(summary_pivot.to_string())
-
-# print("\n=== PHENOTYPE BURDEN ASSOCIATION STABILITY ===")
-# burden_df = pd.DataFrame(burden_rows)
-# if len(burden_df) > 0:
-#     print(burden_df[['Species','Threshold','n_rare_OGs','mean_g1','mean_g2','p_value']].to_string(index=False))
-
-# summary_df.to_csv(os.path.join(RESULTS_DIR_SENS, 'rare_threshold_sensitivity.csv'), index=False)
-# burden_df.to_csv(os.path.join(RESULTS_DIR_SENS, 'rare_threshold_burden_sensitivity.csv'), index=False)
-# print("\nSaved: rare_threshold_sensitivity.csv, rare_threshold_burden_sensitivity.csv")
-
-
-
-# --- From NB4 Cell 27 ---
-# =========================================================================
-# 9.1  Gene length distribution by pangenome class
-# =========================================================================
-# Parse protein lengths from OrthoFinder Orthogroup_Sequences/*.fa
-# Each OG file contains all member proteins → compute median length per OG
 
 from pathlib import Path
 from Bio import SeqIO
 import warnings, os, sys, re
 warnings.filterwarnings('ignore')
 
-# SPECIES_DEEP = ['fumigatus', 'flavus', 'niger', 'oryzae']
 
-# RESULTS_DIR = '/datadrive/Analysis/NB4_Results'
-# os.makedirs(RESULTS_DIR, exist_ok=True)
-
-def og_protein_lengths(og_seq_dir, og_list):
-    """Return dict {OG: [len1, len2, ...]} for requested OGs."""
-    lengths = {}
-    for og in og_list:
-        fa = Path(og_seq_dir) / f"{og}.fa"
-        if fa.exists():
-            lengths[og] = [len(rec.seq) for rec in SeqIO.parse(fa, "fasta")]
-    return lengths
-
-# print("Computing protein lengths per orthogroup ...")
-# length_data = {}   # species → DataFrame(Orthogroup, median_len, Pangenome_Class)
-
-# for sp in SPECIES_DEEP:
-#     d = species_data[sp]
-#     ogc = d['og_consensus']
-#     og_dir = f"/datadrive/Species/Aspergillus/{sp}/orthofinder_output/"
-#     res_dir = sorted(Path(og_dir).glob("Results_*/Orthogroup_Sequences"))[0]
-# 
-#     all_ogs = ogc['Orthogroup'].tolist()
-#     lens = og_protein_lengths(str(res_dir), all_ogs)
-# 
-#     rows = []
-#     for _, r in ogc.iterrows():
-#         og = r['Orthogroup']
-#         if og in lens and lens[og]:
-#             rows.append({
-#                 'Orthogroup': og,
-#                 'median_len': np.median(lens[og]),
-#                 'mean_len': np.mean(lens[og]),
-#                 'min_len': min(lens[og]),
-#                 'n_proteins': len(lens[og]),
-#                 'Pangenome_Class': r['Pangenome_Class']
-#             })
-#     length_data[sp] = pd.DataFrame(rows)
-#     print(f"  {sp}: {len(rows)} OGs with length data")
-
-# --- Visualization ---
-# fig, axes = plt.subplots(2, 2, figsize=(14, 10), sharey=False)
-# axes = axes.flatten()
-# class_order = ['Core', 'Accessory', 'Rare']
-# class_colors = {'Core': 'forestgreen', 'Accessory': 'steelblue', 'Rare': 'coral'}
-
-# for idx, sp in enumerate(SPECIES_DEEP):
-#     ax = axes[idx]
-#     df = length_data[sp]
-#     data_to_plot = [df.loc[df['Pangenome_Class'] == c, 'median_len'].values for c in class_order]
-# 
-    # Clip outliers for visualization: cap at 99th percentile across all classes
-#     all_vals = np.concatenate([d for d in data_to_plot if len(d) > 0])
-#     upper = np.percentile(all_vals, 99)
-# 
-    # Skip empty classes for violin (oryzae may have very few rare)
-#     non_empty = [len(d) > 0 for d in data_to_plot]
-#     if all(non_empty):
-#         vp = ax.violinplot(data_to_plot, positions=[1, 2, 3], showmedians=True, showextrema=False)
-#         for i, body in enumerate(vp['bodies']):
-#             body.set_facecolor(list(class_colors.values())[i])
-#             body.set_alpha(0.6)
-#         vp['cmedians'].set_color('black')
-#     else:
-#         bp = ax.boxplot(data_to_plot, positions=[1, 2, 3], patch_artist=True, widths=0.5)
-#         for i, patch in enumerate(bp['boxes']):
-#             patch.set_facecolor(list(class_colors.values())[i])
-#             patch.set_alpha(0.6)
-# 
-    # Add median labels
-#     for i, c in enumerate(class_order):
-#         if len(data_to_plot[i]) > 0:
-#             med = np.median(data_to_plot[i])
-#             n = len(data_to_plot[i])
-#             ax.text(i + 1, med + 20, f"med={med:.0f}\nn={n}", ha='center', va='bottom', fontsize=8)
-# 
-#     ax.set_xticks([1, 2, 3])
-#     ax.set_xticklabels(class_order, fontsize=10)
-#     ax.set_ylabel('Median protein length (aa)' if idx % 2 == 0 else '', fontsize=11)
-#     ax.set_title(f'A. {sp}', fontsize=12, fontweight='bold')
-#     ax.set_ylim(0, upper * 1.15)
-#     ax.grid(axis='y', linestyle=':', alpha=0.4)
-
-# plt.suptitle('Protein Length Distribution by Pangenome Class', fontsize=14, fontweight='bold', y=1.02)
-# plt.tight_layout()
-# plt.savefig(f'{RESULTS_DIR}/rare_gene_length_distribution.png', dpi=150, bbox_inches='tight')
-
-# Statistical test: are rare genes shorter?
 from scipy.stats import mannwhitneyu
-# print("\nMann-Whitney U test (Rare vs Core median protein length):")
-# for sp in SPECIES_DEEP:
-#     df = length_data[sp]
-#     core_lens = df.loc[df['Pangenome_Class'] == 'Core', 'median_len']
-#     rare_lens = df.loc[df['Pangenome_Class'] == 'Rare', 'median_len']
-#     if len(rare_lens) >= 2 and len(core_lens) >= 2:
-#         stat, pval = mannwhitneyu(rare_lens, core_lens, alternative='less')
-#         print(f"  {sp}: Rare median={rare_lens.median():.0f}aa, Core median={core_lens.median():.0f}aa, "
-#               f"p={pval:.2e} ({'*' if pval < 0.05 else 'ns'})")
-#     else:
-#         print(f"  {sp}: Rare n={len(rare_lens)} (too few for test), "
-#               f"Core median={core_lens.median():.0f}aa")
 
 
-# --- From NB4 Cell 29 ---
-# =========================================================================
-# 9.3  DIAMOND BLASTp: Rare vs Core/Accessory to detect fragments
-# =========================================================================
 import subprocess, tempfile, shutil
 
-# CONDA_PREFIX = '/home/user/anaconda3/envs/pipeline_test2/bin'
-# DIAMOND = f'{CONDA_PREFIX}/diamond'
 
-def get_representative_seqs(og_seq_dir, og_list):
-    """For each OG, return the longest protein sequence as representative."""
-    reps = {}
-    for og in og_list:
-        fa = Path(og_seq_dir) / f"{og}.fa"
-        if fa.exists():
-            best = None
-            for rec in SeqIO.parse(fa, "fasta"):
-                if best is None or len(rec.seq) > len(best.seq):
-                    best = rec
-            if best:
-                best.id = og
-                best.description = og
-                reps[og] = best
-    return reps
-
-# print("Running DIAMOND BLASTp: Rare OGs vs Core+Accessory OGs ...")
-# print("=" * 80)
-
-# diamond_results = {}
-
-# for sp in SPECIES_DEEP:
-#     d = species_data[sp]
-#     ogc = d['og_consensus']
-#     og_dir = f"/datadrive/Species/Aspergillus/{sp}/orthofinder_output/"
-#     res_dir = str(sorted(Path(og_dir).glob("Results_*/Orthogroup_Sequences"))[0])
-# 
-#     rare_ogs = ogc.loc[ogc['Pangenome_Class'] == 'Rare', 'Orthogroup'].tolist()
-#     nonrare_ogs = ogc.loc[ogc['Pangenome_Class'].isin(['Core', 'Accessory']), 'Orthogroup'].tolist()
-# 
-#     if len(rare_ogs) == 0:
-#         print(f"\n{sp}: 0 rare OGs — skipping DIAMOND")
-#         diamond_results[sp] = pd.DataFrame(columns=['Orthogroup', 'blast_class', 'pident', 'qcovhsp', 'scovhsp', 'best_target'])
-#         continue
-# 
-#     print(f"\n{sp}: {len(rare_ogs)} rare queries vs {len(nonrare_ogs)} core+accessory targets")
-# 
-#     rare_reps = get_representative_seqs(res_dir, rare_ogs)
-#     nonrare_reps = get_representative_seqs(res_dir, nonrare_ogs)
-#     print(f"  Representatives: {len(rare_reps)} rare, {len(nonrare_reps)} non-rare")
-# 
-#     tmpdir = tempfile.mkdtemp(prefix=f"diamond_{sp}_")
-#     query_fa = f"{tmpdir}/rare_query.fa"
-#     db_fa = f"{tmpdir}/nonrare_db.fa"
-#     db_path = f"{tmpdir}/nonrare_db"
-#     out_tsv = f"{tmpdir}/diamond_out.tsv"
-# 
-#     SeqIO.write(rare_reps.values(), query_fa, "fasta")
-#     SeqIO.write(nonrare_reps.values(), db_fa, "fasta")
-# 
-#     subprocess.run([DIAMOND, 'makedb', '--in', db_fa, '-d', db_path],
-#                    capture_output=True, check=True)
-#     subprocess.run([
-#         DIAMOND, 'blastp',
-#         '-q', query_fa, '-d', db_path, '-o', out_tsv,
-#         '--sensitive', '--max-target-seqs', '5',
-#         '--outfmt', '6', 'qseqid', 'sseqid', 'pident', 'length', 'qlen', 'slen',
-#         'qcovhsp', 'scovhsp', 'evalue', 'bitscore',
-#         '--threads', '8'
-#     ], capture_output=True, check=True)
-# 
-#     cols = ['qseqid', 'sseqid', 'pident', 'length', 'qlen', 'slen',
-#             'qcovhsp', 'scovhsp', 'evalue', 'bitscore']
-#     if os.path.getsize(out_tsv) > 0:
-#         hits = pd.read_csv(out_tsv, sep='\t', names=cols)
-#         best_hits = hits.sort_values('bitscore', ascending=False).drop_duplicates('qseqid', keep='first')
-#     else:
-#         best_hits = pd.DataFrame(columns=cols)
-# 
-#     classifications = []
-#     for og in rare_ogs:
-#         if og in rare_reps:
-#             row = best_hits[best_hits['qseqid'] == og]
-#             if row.empty:
-#                 classifications.append({'Orthogroup': og, 'blast_class': 'No hit', 'pident': 0,
-#                                         'qcovhsp': 0, 'scovhsp': 0, 'best_target': ''})
-#             else:
-#                 r = row.iloc[0]
-#                 qcov, scov, pident = r['qcovhsp'], r['scovhsp'], r['pident']
-#                 if qcov >= 70 and scov < 50 and pident >= 30:
-#                     bclass = 'Fragment of longer gene'
-#                 elif qcov >= 70 and scov >= 70 and pident >= 30:
-#                     bclass = 'Full-length homolog'
-#                 else:
-#                     bclass = 'No significant similarity'
-#                 classifications.append({
-#                     'Orthogroup': og, 'blast_class': bclass, 'pident': pident,
-#                     'qcovhsp': qcov, 'scovhsp': scov, 'best_target': r['sseqid']
-#                 })
-# 
-#     diamond_results[sp] = pd.DataFrame(classifications)
-#     shutil.rmtree(tmpdir)
-# 
-#     counts = diamond_results[sp]['blast_class'].value_counts()
-#     print(f"  Results:")
-#     for cls, cnt in counts.items():
-#         print(f"    {cls}: {cnt} ({100*cnt/len(classifications):.1f}%)")
-
-# --- Visualization ---
-# fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-# axes = axes.flatten()
-# blast_class_colors = {
-#     'Full-length homolog': 'steelblue',
-#     'Fragment of longer gene': 'coral',
-#     'No significant similarity': 'lightgrey',
-#     'No hit': "#8D8585"
-# }
-# blast_class_order = ['Full-length homolog', 'Fragment of longer gene',
-#                      'No significant similarity', 'No hit']
-
-# for idx, sp in enumerate(SPECIES_DEEP):
-#     ax = axes[idx]
-#     df = diamond_results[sp]
-#     if df.empty:
-#         ax.text(0.5, 0.5, f'A. {sp}\nNo rare OGs', ha='center', va='center',
-#                 fontsize=12, transform=ax.transAxes)
-#         ax.set_title(f'A. {sp}', fontsize=11, fontweight='bold')
-#         ax.axis('off')
-#         continue
-#     counts = df['blast_class'].value_counts()
-#     vals = [counts.get(c, 0) for c in blast_class_order]
-#     colors = [blast_class_colors[c] for c in blast_class_order]
-#     wedges, _ = ax.pie(vals, colors=colors, startangle=90,
-#                        wedgeprops=dict(linewidth=0.5, edgecolor='white'))
-#     total = sum(vals)
-#     for i, (v, w) in enumerate(zip(vals, wedges)):
-#         if v > 0:
-#             ang = (w.theta1 + w.theta2) / 2
-#             x = 0.65 * np.cos(np.radians(ang))
-#             y = 0.65 * np.sin(np.radians(ang))
-#             ax.text(x, y, f"{100*v/total:.0f}%", ha='center', va='center', fontsize=9, fontweight='bold')
-#     ax.set_title(f'A. {sp}\n(n={total} rare OGs)', fontsize=11, fontweight='bold')
-
-# Shared legend
 from matplotlib.patches import Patch
-# legend_patches = [Patch(facecolor=blast_class_colors[c], label=c) for c in blast_class_order]
-# fig.legend(handles=legend_patches, fontsize=9, loc='lower center', ncol=4, bbox_to_anchor=(0.5, -0.02))
-# plt.suptitle('DIAMOND BLASTp Classification of Rare Orthogroups', fontsize=14, fontweight='bold', y=1.02)
-# plt.tight_layout()
-# plt.savefig(f'{RESULTS_DIR}/rare_diamond_blast_classification.png', dpi=150, bbox_inches='tight')
 
-
-# --- From NB4 Cell 34 ---
-# =========================================================================
-# 9.5c  NCBI BLASTp: Taxonomic origin of xenolog candidates
-# =========================================================================
-# Results are saved incrementally to a TSV — safe to re-run after a crash.
-# Already-completed OGs are skipped on re-run.
 
 import requests, time, xml.etree.ElementTree as ET
 
 NCBI_BLAST_URL = 'https://blast.ncbi.nlm.nih.gov/blast/Blast.cgi'
-# MAX_HITS = 5
-# RESULTS_FILE = f'{RESULTS_DIR}/rare_xenolog_ncbi_blast_results.tsv'
-# MAX_RETRIES = 3
 
-def ncbi_remote_blast(sequence, program='blastp', database='nr', max_hits=5, max_wait=300):
-    """Submit a sequence to NCBI BLAST and return parsed top hits."""
-    params = {
-        'CMD': 'Put', 'PROGRAM': program, 'DATABASE': database,
-        'QUERY': str(sequence), 'HITLIST_SIZE': str(max_hits), 'FORMAT_TYPE': 'XML',
-    }
-    resp = requests.post(NCBI_BLAST_URL, data=params, timeout=60)
-    resp.raise_for_status()
-
-    rid = None
-    for line in resp.text.split('\n'):
-        if 'RID = ' in line:
-            rid = line.split('RID = ')[1].strip()
-            break
-    if not rid:
-        return None
-
-    elapsed = 0
-    while elapsed < max_wait:
-        time.sleep(15)
-        elapsed += 15
-        try:
-            check = requests.get(NCBI_BLAST_URL,
-                                 params={'CMD': 'Get', 'RID': rid, 'FORMAT_TYPE': 'XML'},
-                                 timeout=120)
-        except (requests.exceptions.ConnectionError, requests.exceptions.ChunkedEncodingError,
-                requests.exceptions.Timeout) as e:
-            print(f"      Network error polling RID {rid}: {e} — retrying ...")
-            continue
-
-        if 'Status=WAITING' in check.text:
-            continue
-        if 'Status=FAILED' in check.text:
-            return None
-        if '<?xml' in check.text:
-            try:
-                root = ET.fromstring(check.text)
-                hits = []
-                for hit in root.iter('Hit'):
-                    hit_def = hit.find('Hit_def').text if hit.find('Hit_def') is not None else ''
-                    hit_acc = hit.find('Hit_accession').text if hit.find('Hit_accession') is not None else ''
-                    hsp = hit.find('.//Hsp')
-                    if hsp is not None:
-                        identity = float(hsp.find('Hsp_identity').text)
-                        align_len = float(hsp.find('Hsp_align-len').text)
-                        pident = 100 * identity / align_len if align_len > 0 else 0
-                        evalue = hsp.find('Hsp_evalue').text
-                    else:
-                        pident, evalue = 0, 'N/A'
-                    organism = ''
-                    if '[' in hit_def and ']' in hit_def:
-                        organism = hit_def[hit_def.rfind('[') + 1:hit_def.rfind(']')]
-                    hits.append({
-                        'accession': hit_acc, 'description': hit_def[:120],
-                        'organism': organism, 'pident': pident, 'evalue': evalue,
-                    })
-                    if len(hits) >= max_hits:
-                        break
-                return hits
-            except ET.ParseError:
-                return None
-    return None
-
-
-# Collect xenolog candidate sequences
-# all_candidates = []
-# for sp in SPECIES_DEEP:
-#     xc = xenolog_candidates.get(sp)
-#     if xc is None or xc.empty:
-#         continue
-#     og_dir = f"/datadrive/Species/Aspergillus/{sp}/orthofinder_output/"
-#     res_dir = str(sorted(Path(og_dir).glob("Results_*/Orthogroup_Sequences"))[0])
-#     reps = get_representative_seqs(res_dir, xc['Orthogroup'].tolist())
-#     for _, row in xc.iterrows():
-#         og = row['Orthogroup']
-#         if og in reps:
-#             all_candidates.append({
-#                 'species': sp, 'Orthogroup': og,
-#                 'sequence': str(reps[og].seq),
-#                 'GC_deviation': row['GC_deviation'],
-#                 'description': row.get('Description', ''),
-#             })
-
-# Load existing results (resume support)
-# completed_ogs = set()
-# if os.path.exists(RESULTS_FILE):
-#     existing = pd.read_csv(RESULTS_FILE, sep='\t')
-#     completed_ogs = set(existing['Orthogroup'].unique())
-#     print(f"Resuming: {len(completed_ogs)} OGs already completed in {RESULTS_FILE}")
-
-# remaining = [c for c in all_candidates if c['Orthogroup'] not in completed_ogs]
-# n_total = len(all_candidates)
-# n_remaining = len(remaining)
-
-# print(f"Total xenolog candidates: {n_total}")
-# print(f"Already done: {n_total - n_remaining}, remaining: {n_remaining}")
-# if n_remaining > 0:
-#     print(f"Estimated time: ~{n_remaining * 45 // 60} - {n_remaining * 75 // 60} minutes")
-# print("=" * 80)
-
-# Write header if file doesn't exist
-# if not os.path.exists(RESULTS_FILE):
-#     with open(RESULTS_FILE, 'w') as f:
-#         f.write('\t'.join(['species', 'Orthogroup', 'GC_deviation', 'hit_rank',
-#                            'accession', 'organism', 'description', 'pident',
-#                            'evalue', 'is_aspergillus', 'is_fungal']) + '\n')
-
-# for i, cand in enumerate(remaining):
-#     print(f"\n  [{i+1}/{n_remaining}] {cand['species']} / {cand['Orthogroup']} "
-#           f"(GC Δ={cand['GC_deviation']:+.1f}%) ...")
-# 
-#     hits = None
-#     for attempt in range(MAX_RETRIES):
-#         try:
-#             hits = ncbi_remote_blast(cand['sequence'], max_hits=MAX_HITS)
-#             break
-#         except Exception as e:
-#             print(f"      Attempt {attempt+1}/{MAX_RETRIES} failed: {e}")
-#             if attempt < MAX_RETRIES - 1:
-#                 time.sleep(30)
-# 
-#     rows_to_write = []
-#     if hits is None or len(hits) == 0:
-#         print(f"    → No BLAST results returned")
-#         rows_to_write.append({
-#             'species': cand['species'], 'Orthogroup': cand['Orthogroup'],
-#             'GC_deviation': cand['GC_deviation'],
-#             'hit_rank': 1, 'accession': '', 'organism': 'No hit',
-#             'description': '', 'pident': 0, 'evalue': '',
-#             'is_aspergillus': False, 'is_fungal': False,
-#         })
-#     else:
-#         for rank, h in enumerate(hits, 1):
-#             org_lower = h['organism'].lower()
-#             is_asp = 'aspergillus' in org_lower
-#             is_fungal = any(t in org_lower for t in [
-#                 'aspergillus', 'penicillium', 'fusarium', 'neurospora',
-#                 'saccharomyces', 'candida', 'trichoderma', 'botrytis',
-#                 'magnaporthe', 'ustilago', 'cryptococcus', 'talaromyces',
-#                 'cladosporium', 'alternaria', 'colletotrichum', 'mycosphaerella',
-#                 'sclerotinia', 'rhizopus', 'mucor', 'ascomycet', 'basidiomycet',
-#                 'eurotiomycet', 'sordariomycet', 'dothideomycet', 'fungi',
-#             ])
-#             rows_to_write.append({
-#                 'species': cand['species'], 'Orthogroup': cand['Orthogroup'],
-#                 'GC_deviation': cand['GC_deviation'],
-#                 'hit_rank': rank, 'accession': h['accession'],
-#                 'organism': h['organism'], 'description': h['description'],
-#                 'pident': h['pident'], 'evalue': h['evalue'],
-#                 'is_aspergillus': is_asp, 'is_fungal': is_fungal,
-#             })
-#             print(f"    Hit {rank}: {h['organism']} | {h['pident']:.1f}% ident | "
-#                   f"{'Aspergillus' if is_asp else ('Fungal' if is_fungal else '** NON-FUNGAL **')}")
-# 
-    # Save incrementally
-#     with open(RESULTS_FILE, 'a') as f:
-#         for r in rows_to_write:
-#             f.write('\t'.join(str(r[c]) for c in ['species', 'Orthogroup', 'GC_deviation',
-#                     'hit_rank', 'accession', 'organism', 'description', 'pident',
-#                     'evalue', 'is_aspergillus', 'is_fungal']) + '\n')
-# 
-#     time.sleep(3)
-
-# --- Load all results (including previous runs) and visualize ---
-# print(f"\nResults saved to: {RESULTS_FILE}")
-# blast_tax_df = pd.read_csv(RESULTS_FILE, sep='\t')
-# print(f"Total rows: {len(blast_tax_df)}, OGs completed: {blast_tax_df['Orthogroup'].nunique()}")
-
-# --- Summary ---
-# print("\n" + "=" * 80)
-# print("TAXONOMIC ORIGIN SUMMARY (top hit per xenolog candidate)")
-# print("=" * 80)
-
-# top_hits = blast_tax_df[blast_tax_df['hit_rank'] == 1]
-# for sp in SPECIES_DEEP:
-#     sp_hits = top_hits[top_hits['species'] == sp]
-#     if sp_hits.empty:
-#         continue
-#     n = len(sp_hits)
-#     n_asp = sp_hits['is_aspergillus'].sum()
-#     n_fungal = sp_hits['is_fungal'].sum() - n_asp
-#     n_nonfungal = n - sp_hits['is_fungal'].sum()
-#     print(f"\n  {sp} ({n} candidates):")
-#     print(f"    Closest hit is Aspergillus: {n_asp} ({100*n_asp/n:.0f}%)")
-#     print(f"    Closest hit is other fungi: {n_fungal} ({100*n_fungal/n:.0f}%)")
-#     print(f"    Closest hit is non-fungal:  {n_nonfungal} ({100*n_nonfungal/n:.0f}%) ← strongest HGT evidence")
-
-# --- Visualization ---
-# fig, axes = plt.subplots(1, len(SPECIES_DEEP), figsize=(4 * len(SPECIES_DEEP), 5))
-# if len(SPECIES_DEEP) == 1:
-#     axes = [axes]
-
-# tax_colors = {'Aspergillus': 'forestgreen', 'Other fungi': 'steelblue',
-#               'Non-fungal': '#e74c3c', 'No hit': 'lightgray'}
-# tax_order = ['Aspergillus', 'Other fungi', 'Non-fungal', 'No hit']
-
-# for idx, sp in enumerate(SPECIES_DEEP):
-#     ax = axes[idx]
-#     sp_hits = top_hits[top_hits['species'] == sp]
-#     if sp_hits.empty:
-#         ax.text(0.5, 0.5, f'A. {sp}\nNo candidates', ha='center', va='center',
-#                 fontsize=11, transform=ax.transAxes)
-#         ax.set_title(f'A. {sp}', fontweight='bold')
-#         ax.axis('off')
-#         continue
-# 
-#     tax_labels = []
-#     for _, r in sp_hits.iterrows():
-#         if r['organism'] == 'No hit':
-#             tax_labels.append('No hit')
-#         elif r['is_aspergillus']:
-#             tax_labels.append('Aspergillus')
-#         elif r['is_fungal']:
-#             tax_labels.append('Other fungi')
-#         else:
-#             tax_labels.append('Non-fungal')
-# 
-#     counts = pd.Series(tax_labels).value_counts()
-#     vals = [counts.get(c, 0) for c in tax_order]
-#     nonzero = [(v, c, tax_colors[c]) for v, c in zip(vals, tax_order) if v > 0]
-# 
-#     if nonzero:
-#         wedges, _ = ax.pie([x[0] for x in nonzero],
-#                            colors=[x[2] for x in nonzero], startangle=90,
-#                            wedgeprops=dict(linewidth=0.5, edgecolor='white'))
-#         total = sum(v for v, _, _ in nonzero)
-#         for j, (v, c, _) in enumerate(nonzero):
-#             ang = (wedges[j].theta1 + wedges[j].theta2) / 2
-#             x_pos = 0.6 * np.cos(np.radians(ang))
-#             y_pos = 0.6 * np.sin(np.radians(ang))
-#             ax.text(x_pos, y_pos, f"{v}\n({100*v/total:.0f}%)",
-#                     ha='center', va='center', fontsize=9, fontweight='bold')
-# 
-#     ax.set_title(f'A. {sp}\n(n={len(sp_hits)} candidates)', fontsize=11, fontweight='bold')
 
 from matplotlib.patches import Patch
-# legend_patches = [Patch(facecolor=tax_colors[c], label=c) for c in tax_order]
-# fig.legend(handles=legend_patches, fontsize=9, loc='lower center', ncol=4, bbox_to_anchor=(0.5, -0.05))
-# plt.suptitle('Taxonomic Origin of Xenolog Candidates (NCBI nr top hit)',
-#              fontsize=13, fontweight='bold', y=1.03)
-# plt.tight_layout()
-# plt.savefig(f'{RESULTS_DIR}/rare_xenolog_ncbi_taxonomy.png', dpi=150, bbox_inches='tight')
 
-# --- Detail table: non-fungal hits ---
-# nonfungal = top_hits[~top_hits['is_fungal'] & (top_hits['organism'] != 'No hit')]
-# if not nonfungal.empty:
-#     print("\n" + "=" * 80)
-#     print("NON-FUNGAL TOP HITS (strongest HGT candidates)")
-#     print("=" * 80)
-#     for _, r in nonfungal.iterrows():
-#         print(f"\n  {r['species']} / {r['Orthogroup']}:")
-#         print(f"    Organism: {r['organism']}")
-#         print(f"    Identity: {r['pident']:.1f}%, E-value: {r['evalue']}")
-#         print(f"    GC deviation: {r['GC_deviation']:+.1f}%")
-#         print(f"    Description: {r['description']}")
-# else:
-#     print("\nNo non-fungal top hits found — all xenolog candidates have fungal best matches.")
-
-
-
-# --- Functions extracted from NB4_RareGenome notebook ---
 
 def get_accession(col):
     """Extract GCA/GCF accession from OrthoFinder column name."""
@@ -1503,64 +423,6 @@ def get_accession(col):
     return m.group(1) if m else col
 
 
-def load_species_data(species_key):
-    """Load PAV matrix + OG consensus (with Pangenome_Class) from NB1_Results."""
-    cfg = SPECIES_CONFIG[species_key]
-    print(f"\n{'='*60}")
-    print(f"Loading {cfg['label']}...")
-
-    # Long annotation table
-    long_annot = pd.read_csv(cfg['annot_path'], sep='\t', low_memory=False)
-    print(f"  Long annotation: {len(long_annot):,} rows, {long_annot['Orthogroup'].nunique():,} OGs, "
-          f"{long_annot['Assembly Accession'].nunique()} genomes")
-
-    # PAV matrix, dropping ANI-excluded genomes
-    pav = pd.read_csv(cfg['pav_path'], sep='\t', index_col=0)
-    sp_short = cfg.get('species') or cfg['label'].replace('A. ', '').strip()
-    try:
-        from funpan_utils import filter_ani_excluded as _fae
-        pav = _fae(pav, sp_short, axis='cols')
-    except Exception:
-        pass
-    print(f"  PAV matrix (ANI-filtered): {pav.shape[0]:,} OGs x {pav.shape[1]} genomes")
-
-    # OG consensus with Pangenome_Class
-    og_consensus = pd.read_csv(cfg['og_consensus_path'], sep='\t')
-    n_core = (og_consensus['Pangenome_Class'] == 'Core').sum()
-    n_acc = (og_consensus['Pangenome_Class'] == 'Accessory').sum()
-    n_rare = (og_consensus['Pangenome_Class'] == 'Rare').sum()
-    n_total = len(og_consensus)
-    print(f"  OG consensus: {n_total} OGs")
-    print(f"    Core: {n_core} ({n_core/n_total:.1%}), Accessory: {n_acc} ({n_acc/n_total:.1%}), "
-          f"Rare: {n_rare} ({n_rare/n_total:.1%})")
-
-    # Recover thresholds
-    gene_freq = pav.sum(axis=1)
-    core_ogs = set(og_consensus.loc[og_consensus['Pangenome_Class'] == 'Core', 'Orthogroup'])
-    rare_ogs = set(og_consensus.loc[og_consensus['Pangenome_Class'] == 'Rare', 'Orthogroup'])
-    core_freqs = gene_freq[gene_freq.index.isin(core_ogs)]
-    rare_freqs = gene_freq[gene_freq.index.isin(rare_ogs)]
-    core_n = int(core_freqs.min()) if len(core_freqs) > 0 else pav.shape[1]
-    rare_n = int(rare_freqs.max()) if len(rare_freqs) > 0 else 1
-    n_strains = pav.shape[1]
-    print(f"  Thresholds: core >= {core_n}/{n_strains}, rare <= {rare_n}/{n_strains}")
-
-    return {
-        'long_annot': long_annot,
-        'pav': pav,
-        'og_consensus': og_consensus,
-        'core_n': core_n,
-        'rare_n': rare_n,
-        'n_strains': n_strains,
-    }
-
-
-# Load all species
-# species_data = {}
-# for sp in SPECIES_LIST:
-#     species_data[sp] = load_species_data(sp)
-
-# Annotation rates by pangenome class
 def annotation_rate_by_class(og_consensus, annotation_col, classes=('Core', 'Accessory', 'Rare')):
     """Compute fraction of OGs with a given annotation, per pangenome class."""
     results = {}
@@ -1575,33 +437,6 @@ def annotation_rate_by_class(og_consensus, annotation_col, classes=('Core', 'Acc
         results[cls] = {'n': len(sub), 'annotated': int(has_annot), 'rate': has_annot / len(sub)}
     return results
 
-
-# print('=== Annotation rates by pangenome class ===\n')
-# annot_cols = ['PFAMs', 'CAZy', 'GOs', 'Description']
-# all_rates = []
-
-# for sp in SPECIES_LIST:
-#     ogc = species_data[sp]['og_consensus']
-#     label = SPECIES_CONFIG[sp]['label']
-#     print(f'\n{label}:')
-#     for col in annot_cols:
-#         if col in ogc.columns:
-#             rates = annotation_rate_by_class(ogc, col)
-#             for cls, info in rates.items():
-#                 all_rates.append({
-#                     'Species': label, 'Annotation': col,
-#                     'Class': cls, 'Rate': info['rate'],
-#                     'n': info['n'], 'annotated': info['annotated']
-#                 })
-#                 print(f"  {col} - {cls}: {info['annotated']}/{info['n']} ({info['rate']:.1%})")
-
-# rates_df = pd.DataFrame(all_rates)
-# rates_df.to_csv(f'{RESULTS_DIR}/annotation_rates_by_class.csv', index=False)
-# print(f'\nSaved: {RESULTS_DIR}/annotation_rates_by_class.csv')
-
-# 6.1 Protein length distribution by pangenome class
-
-# SPECIES_DEEP = ['fumigatus', 'flavus', 'niger', 'oryzae']
 
 def og_protein_lengths(og_seq_dir, og_list):
     """Return dict {OG: [len1, len2, ...]} for requested OGs."""
@@ -1611,43 +446,6 @@ def og_protein_lengths(og_seq_dir, og_list):
         if fa.exists():
             lengths[og] = [len(rec.seq) for rec in SeqIO.parse(fa, 'fasta')]
     return lengths
-
-
-# print('Computing protein lengths per orthogroup ...')
-# length_data = {}  # species -> DataFrame
-
-# for sp in SPECIES_DEEP:
-#     d = species_data[sp]
-#     ogc = d['og_consensus']
-#     og_dir = f'/datadrive/Species/Aspergillus/{sp}/orthofinder_output/'
-#     res_dirs = sorted(Path(og_dir).glob('Results_*/Orthogroup_Sequences'))
-#     if not res_dirs:
-#         print(f'  {sp}: Orthogroup_Sequences not found, skipping')
-#         continue
-#     res_dir = res_dirs[0]
-# 
-#     all_ogs = ogc['Orthogroup'].tolist()
-#     lens = og_protein_lengths(str(res_dir), all_ogs)
-# 
-#     rows = []
-#     for _, r in ogc.iterrows():
-#         og = r['Orthogroup']
-#         if og in lens and lens[og]:
-#             rows.append({
-#                 'Orthogroup': og,
-#                 'median_len': np.median(lens[og]),
-#                 'mean_len': np.mean(lens[og]),
-#                 'min_len': min(lens[og]),
-#                 'n_proteins': len(lens[og]),
-#                 'Pangenome_Class': r['Pangenome_Class'],
-#             })
-#     length_data[sp] = pd.DataFrame(rows)
-#     print(f'  {sp}: {len(rows)} OGs with length data')
-
-# 6.2 DIAMOND BLASTp: Rare OGs vs Core+Accessory
-
-# CONDA_PREFIX = '/home/user/anaconda3/envs/pipeline_test2/bin'
-# DIAMOND = f'{CONDA_PREFIX}/diamond'
 
 
 def get_representative_seqs(og_seq_dir, og_list):
@@ -1667,96 +465,6 @@ def get_representative_seqs(og_seq_dir, og_list):
     return reps
 
 
-# print('Running DIAMOND BLASTp: Rare OGs vs Core+Accessory OGs ...')
-# print('=' * 80)
-
-# diamond_results = {}
-
-# for sp in SPECIES_DEEP:
-#     d = species_data[sp]
-#     ogc = d['og_consensus']
-#     og_dir = f'/datadrive/Species/Aspergillus/{sp}/orthofinder_output/'
-#     res_dirs = sorted(Path(og_dir).glob('Results_*/Orthogroup_Sequences'))
-#     if not res_dirs:
-#         print(f'\n{sp}: Orthogroup_Sequences not found, skipping')
-#         diamond_results[sp] = pd.DataFrame()
-#         continue
-#     res_dir = str(res_dirs[0])
-# 
-#     rare_ogs = ogc.loc[ogc['Pangenome_Class'] == 'Rare', 'Orthogroup'].tolist()
-#     nonrare_ogs = ogc.loc[ogc['Pangenome_Class'].isin(['Core', 'Accessory']), 'Orthogroup'].tolist()
-# 
-#     if len(rare_ogs) == 0:
-#         print(f'\n{sp}: 0 rare OGs -- skipping DIAMOND')
-#         diamond_results[sp] = pd.DataFrame(
-#             columns=['Orthogroup', 'blast_class', 'pident', 'qcovhsp', 'scovhsp', 'best_target'])
-#         continue
-# 
-#     print(f'\n{sp}: {len(rare_ogs)} rare queries vs {len(nonrare_ogs)} core+accessory targets')
-# 
-#     rare_reps = get_representative_seqs(res_dir, rare_ogs)
-#     nonrare_reps = get_representative_seqs(res_dir, nonrare_ogs)
-#     print(f'  Representatives: {len(rare_reps)} rare, {len(nonrare_reps)} non-rare')
-# 
-#     tmpdir = tempfile.mkdtemp(prefix=f'diamond_{sp}_')
-#     query_fa = f'{tmpdir}/rare_query.fa'
-#     db_fa = f'{tmpdir}/nonrare_db.fa'
-#     db_path = f'{tmpdir}/nonrare_db'
-#     out_tsv = f'{tmpdir}/diamond_out.tsv'
-# 
-#     SeqIO.write(rare_reps.values(), query_fa, 'fasta')
-#     SeqIO.write(nonrare_reps.values(), db_fa, 'fasta')
-# 
-#     subprocess.run([DIAMOND, 'makedb', '--in', db_fa, '-d', db_path],
-#                    capture_output=True, check=True)
-#     subprocess.run([
-#         DIAMOND, 'blastp',
-#         '-q', query_fa, '-d', db_path, '-o', out_tsv,
-#         '--sensitive', '--max-target-seqs', '5',
-#         '--outfmt', '6', 'qseqid', 'sseqid', 'pident', 'length', 'qlen', 'slen',
-#         'qcovhsp', 'scovhsp', 'evalue', 'bitscore',
-#         '--threads', '8'
-#     ], capture_output=True, check=True)
-# 
-#     cols = ['qseqid', 'sseqid', 'pident', 'length', 'qlen', 'slen',
-#             'qcovhsp', 'scovhsp', 'evalue', 'bitscore']
-#     if os.path.getsize(out_tsv) > 0:
-#         hits = pd.read_csv(out_tsv, sep='\t', names=cols)
-#         best_hits = hits.sort_values('bitscore', ascending=False).drop_duplicates('qseqid', keep='first')
-#     else:
-#         best_hits = pd.DataFrame(columns=cols)
-# 
-#     classifications = []
-#     for og in rare_ogs:
-#         if og in rare_reps:
-#             row = best_hits[best_hits['qseqid'] == og]
-#             if row.empty:
-#                 classifications.append({'Orthogroup': og, 'blast_class': 'No hit',
-#                                         'pident': 0, 'qcovhsp': 0, 'scovhsp': 0, 'best_target': ''})
-#             else:
-#                 r = row.iloc[0]
-#                 qcov, scov, pident = r['qcovhsp'], r['scovhsp'], r['pident']
-#                 if qcov >= 70 and scov < 50 and pident >= 30:
-#                     bclass = 'Fragment of longer gene'
-#                 elif qcov >= 70 and scov >= 70 and pident >= 30:
-#                     bclass = 'Full-length homolog'
-#                 else:
-#                     bclass = 'No significant similarity'
-#                 classifications.append({
-#                     'Orthogroup': og, 'blast_class': bclass, 'pident': pident,
-#                     'qcovhsp': qcov, 'scovhsp': scov, 'best_target': r['sseqid']
-#                 })
-# 
-#     diamond_results[sp] = pd.DataFrame(classifications)
-#     shutil.rmtree(tmpdir)
-# 
-#     counts = diamond_results[sp]['blast_class'].value_counts()
-#     print(f'  Results:')
-#     for cls, cnt in counts.items():
-#         print(f'    {cls}: {cnt} ({100*cnt/len(classifications):.1f}%)')
-
-# 7.1 Identify xenolog candidates based on GC content deviation
-
 def compute_gc_content(sequence):
     """Compute GC content of a protein-coding DNA or protein sequence."""
     seq = str(sequence).upper()
@@ -1768,49 +476,8 @@ def compute_gc_content(sequence):
 # xenolog_candidates = {}
 GC_THRESHOLD = 2.0  # standard deviations from mean
 
-# for sp in SPECIES_DEEP:
-#     d = species_data[sp]
-#     ogc = d['og_consensus']
-#     rare_ogc = ogc[ogc['Pangenome_Class'] == 'Rare'].copy()
-# 
-#     if len(rare_ogc) < 5:
-#         print(f'{sp}: too few rare OGs ({len(rare_ogc)}) for xenolog detection')
-#         xenolog_candidates[sp] = pd.DataFrame()
-#         continue
-# 
-#     og_dir = f'/datadrive/Species/Aspergillus/{sp}/orthofinder_output/'
-#     res_dirs = sorted(Path(og_dir).glob('Results_*/Orthogroup_Sequences'))
-#     if not res_dirs:
-#         print(f'{sp}: Orthogroup_Sequences not found')
-#         xenolog_candidates[sp] = pd.DataFrame()
-#         continue
-#     res_dir = str(res_dirs[0])
-# 
-    # Compute GC of all OG representative sequences
-#     reps = get_representative_seqs(res_dir, ogc['Orthogroup'].tolist())
-#     gc_data = {og: compute_gc_content(reps[og].seq) for og in reps}
-# 
-#     gc_series = pd.Series(gc_data)
-#     gc_mean = gc_series.mean()
-#     gc_std = gc_series.std()
-# 
-#     rare_gc = gc_series[gc_series.index.isin(rare_ogc['Orthogroup'])]
-#     rare_ogc = rare_ogc.copy()
-#     rare_ogc['GC_content'] = rare_ogc['Orthogroup'].map(gc_data)
-#     rare_ogc['GC_deviation'] = (rare_ogc['GC_content'] - gc_mean) / gc_std
-# 
-#     candidates = rare_ogc[rare_ogc['GC_deviation'].abs() > GC_THRESHOLD].copy()
-#     xenolog_candidates[sp] = candidates
-# 
-#     print(f'{sp}: {len(candidates)} xenolog candidates '
-#           f'(|GC deviation| > {GC_THRESHOLD} SD, mean GC={gc_mean:.1f}%)')
-
-# 7.2 NCBI remote BLASTp for taxonomic origin
 
 NCBI_BLAST_URL = 'https://blast.ncbi.nlm.nih.gov/blast/Blast.cgi'
-# MAX_HITS = 5
-# RESULTS_FILE = f'{RESULTS_DIR}/rare_xenolog_ncbi_blast_results.tsv'
-# MAX_RETRIES = 3
 
 
 def ncbi_remote_blast(sequence, program='blastp', database='nr', max_hits=5, max_wait=300):
@@ -1876,112 +543,6 @@ def ncbi_remote_blast(sequence, program='blastp', database='nr', max_hits=5, max
                 return None
     return None
 
-
-# Collect xenolog candidate sequences
-# all_candidates = []
-# for sp in SPECIES_DEEP:
-#     xc = xenolog_candidates.get(sp)
-#     if xc is None or xc.empty:
-#         continue
-#     og_dir = f'/datadrive/Species/Aspergillus/{sp}/orthofinder_output/'
-#     res_dir = str(sorted(Path(og_dir).glob('Results_*/Orthogroup_Sequences'))[0])
-#     reps = get_representative_seqs(res_dir, xc['Orthogroup'].tolist())
-#     for _, row in xc.iterrows():
-#         og = row['Orthogroup']
-#         if og in reps:
-#             all_candidates.append({
-#                 'species': sp, 'Orthogroup': og,
-#                 'sequence': str(reps[og].seq),
-#                 'GC_deviation': row['GC_deviation'],
-#                 'description': row.get('Description', ''),
-#             })
-
-# Load existing results (resume support)
-# completed_ogs = set()
-# if os.path.exists(RESULTS_FILE):
-#     existing = pd.read_csv(RESULTS_FILE, sep='\t')
-#     completed_ogs = set(existing['Orthogroup'].unique())
-#     print(f'Resuming: {len(completed_ogs)} OGs already completed in {RESULTS_FILE}')
-
-# remaining = [c for c in all_candidates if c['Orthogroup'] not in completed_ogs]
-# n_total = len(all_candidates)
-# n_remaining = len(remaining)
-
-# print(f'Total xenolog candidates: {n_total}')
-# print(f'Already done: {n_total - n_remaining}, remaining: {n_remaining}')
-# if n_remaining > 0:
-#     print(f'Estimated time: ~{n_remaining * 45 // 60} - {n_remaining * 75 // 60} minutes')
-# print('=' * 80)
-
-# Write header if file doesn't exist
-# if not os.path.exists(RESULTS_FILE):
-#     with open(RESULTS_FILE, 'w') as f:
-#         f.write('\t'.join(['species', 'Orthogroup', 'GC_deviation', 'hit_rank',
-#                            'accession', 'organism', 'description', 'pident',
-#                            'evalue', 'is_aspergillus', 'is_fungal']) + '\n')
-
-# for i, cand in enumerate(remaining):
-#     print(f"\n  [{i+1}/{n_remaining}] {cand['species']} / {cand['Orthogroup']} "
-#           f"(GC delta={cand['GC_deviation']:+.1f}%) ...")
-# 
-#     hits = None
-#     for attempt in range(MAX_RETRIES):
-#         try:
-#             hits = ncbi_remote_blast(cand['sequence'], max_hits=MAX_HITS)
-#             break
-#         except Exception as e:
-#             print(f'      Attempt {attempt+1}/{MAX_RETRIES} failed: {e}')
-#             if attempt < MAX_RETRIES - 1:
-#                 time.sleep(30)
-# 
-#     rows_to_write = []
-#     if hits is None or len(hits) == 0:
-#         print(f'    -> No BLAST results returned')
-#         rows_to_write.append({
-#             'species': cand['species'], 'Orthogroup': cand['Orthogroup'],
-#             'GC_deviation': cand['GC_deviation'],
-#             'hit_rank': 1, 'accession': '', 'organism': 'No hit',
-#             'description': '', 'pident': 0, 'evalue': '',
-#             'is_aspergillus': False, 'is_fungal': False,
-#         })
-#     else:
-#         for rank, h in enumerate(hits, 1):
-#             org_lower = h['organism'].lower()
-#             is_asp = 'aspergillus' in org_lower
-#             is_fungal = any(t in org_lower for t in [
-#                 'aspergillus', 'penicillium', 'fusarium', 'neurospora',
-#                 'saccharomyces', 'candida', 'trichoderma', 'botrytis',
-#                 'magnaporthe', 'ustilago', 'cryptococcus', 'talaromyces',
-#                 'cladosporium', 'alternaria', 'colletotrichum', 'mycosphaerella',
-#                 'sclerotinia', 'rhizopus', 'mucor', 'ascomycet', 'basidiomycet',
-#                 'eurotiomycet', 'sordariomycet', 'dothideomycet', 'fungi',
-#             ])
-#             rows_to_write.append({
-#                 'species': cand['species'], 'Orthogroup': cand['Orthogroup'],
-#                 'GC_deviation': cand['GC_deviation'],
-#                 'hit_rank': rank, 'accession': h['accession'],
-#                 'organism': h['organism'], 'description': h['description'],
-#                 'pident': h['pident'], 'evalue': h['evalue'],
-#                 'is_aspergillus': is_asp, 'is_fungal': is_fungal,
-#             })
-#             print(f"    Hit {rank}: {h['organism']} | {h['pident']:.1f}% ident | "
-#                   f"{'Aspergillus' if is_asp else ('Fungal' if is_fungal else '** NON-FUNGAL **')}")
-# 
-    # Save incrementally
-#     with open(RESULTS_FILE, 'a') as f:
-#         for r in rows_to_write:
-#             f.write('\t'.join(str(r[c]) for c in ['species', 'Orthogroup', 'GC_deviation',
-#                     'hit_rank', 'accession', 'organism', 'description', 'pident',
-#                     'evalue', 'is_aspergillus', 'is_fungal']) + '\n')
-# 
-#     time.sleep(3)
-
-# print(f'\nResults saved to: {RESULTS_FILE}')
-# if os.path.exists(RESULTS_FILE):
-#     blast_tax_df = pd.read_csv(RESULTS_FILE, sep='\t')
-#     print(f'Total rows: {len(blast_tax_df)}, OGs completed: {blast_tax_df["Orthogroup"].nunique()}')
-
-# Helper functions for phylogenetic analysis
 
 def normalize_sample_id(sample_id):
     """Normalize sample ID by removing version suffix."""
@@ -2111,72 +672,7 @@ def fitch_gain_loss(tree, pav_matrix, og_list, phenotype_map):
 # print('Phylogenetic helper functions defined')
 
 
-
 # --- Functions extracted from NB4_RareGenome notebook (final pass) ---
-
-
-def compute_rare_genome_summary(species_list, species_data, species_config, results_dir=None):
-    """Compute rare genome summary table across all species.
-
-    Parameters
-    ----------
-    species_list : list of str
-    species_data : dict
-        ``{species: {og_consensus, pav, n_strains, core_n, rare_n, ...}}``.
-    species_config : dict
-        ``{species: {label, ...}}``.
-    results_dir : str or None
-        If provided, save CSV to this directory.
-
-    Returns
-    -------
-    pd.DataFrame
-        Summary table with one row per species.
-    """
-    rows = []
-    for sp in species_list:
-        d = species_data[sp]
-        ogc = d['og_consensus']
-        pav = d['pav']
-
-        n_core = (ogc['Pangenome_Class'] == 'Core').sum()
-        n_acc = (ogc['Pangenome_Class'] == 'Accessory').sum()
-        n_rare = (ogc['Pangenome_Class'] == 'Rare').sum()
-        n_total = len(ogc)
-
-        rare_ogs = set(ogc.loc[ogc['Pangenome_Class'] == 'Rare', 'Orthogroup'])
-        rare_pav = pav.loc[pav.index.isin(rare_ogs)]
-        mean_rare_per_genome = rare_pav.sum(axis=0).mean() if not rare_pav.empty else 0
-
-        rare_ogc = ogc[ogc['Pangenome_Class'] == 'Rare']
-        pfam_rate = rare_ogc['PFAMs'].apply(
-            lambda x: bool(x) and str(x).strip() not in ('', '-', 'nan')
-        ).mean() if 'PFAMs' in rare_ogc.columns and len(rare_ogc) > 0 else 0
-        cazy_rate = rare_ogc['CAZy'].apply(
-            lambda x: bool(x) and str(x).strip() not in ('', '-', 'nan')
-        ).mean() if 'CAZy' in rare_ogc.columns and len(rare_ogc) > 0 else 0
-
-        rows.append({
-            'Species': species_config[sp]['label'],
-            'Genomes': d['n_strains'],
-            'Total OGs': n_total,
-            'Core': n_core,
-            'Accessory': n_acc,
-            'Rare': n_rare,
-            'Mean rare genes/genome': round(mean_rare_per_genome, 1),
-            'Rare w/ Pfam': f'{pfam_rate:.1%}',
-            'Rare w/ CAZy': f'{cazy_rate:.1%}',
-            'Core threshold': d['core_n'],
-            'Rare threshold': d['rare_n'],
-        })
-
-    summary_df = pd.DataFrame(rows)
-
-    if results_dir is not None:
-        summary_df.to_csv(f'{results_dir}/rare_genome_summary.csv', index=False)
-        print(f'Saved: {results_dir}/rare_genome_summary.csv')
-
-    return summary_df
 
 
 def run_rare_cog_enrichment(species_list, species_data, species_config,
@@ -2275,105 +771,6 @@ def run_rare_cog_enrichment(species_list, species_data, species_config,
     return cog_enrich_df
 
 
-def compute_rare_burden_by_phenotype(species_list, species_data, species_config,
-                                     pheno_map, get_accession_fn, results_dir=None,
-                                     exclude=('Unknown', 'unknown', '', 'Lab', None),
-                                     min_cases=3, min_controls=3):
-    """Per-species, one-vs-rest Mann-Whitney U test of rare gene burden.
-
-    Mirrors the contrast convention used in NB2 (Pan-GWAS): for every phenotype
-    category present in a species, compare burden of "case" strains (with that
-    phenotype) against the rest of the *known* strains (i.e. all other strains
-    with a non-excluded phenotype label).
-
-    Parameters
-    ----------
-    species_list : list of str
-    species_data : dict
-    species_config : dict
-    pheno_map : dict
-        ``{accession: phenotype_label}``.
-    get_accession_fn : callable
-        Function to extract accession from PAV column name.
-    results_dir : str or None
-    exclude : tuple
-        Phenotype labels to drop entirely (treated as "unknown").
-    min_cases, min_controls : int
-        Skip a contrast if either group has fewer samples.
-
-    Returns
-    -------
-    pd.DataFrame
-        Burden test results, one row per (species, phenotype) contrast.
-        Columns: Species, Group1, Group2, n_g1, n_g2, mean_g1, mean_g2,
-        U_stat, p_value, direction.
-    """
-    from scipy.stats import mannwhitneyu
-
-    burden_results = []
-
-    for sp in species_list:
-        d = species_data[sp]
-        pav = d['pav']
-        ogc = d['og_consensus']
-        label = species_config[sp]['label']
-
-        rare_ogs = set(ogc.loc[ogc['Pangenome_Class'] == 'Rare', 'Orthogroup'])
-        rare_pav = pav.loc[pav.index.isin(rare_ogs)]
-
-        if rare_pav.empty or len(rare_ogs) < 2:
-            print(f'{label}: insufficient rare OGs ({len(rare_ogs)}), skipping')
-            continue
-
-        burden = rare_pav.sum(axis=0)
-        pheno_map_sp = {
-            col: pheno_map.get(get_accession_fn(col), 'Unknown')
-            for col in pav.columns
-        }
-
-        # Restrict to "known" strains (drop excluded labels) so controls are meaningful
-        known_cols = [c for c in pav.columns if pheno_map_sp.get(c) not in exclude]
-        if len(known_cols) < (min_cases + min_controls):
-            print(f'{label}: only {len(known_cols)} known strains, skipping')
-            continue
-
-        # Distinct phenotype categories present
-        cats = sorted({pheno_map_sp[c] for c in known_cols})
-
-        print(f"\n{'='*60}")
-        print(f'{label}: rare gene burden, one-vs-rest')
-
-        for target in cats:
-            case_cols = [c for c in known_cols if pheno_map_sp[c] == target]
-            ctrl_cols = [c for c in known_cols if pheno_map_sp[c] != target]
-            n_case, n_ctrl = len(case_cols), len(ctrl_cols)
-            if n_case < min_cases or n_ctrl < min_controls:
-                print(f'  [skip] {target}: n_case={n_case}, n_ctrl={n_ctrl}')
-                continue
-
-            g1_burden = burden[case_cols].values
-            g2_burden = burden[ctrl_cols].values
-            u_stat, p_val = mannwhitneyu(g1_burden, g2_burden, alternative='two-sided')
-            direction = 'higher' if np.mean(g1_burden) > np.mean(g2_burden) else 'lower'
-            print(f'  {target} (n={n_case}, mean={np.mean(g1_burden):.1f}) vs '
-                  f'rest (n={n_ctrl}, mean={np.mean(g2_burden):.1f})  '
-                  f'U={u_stat:.0f}, P={p_val:.2e}  [{target} {direction}]')
-            burden_results.append({
-                'Species': label, 'Group1': target, 'Group2': 'Rest',
-                'n_g1': n_case, 'n_g2': n_ctrl,
-                'mean_g1': float(np.mean(g1_burden)), 'mean_g2': float(np.mean(g2_burden)),
-                'U_stat': float(u_stat), 'p_value': float(p_val),
-                'direction': direction,
-            })
-
-    burden_df = pd.DataFrame(burden_results)
-    if len(burden_df) > 0 and results_dir is not None:
-        burden_df.to_csv(f'{results_dir}/rare_gene_burden_by_phenotype.csv', index=False)
-        print(f'\nSaved: {results_dir}/rare_gene_burden_by_phenotype.csv')
-
-    return burden_df
-
-
 def build_full_genome_burden_table(species_list, species_data, species_config,
                                     pheno_map, get_accession_fn, results_dir=None):
     """Build per-genome burden table (core / accessory / rare gene counts).
@@ -2446,7 +843,7 @@ def _find_diamond_binary():
     if on_path:
         return on_path
     for env in ('funpan', 'pipeline_test3', 'pipeline_test2'):
-        p = f'/home/user/anaconda3/envs/{env}/bin/diamond'
+        p = os.path.expanduser(f'~/anaconda3/envs/{env}/bin/diamond')
         if os.path.isfile(p) and os.access(p, os.X_OK):
             return p
     raise FileNotFoundError(
@@ -2456,7 +853,7 @@ def _find_diamond_binary():
 
 
 def find_gc_outlier_rare_ogs(species_list, species_data, base_path,
-                              gc_threshold=2.0):
+                              gc_threshold=2.0, results_dir=None, force=False):
     """Find rare OGs with anomalous GC content -- candidate xenologs.
 
     For each species:
@@ -2465,6 +862,13 @@ def find_gc_outlier_rare_ogs(species_list, species_data, base_path,
          codon GC and therefore for HGT signal.
       2. Compute the species-wide mean and SD across *all* OGs.
       3. Return rare OGs whose deviation exceeds ``gc_threshold`` SDs.
+
+    Per-OG GC content is cached in
+    ``{results_dir}/{species}/og_gc_content.tsv`` when ``results_dir`` is
+    given. Cached values are reused and only orthogroups missing from the
+    cache are read from the sequence files. ``force=True`` recomputes every
+    orthogroup and rewrites the cache. The threshold is applied after loading,
+    so changing ``gc_threshold`` does not need a recompute.
 
     Returns
     -------
@@ -2483,22 +887,44 @@ def find_gc_outlier_rare_ogs(species_list, species_data, base_path,
             candidates[sp] = pd.DataFrame()
             continue
 
-        og_seq_root = Path(base_path) / sp / 'orthofinder_output'
-        res_dirs = sorted(og_seq_root.glob('Results_*/Orthogroup_Sequences'))
-        if not res_dirs:
-            print(f'  {sp}: Orthogroup_Sequences not found, skipping GC filter')
-            candidates[sp] = pd.DataFrame()
-            continue
-        og_seq_dir = str(res_dirs[-1])
+        all_ogs = ogc['Orthogroup'].astype(str).tolist()
 
-        all_ogs = ogc['Orthogroup'].tolist()
-        reps = get_representative_seqs(og_seq_dir, all_ogs)
-        gc_data = {og: compute_gc_content(reps[og].seq) for og in reps}
-        gc_series = pd.Series(gc_data, dtype=float)
+        cache_fp = (Path(results_dir) / sp / 'og_gc_content.tsv'
+                    if results_dir is not None else None)
+        gc_data = {}
+        if cache_fp is not None and cache_fp.exists() and not force:
+            cached = pd.read_csv(cache_fp, sep='\t')
+            gc_data = dict(zip(cached['Orthogroup'].astype(str),
+                               cached['GC_content'].astype(float)))
+        missing = [og for og in all_ogs if og not in gc_data]
+
+        if missing:
+            og_seq_root = Path(base_path) / sp / 'orthofinder_output'
+            res_dirs = sorted(og_seq_root.glob('Results_*/Orthogroup_Sequences'))
+            if not res_dirs:
+                print(f'  {sp}: Orthogroup_Sequences not found, skipping GC filter')
+                candidates[sp] = pd.DataFrame()
+                continue
+            og_seq_dir = str(res_dirs[-1])
+            print(f'  {sp}: reading GC content for {len(missing)} orthogroups '
+                  f'({len(gc_data)} from cache)')
+            reps = get_representative_seqs(og_seq_dir, missing)
+            gc_data.update({og: compute_gc_content(reps[og].seq) for og in reps})
+            if cache_fp is not None:
+                cache_fp.parent.mkdir(parents=True, exist_ok=True)
+                (pd.DataFrame({'Orthogroup': list(gc_data),
+                               'GC_content': list(gc_data.values())})
+                 .to_csv(cache_fp, sep='\t', index=False))
+                print(f'  {sp}: cached GC content -> {cache_fp}')
+        else:
+            print(f'  {sp}: GC content loaded from {cache_fp}')
+
+        gc_series = pd.Series({og: gc_data[og] for og in all_ogs if og in gc_data},
+                              dtype=float)
         gc_mean = float(gc_series.mean())
         gc_std = float(gc_series.std())
 
-        rare_ogc['GC_content'] = rare_ogc['Orthogroup'].map(gc_data)
+        rare_ogc['GC_content'] = rare_ogc['Orthogroup'].astype(str).map(gc_data)
         rare_ogc['GC_deviation'] = (rare_ogc['GC_content'] - gc_mean) / gc_std
         keep_cols = ['Orthogroup', 'GC_content', 'GC_deviation']
         if 'Description' in rare_ogc.columns:
@@ -2573,6 +999,7 @@ def run_ncbi_blast_xenologs(species_list, species_data, species_config,
               f'BLASTing all candidates (n_per_species ignored)')
         gc_candidates = find_gc_outlier_rare_ogs(
             species_list, species_data, base_path, gc_threshold=gc_threshold,
+            results_dir=results_dir,
         )
     else:
         gc_candidates = None
@@ -2747,7 +1174,7 @@ def run_diamond_rare_vs_nonrare(species_list, species_data, species_config,
             df = pd.read_csv(cache_fp, sep='\t')
             results[sp] = df
             counts = df['blast_class'].value_counts() if 'blast_class' in df else {}
-            print(f'{label}: loaded cached DIAMOND results ({len(df)} rare OGs) — '
+            print(f'{label}: loaded cached DIAMOND results ({len(df)} rare OGs), '
                   + ', '.join(f'{k}: {v}' for k, v in counts.items()))
             continue
 
@@ -2767,7 +1194,7 @@ def run_diamond_rare_vs_nonrare(species_list, species_data, species_config,
             df = pd.DataFrame(columns=empty_cols)
             df.to_csv(cache_fp, sep='\t', index=False)
             results[sp] = df
-            print(f'{label}: 0 rare OGs — wrote empty cache')
+            print(f'{label}: 0 rare OGs, wrote empty cache')
             continue
 
         og_seq_root = Path(base_path) / sp / 'orthofinder_output'
@@ -2871,13 +1298,13 @@ def prepare_rare_characterisation_inputs(species_list, species_data, species_con
                                          annot_cols=('PFAMs', 'CAZy', 'KEGG_ko', 'GOs', 'Description')):
     """Build the four inputs required by :func:`plot_rare_characterisation_figure`.
 
-    Wraps the setup that previously lived inline in NB4 so the notebook stays a
+    Builds the inputs the NB4 characterisation figures need, so the notebook stays a
     one-line call. Returns a dict with keys:
 
-    * ``species_deep`` — list of species with at least ``min_rare`` rare OGs
-    * ``length_data`` — ``{species: DataFrame}`` of (Orthogroup, median_len, Pangenome_Class)
-    * ``rates_df`` — long-format annotation-rate table across Core/Accessory/Rare
-    * ``diamond_results`` — ``{species: DataFrame}`` from
+    * ``species_deep``: list of species with at least ``min_rare`` rare OGs
+    * ``length_data``: ``{species: DataFrame}`` of (Orthogroup, median_len, Pangenome_Class)
+    * ``rates_df``: long-format annotation-rate table across Core/Accessory/Rare
+    * ``diamond_results``: ``{species: DataFrame}`` from
       :func:`run_diamond_rare_vs_nonrare`. Empty dict if ``run_diamond=False``.
 
     Parameters
@@ -3054,7 +1481,7 @@ def plot_xenolog_taxonomy(blast_df, species_config, results_dir=None,
 
     Saves
     -----
-    {results_dir}/rare_xenolog_taxonomy.png / .pdf
+    {results_dir}/rare_xenolog_taxonomy.png
     """
     import matplotlib.pyplot as plt
     import matplotlib.gridspec as gridspec
@@ -3156,7 +1583,7 @@ def plot_xenolog_taxonomy(blast_df, species_config, results_dir=None,
         ax_c.set_yticklabels(labels, fontsize=8)
         ax_c.invert_yaxis()
         ax_c.set_xlabel('-log10(e-value)  (higher = more significant)')
-        ax_c.set_title(f'C. Confident non-fungal top hits — candidate xenologs '
+        ax_c.set_title(f'C. Confident non-fungal top hits: candidate xenologs '
                        f'(e $\\leq$ {evalue_cutoff:g})',
                        fontweight='bold', loc='left')
         for i, r in enumerate(confident.itertuples()):
@@ -3171,7 +1598,6 @@ def plot_xenolog_taxonomy(blast_df, species_config, results_dir=None,
         out = Path(results_dir)
         out.mkdir(parents=True, exist_ok=True)
         plt.savefig(out / 'rare_xenolog_taxonomy.png', dpi=180, bbox_inches='tight')
-        plt.savefig(out / 'rare_xenolog_taxonomy.pdf', bbox_inches='tight')
         print(f'Saved: {out / "rare_xenolog_taxonomy.png"}')
 
     return top
@@ -3182,181 +1608,31 @@ DIAMOND_CLASS_INTERPRETATION = {
         'rule':     'qcov >= 70%, scov >= 70%, pident >= 30%',
         'meaning':  'Rare OG aligns end-to-end with a Core/Accessory protein',
         'biology':  'Likely paralog or in-genome duplicate that ended up rare due to copy-number variation. Not biologically novel.',
-        'rare_genome_status': 'NOT a real rare gene — paralog of a common gene',
+        'rare_genome_status': 'NOT a real rare gene: paralog of a common gene',
         'color':    'steelblue',
     },
     'Fragment of longer gene': {
         'rule':     'qcov >= 70%, scov < 50%, pident >= 30%',
         'meaning':  'Rare OG covers only a small portion of a longer Core/Accessory protein',
         'biology':  'Typically a pseudogene fragment, an assembly truncation, or a domain-only homolog of a longer protein. Often a degradation artefact, not a gain.',
-        'rare_genome_status': 'NOT a real rare gene — partial / degraded fragment',
+        'rare_genome_status': 'NOT a real rare gene: partial / degraded fragment',
         'color':    'coral',
     },
     'No significant similarity': {
         'rule':     'has a hit but qcov, scov or pident below thresholds',
         'meaning':  'Faint similarity to a Core/Accessory gene but not classifiable',
         'biology':  'Highly diverged paralog, ambiguous case. May or may not be a real rare gene.',
-        'rare_genome_status': 'AMBIGUOUS — possible diverged copy',
+        'rare_genome_status': 'AMBIGUOUS: possible diverged copy',
         'color':    'lightgrey',
     },
     'No hit': {
         'rule':     'no DIAMOND hit at all against Core+Accessory pool',
         'meaning':  'No homolog in the species\' Core or Accessory genome',
         'biology':  'Genuine novel/orphan rare gene. Candidates for strain-specific innovations, horizontally transferred genes, or lineage-specific evolution. THIS is the biologically interesting set.',
-        'rare_genome_status': 'TRUE rare gene — novel / orphan / candidate xenolog',
+        'rare_genome_status': 'TRUE rare gene: novel / orphan / candidate xenolog',
         'color':    '#8D8585',
     },
 }
-
-
-def summarize_diamond_classifications(diamond_results, species_config,
-                                       results_dir=None):
-    """Build per-species count + percentage table of DIAMOND BLAST classifications.
-
-    Parameters
-    ----------
-    diamond_results : dict
-        ``{species: DataFrame}`` from :func:`run_diamond_rare_vs_nonrare`.
-    species_config : dict
-    results_dir : str or None
-        If given, writes ``{results_dir}/diamond_classification_summary.csv``.
-
-    Returns
-    -------
-    pd.DataFrame
-        One row per species; columns are the four BLAST classes (counts) plus
-        ``Total``, ``Pct_TrueRare``, ``Pct_Paralog``, ``Pct_Fragment``.
-    """
-    rows = []
-    classes = list(DIAMOND_CLASS_INTERPRETATION.keys())
-    for sp, df in diamond_results.items():
-        label = species_config.get(sp, {}).get('label', sp)
-        if df is None or df.empty or 'blast_class' not in df.columns:
-            rows.append({'Species': label, **{c: 0 for c in classes},
-                         'Total': 0, 'Pct_TrueRare': float('nan'),
-                         'Pct_Paralog': float('nan'),
-                         'Pct_Fragment': float('nan')})
-            continue
-        counts = df['blast_class'].value_counts()
-        total = int(counts.sum())
-        row = {'Species': label, 'Total': total}
-        for c in classes:
-            row[c] = int(counts.get(c, 0))
-        row['Pct_TrueRare']  = round(100 * row['No hit'] / total, 1) if total else 0
-        row['Pct_Paralog']   = round(100 * row['Full-length homolog'] / total, 1) if total else 0
-        row['Pct_Fragment']  = round(100 * row['Fragment of longer gene'] / total, 1) if total else 0
-        rows.append(row)
-    summary = pd.DataFrame(rows)
-    if results_dir is not None:
-        out_fp = Path(results_dir) / 'diamond_classification_summary.csv'
-        summary.to_csv(out_fp, index=False)
-        print(f'Saved: {out_fp}')
-    return summary
-
-
-def plot_diamond_classification_breakdown(diamond_results, species_config,
-                                           results_dir=None):
-    """Detailed per-species DIAMOND breakdown with biological interpretation.
-
-    Renders a stacked-bar chart of the four classes per species, plus an inset
-    legend that explains what each class means in terms of rare-genome biology.
-
-    Parameters
-    ----------
-    diamond_results : dict
-        ``{species: DataFrame}`` from :func:`run_diamond_rare_vs_nonrare`.
-    species_config : dict
-    results_dir : str or None
-    """
-    import matplotlib.pyplot as plt
-    import matplotlib.gridspec as gridspec
-    import matplotlib.patches as mpatches
-
-    classes = list(DIAMOND_CLASS_INTERPRETATION.keys())
-    colors = {c: DIAMOND_CLASS_INTERPRETATION[c]['color'] for c in classes}
-
-    summary = summarize_diamond_classifications(diamond_results, species_config,
-                                                 results_dir=results_dir)
-    if summary.empty:
-        print('No DIAMOND results to plot.')
-        return None
-
-    import textwrap
-    fig = plt.figure(figsize=(16, 9))
-    gs = gridspec.GridSpec(1, 2, width_ratios=[1.1, 1.3], wspace=0.35,
-                            left=0.06, right=0.97, top=0.92, bottom=0.10)
-
-    # ---- Left panel: per-species stacked count bar with absolute and % labels ----
-    ax_left = fig.add_subplot(gs[0, 0])
-    species_labels = summary['Species'].tolist()
-    x = np.arange(len(species_labels))
-    bottom = np.zeros(len(species_labels))
-    for c in classes:
-        vals = summary[c].values
-        ax_left.bar(x, vals, bottom=bottom,
-                    color=colors[c], edgecolor='white', linewidth=0.6, label=c)
-        for xi, (v, b, tot) in enumerate(zip(vals, bottom, summary['Total'].values)):
-            if v > 0:
-                pct = 100 * v / tot if tot else 0
-                ax_left.text(xi, b + v / 2, f'{v}\n({pct:.0f}%)',
-                             ha='center', va='center', fontsize=8, color='white'
-                             if c in ('Full-length homolog', 'No hit') else 'black')
-        bottom += vals
-    ax_left.set_xticks(x)
-    ax_left.set_xticklabels(species_labels, fontsize=9)
-    ax_left.set_ylabel('Number of rare OGs')
-    ax_left.set_title('DIAMOND BLASTp classification of rare OGs',
-                      fontweight='bold', loc='left')
-    ax_left.legend(fontsize=8, loc='upper right', title='BLAST class', frameon=True)
-
-    # ---- Right panel: biological interpretation card layout ----
-    # Use a sub-gridspec with one row per class so each entry has its own
-    # bounded box and lines can't bleed into the next entry.
-    ax_right_title = fig.add_subplot(gs[0, 1])
-    ax_right_title.axis('off')
-    ax_right_title.set_title('What each class means biologically',
-                              fontweight='bold', loc='left', pad=10)
-
-    n_classes = len(classes)
-    inner = gridspec.GridSpecFromSubplotSpec(
-        n_classes, 1, subplot_spec=gs[0, 1], hspace=0.45,
-    )
-    for i, c in enumerate(classes):
-        ax_card = fig.add_subplot(inner[i, 0])
-        ax_card.set_xlim(0, 1)
-        ax_card.set_ylim(0, 1)
-        ax_card.axis('off')
-
-        info = DIAMOND_CLASS_INTERPRETATION[c]
-
-        # Left strip: colour swatch identifies the class
-        ax_card.add_patch(mpatches.Rectangle((0.0, 0.05), 0.05, 0.9,
-                                              color=info['color'], lw=0))
-        # Title + rule (top of card)
-        ax_card.text(0.07, 0.93, c, fontsize=11, fontweight='bold', va='top')
-        ax_card.text(0.07, 0.74,
-                     textwrap.fill(f"Rule: {info['rule']}", width=70),
-                     fontsize=8, style='italic', va='top', color='dimgrey')
-
-        # Biology body (wrapped for readability)
-        ax_card.text(0.07, 0.55,
-                     textwrap.fill(info['biology'], width=70),
-                     fontsize=8.5, va='top')
-
-        # Status line (bottom of card)
-        ax_card.text(0.07, 0.13,
-                     f"→ {info['rare_genome_status']}",
-                     fontsize=9, fontweight='bold', color=info['color'], va='top')
-        # Card border
-        ax_card.add_patch(mpatches.Rectangle((0, 0), 1, 1, fill=False,
-                                              edgecolor='lightgrey', lw=0.7))
-
-    if results_dir is not None:
-        out_fp = Path(results_dir) / 'diamond_classification_breakdown.png'
-        plt.savefig(out_fp, dpi=180, bbox_inches='tight')
-        plt.savefig(str(out_fp).replace('.png', '.pdf'), bbox_inches='tight')
-        print(f'Saved: {out_fp}')
-    return summary
 
 
 def plot_rare_characterisation_figure(species_deep, length_data, diamond_results,
@@ -3530,8 +1806,6 @@ def plot_rare_characterisation_figure(species_deep, length_data, diamond_results
     if results_dir is not None:
         plt.savefig(f'{results_dir}/rare_genome_characterisation_figure.png',
                     dpi=200, bbox_inches='tight')
-        plt.savefig(f'{results_dir}/rare_genome_characterisation_figure.pdf',
-                    bbox_inches='tight')
     print('Saved main characterisation figure')
 
 
@@ -3914,9 +2188,6 @@ def run_mash_kmeans(species_list_mash, species_display_mash,
         g.fig.suptitle(
             f'{species_display_mash[species]} Mash Distances (k={optimal_k} clusters)',
             y=1.02, fontsize=13, fontweight='bold')
-        g.fig.savefig(os.path.join(sp_dir, f'{species}_mash_heatmap.pdf'),
-                      bbox_inches='tight', dpi=150)
-        print(f'  Saved heatmap: {sp_dir}/{species}_mash_heatmap.pdf')
 
 
 def run_mash_all_species(species_list_mash, species_display_mash,
@@ -3982,8 +2253,8 @@ def run_mash_all_species(species_list_mash, species_display_mash,
         # Species side-bar colours = the project-wide species palette
         # (funpan_utils.SPECIES_COLORS_DISPLAY).
         sp_color_map = {
-            'A. fumigatus': '#e74c3c', 'A. flavus': '#ffd500',
-            'A. niger': '#1a1aff', 'A. oryzae': '#27ae60',
+            'A. fumigatus': '#e74c3c', 'A. flavus': '#27ae60',
+            'A. niger': '#1a1aff', 'A. oryzae': '#ffd500',
         }
         row_species = pd.Series(
             {acc: genome_to_species.get(acc, 'Unknown')
@@ -4010,9 +2281,6 @@ def run_mash_all_species(species_list_mash, species_display_mash,
                      bbox_to_anchor=(0.95, 0.05), fontsize=15,
                      title='Species', title_fontsize=16)
 
-        g.fig.savefig(os.path.join(all_sp_dir, 'all_species_mash_heatmap.pdf'),
-                      bbox_inches='tight', dpi=150)
-        print(f'Saved: {all_sp_dir}/all_species_mash_heatmap.pdf')
 
         species_df = pd.DataFrame({
             'accession': all_dist_matrix.index,
@@ -4030,155 +2298,1126 @@ def run_mash_all_species(species_list_mash, species_display_mash,
     return all_dist_matrix
 
 
-def plot_rare_ogs_characterization(species_list, species_data, species_config,
-                                    results_dir=None, top_cog_n=8):
-    """Multi-panel visualization characterising rare orthogroups across species.
+# =============================================================================
+# NB4 ANALYSIS AND FIGURE FUNCTIONS
+# =============================================================================
 
-    Per species, panels show:
-      (a) annotation coverage rates (Description / Pfam / CAZy / KEGG / GO / EC)
-      (b) top COG functional categories
-      (c) protein-count distribution (how many protein members per rare OG)
+# Phenotype palette shared with the NB0 phenotype-distribution figure.
+NB4_PHENO_COLORS = {
+    'Human-pathogenic': '#e74c3c', 'Plant-pathogenic': '#e67e22',
+    'Animal-pathogenic': '#7d3c98', 'Environmental': '#27ae60',
+    'Industrial-trait': '#3498db',
+}
 
-    Parameters
-    ----------
-    species_list : list of str
-    species_data : dict
-        ``{sp: {'og_consensus': DataFrame}}``.
-    species_config : dict
-        ``{sp: {'label': str}}``.
-    results_dir : str or None
-        If provided, save figure to this directory.
-    top_cog_n : int
-        Number of top COG categories to show per species.
+
+def plot_xenolog_neighbourhood(base_path, results_dir, flank=8):
+    """Gene neighbourhood of each confident xenolog.
+
+    Reads gene to orthogroup assignments per genome column from the
+    OrthoFinder Orthogroups tables, colours genes by pangenome class and
+    labels them with their eggNOG annotation.
     """
+    FLANK = flank
+    _BASE = str(base_path)
+    _OUT = str(results_dir)
+
+    import os, glob, re
     import matplotlib.pyplot as plt
-    import numpy as np
-    import pandas as pd
-    from collections import Counter
+    from matplotlib.patches import Polygon, Patch
 
-    n_sp = len(species_list)
-    fig, axes = plt.subplots(n_sp, 3, figsize=(15, 3.5 * n_sp))
-    if n_sp == 1:
-        axes = axes.reshape(1, -1)
+    THRESH = {'fumigatus': (85, 6), 'flavus': (68, 6)}
+    CLS_COLOR = {'Core':'#2c6fbb','Accessory':'#e08b2d','Rare':'#9aa0a6','XENOLOG':'#c0392b'}
 
-    annot_cols = ['Description', 'PFAMs', 'CAZy', 'KEGG_ko', 'GOs', 'EC']
-    # Fixed COG -> colour mapping so the same category always gets the same colour
-    # across species (uses the canonical 26-letter ordering from COG_DESCRIPTIONS).
-    # tab20 + tab20b gives 40 distinct hues — enough for the 26 COG categories
-    # without the tab20/tab10 collision (e.g. K and P both landing on orange).
-    _cog_keys = list(COG_DESCRIPTIONS.keys())
-    _palette = list(plt.get_cmap('tab20').colors) + list(plt.get_cmap('tab20b').colors)
-    COG_COLORS = {c: _palette[i] for i, c in enumerate(_cog_keys)}
-    # Semantically meaningful swaps so the most common categories get
-    # intuitive colours (and all 26 stay unique):
-    #   Q (secondary metabolites) -> bright red   (swap with Y)
-    #   G (carbohydrate metabolism) -> bright green (swap with B)
-    #   E (amino acid metabolism)   -> strong blue  (swap with J)
-    COG_COLORS['Y'], COG_COLORS['Q'] = COG_COLORS['Q'], COG_COLORS['Y']
-    COG_COLORS['B'], COG_COLORS['G'] = COG_COLORS['G'], COG_COLORS['B']
-    COG_COLORS['J'], COG_COLORS['E'] = COG_COLORS['E'], COG_COLORS['J']
+    XENOLOGS = [
+     {'label':'OG0014462','sp':'flavus','acc':'GCA_052815365.1','contig':'scaffold_69',
+      'xen':['FUN_012569','FUN_012574'],'foreign':'S. maltophilia Zot toxin (Bacteria, 98.4%)'},
+     {'label':'OG0010936','sp':'fumigatus','acc':'GCA_049901915.1','contig':'scaffold_31',
+      'xen':['FUN_006532','FUN_006533'],'foreign':'S. maltophilia DUF3299 (Bacteria, 65%)'},
+    ]
 
-    for i, sp in enumerate(species_list):
-        if sp not in species_data or 'og_consensus' not in species_data[sp]:
-            for ax in axes[i]:
-                ax.text(0.5, 0.5, f'No data for {sp}', ha='center', va='center')
-                ax.axis('off')
+    def _load_run(sp):
+        ogf=glob.glob(f'{_BASE}/{sp}/orthofinder_output/*/Orthogroups/Orthogroups.tsv')[0]
+        unf=glob.glob(f'{_BASE}/{sp}/orthofinder_output/*/Orthogroups/Orthogroups_UnassignedGenes.tsv')[0]
+        with open(ogf) as fh:
+            header=fh.readline().rstrip('\n').split('\t'); rows=[l.rstrip('\n').split('\t') for l in fh]
+        with open(unf) as fh:
+            fh.readline(); urows=[l.rstrip('\n').split('\t') for l in fh]
+        og_ng={r[0]:sum(1 for x in r[1:] if x.strip()) for r in rows}
+        for r in urows: og_ng[r[0]]=1
+        return header, rows, urows, og_ng
+
+    def _gene2og(header, rows, urows, acc):
+        c=next((i for i,h in enumerate(header) if acc.split('.')[0] in h), None)
+        g={}
+        for r in rows+urows:
+            if c<len(r) and r[c].strip():
+                for p in r[c].split(','): g[p.strip()]=r[0]
+        return g
+
+    def _gff(sp, acc):
+        path=glob.glob(f'{_BASE}/{sp}/funannotate_output/{acc}_*_genomic_renamed/predict_results/{acc}_*.gff3')[0]
+        d={}
+        for ln in open(path):
+            if ln.startswith('#'): continue
+            f=ln.rstrip('\n').split('\t')
+            if len(f)<9 or f[2]!='gene': continue
+            d[f[8].split('ID=')[1].split(';')[0]]=(f[0],int(f[3]),int(f[4]),f[6])
+        return d
+
+    def _eggnog_labels(sp, acc):
+        """protein base -> concise functional label from per-genome eggNOG annotations."""
+        hits=glob.glob(f'{_BASE}/{sp}/eggnog_output/{acc}_*.emapper.annotations')
+        lab={}
+        if not hits: return lab
+        rows=[l.rstrip('\n').split('\t') for l in open(hits[0]) if not l.startswith('##')]
+        hdr=[h.lstrip('#') for h in rows[0]]; idx={h:i for i,h in enumerate(hdr)}
+        def col(r,n):
+            i=idx.get(n); return (r[i] if i is not None and i<len(r) else '').strip()
+        PFMAP={'Zot':'Zot toxin','DUF3299':'DUF3299 (bacterial)','MFS_1':'MFS transporter',
+               'Aldo_ket_red':'aldo-keto reductase','ACR_tran':'RND efflux pump','MacB_PCD':'MacB transporter',
+               'FtsX':'FtsX/MacB transporter','LysR_substrate':'LysR regulator','HTH_1':'LysR regulator',
+               'Bac_luciferase':'F420 luciferase','adh_short_C2':'NAD epimerase','DUF2796':'DUF2796',
+               'Mrr_cat':'restriction endonuclease','KfrA_N':'plasmid rep (KfrA)','DUF3693':'phage protein',
+               'Phage_DNA_bind':'phage ssDNA-binding'}
+        for r in rows[1:]:
+            base=r[0].split('-')[0]
+            nm=col(r,'Preferred_name'); pf=col(r,'PFAMs'); desc=col(r,'Description')
+            dom=pf.split(',')[0] if pf and pf!='-' else ''
+            if nm and nm!='-': s=nm
+            elif dom in PFMAP: s=PFMAP[dom]
+            elif desc and desc not in ('-','') and not re.match(r'(Belongs to|Catalyzes|COG\d)',desc):
+                s=' '.join(re.sub(r'\s*\(.*?\)','',desc).split()[:3])
+            elif dom: s=dom
+            else: s=''
+            if s: lab[base]=s[:26]
+        return lab
+
+    def _cls(sp, ng):
+        core,rare=THRESH[sp]
+        return 'Core' if ng>=core else ('Rare' if ng<=rare else 'Accessory')
+
+    tracks=[]
+    for X in XENOLOGS:
+        header,rows,urows,og_ng=_load_run(X['sp'])
+        g2o=_gene2og(header,rows,urows,X['acc']); genes=_gff(X['sp'],X['acc']); egg=_eggnog_labels(X['sp'],X['acc'])
+        on=sorted([g for g in genes if genes[g][0]==X['contig']], key=lambda g:genes[g][1])
+        idx=[on.index(x) for x in X['xen'] if x in on]
+        lo,hi=max(0,min(idx)-FLANK),min(len(on),max(idx)+FLANK+1)
+        row=[]
+        for g in on[lo:hi]:
+            c,s,e,st=genes[g]; og=g2o.get(g+'-T1',g2o.get(g,'NA')); ng=og_ng.get(og,0); isx=g in X['xen']
+            name=egg.get(g,'') or 'hypothetical'
+            row.append({'gene':g,'start':s,'end':e,'strand':st,'og':og,'ng':ng,'name':name,
+                        'cls':('XENOLOG' if isx else _cls(X['sp'],ng)),'is_xen':isx})
+        tracks.append({**X,'genes':row,'ncontig':len(on),'clen':max(genes[g][2] for g in on)})
+
+    fig,axes=plt.subplots(len(tracks),1,figsize=(14,3.9*len(tracks)+0.8))
+    if len(tracks)==1: axes=[axes]
+    def _arrow(ax,x0,x1,strand,y,color,h,head):
+        L=abs(x1-x0); head=min(head,L*0.9)
+        pts=([(x0,y-h),(x1-head,y-h),(x1,y),(x1-head,y+h),(x0,y+h)] if strand=='+'
+             else [(x1,y-h),(x0+head,y-h),(x0,y),(x0+head,y+h),(x1,y+h)])
+        ax.add_patch(Polygon(pts,closed=True,facecolor=color,edgecolor='black',lw=0.7,zorder=3))
+
+    for ax,t in zip(axes,tracks):
+        xen=[g for g in t['genes'] if g['is_xen']]
+        orig=sum((g['start']+g['end'])/2 for g in xen)/len(xen)
+        xs=[(g['start']-orig)/1000 for g in t['genes']]+[(g['end']-orig)/1000 for g in t['genes']]
+        span=max(xs)-min(xs); head=span*0.012
+        ax.plot([min(xs),max(xs)],[0,0],color='#cccccc',lw=1.0,zorder=1); done=False
+        for i,g in enumerate(t['genes']):
+            x0=(g['start']-orig)/1000; x1=(g['end']-orig)/1000; xm=(x0+x1)/2
+            _arrow(ax,x0,x1,g['strand'],0,CLS_COLOR[g['cls']],0.24,head)
+            # functional NAME label, alternating above/below to avoid overlap
+            above = (i%2==0)
+            yl = 0.34 if above else -0.34
+            ax.annotate(g['name'],(xm,yl),ha='left',va=('bottom' if above else 'top'),
+                        fontsize=6.6,rotation=32,color=('#111' if g['is_xen'] else '#333'),
+                        fontweight=('bold' if g['is_xen'] else 'normal'))
+            if g['cls']=='Core':
+                ax.annotate(f"core {g['ng']}/{ {'fumigatus':89,'flavus':70}[t['sp']] }",(xm,0),(xm,-0.02),
+                            ha='center',va='center',fontsize=0,alpha=0)
+            if g['is_xen'] and not done:
+                xxs=[(gg['start']-orig)/1000 for gg in xen]+[(gg['end']-orig)/1000 for gg in xen]
+                ax.annotate('xenolog',(sum(xxs)/len(xxs),0.95),ha='center',va='bottom',
+                            fontsize=9,color=CLS_COLOR['XENOLOG'],fontweight='bold'); done=True
+        ax.set_title(f"{t['label']}  |  {t['acc']}  {t['contig']} ({t['clen']/1000:.0f} kb)  |  best foreign hit: {t['foreign']}",
+                     fontsize=10,fontweight='bold')
+        ax.set_xlim(min(xs)-span*0.03,max(xs)+span*0.22); ax.set_ylim(-1.5,1.4); ax.axis('off')
+        bar=round(span*0.2/5)*5 or 5
+        ax.plot([min(xs),min(xs)+bar],[-1.32,-1.32],color='k',lw=1.4)
+        ax.annotate(f'{bar:.0f} kb',(min(xs)+bar/2,-1.42),ha='center',va='top',fontsize=7.5)
+
+    _leg=[Patch(facecolor=CLS_COLOR[k],edgecolor='k',label=l) for k,l in
+          [('Core','Core (all strains)'),('Accessory','Accessory'),('Rare','Rare / strain-specific'),
+           ('XENOLOG','Xenolog (foreign best hit)')]]
+    fig.legend(handles=_leg,loc='upper center',ncol=4,frameon=False,fontsize=9,bbox_to_anchor=(0.5,1.0))
+    fig.suptitle('Genomic neighbourhood of the confident xenologs (genes labelled by function, coloured by pangenome class)',
+                 fontsize=11.5,fontweight='bold',y=1.045)
+    plt.tight_layout(rect=[0,0,1,0.95])
+    fig.savefig(os.path.join(_OUT,'xenolog_neighbourhood.png'),dpi=200,bbox_inches='tight')
+    for t in tracks:
+        print(f"\n{t['label']} {t['acc']} {t['contig']}:")
+        for g in t['genes']:
+            print(f"   {g['gene']} [{g['cls']:9s} {g['ng']:>2}] {g['name']}")
+
+    return fig
+
+
+def plot_diamond_classification_pies(nb4_results, species_list=None, fs_dp=15,
+                                     dpi_dp=400, fig_w_dp=15.0, fig_h_dp=4.6,
+                                     nontruly_alpha=1.0):
+    """DIAMOND classification of rare orthogroups, one pie per species.
+
+    Counts the classes directly from the per-species
+    ``{nb4_results}/{species}/diamond_rare_classification.tsv`` tables.
+    """
+    FS_DP = fs_dp
+    DPI_DP = dpi_dp
+    FIG_W_DP = fig_w_dp
+    FIG_H_DP = fig_h_dp
+    NONTRULY_ALPHA = nontruly_alpha
+    NB4_RESULTS = Path(nb4_results)
+    species_list = list(species_list) if species_list is not None else list(SPECIES_LIST)
+    fig = None
+
+    import pandas as pd, numpy as np, matplotlib.pyplot as plt
+    from matplotlib.patches import Patch
+
+    classes = ['Full-length homolog', 'Fragment of longer gene',
+               'No significant similarity', 'No hit']
+    short   = ['Full-length homolog (paralog)', 'Fragment of longer gene',
+               'No significant similarity', 'No hit (truly rare)']
+    colors  = ["#313030", '#595959', '#969696', "#464ee8"]  # black -> light grey ramp
+
+    # Class counts per species, read from the cached DIAMOND tables.
+    _rows = []
+    for _sp in species_list:
+        _fp = NB4_RESULTS / _sp / 'diamond_rare_classification.tsv'
+        if not _fp.exists():
+            print(f'No DIAMOND table for {_sp} at {_fp}.')
             continue
+        _vc = pd.read_csv(_fp, sep='\t')['blast_class'].value_counts()
+        _row = {'Species': f'A. {_sp}', 'Total': int(_vc.sum())}
+        _row.update({c: int(_vc.get(c, 0)) for c in classes})
+        _rows.append(_row)
 
-        ogc = species_data[sp]['og_consensus']
-        rare = ogc[ogc['Pangenome_Class'] == 'Rare'].copy()
-        label = species_config.get(sp, {}).get('label', sp)
-        n_rare = len(rare)
+    if not _rows:
+        print('No DIAMOND tables found; run the classification section first.')
+    else:
+        d = pd.DataFrame(_rows)
 
-        # --- Panel A: annotation coverage rates -----------------------------
-        ax = axes[i, 0]
-        if n_rare == 0:
-            ax.text(0.5, 0.5, f'{label}\nNo rare OGs', ha='center', va='center',
-                    transform=ax.transAxes)
-            ax.axis('off')
-        else:
-            rates = []
-            for col in annot_cols:
-                if col in rare.columns:
-                    has_annot = rare[col].apply(
-                        lambda x: bool(x) and str(x).strip() not in ('', '-', 'nan')
-                    ).mean()
-                    rates.append((col, has_annot * 100))
-            if rates:
-                names, vals = zip(*rates)
-                bars = ax.barh(range(len(names)), vals, color='steelblue', alpha=0.8)
-                ax.set_yticks(range(len(names)))
-                ax.set_yticklabels(names, fontsize=9)
-                ax.set_xlim(0, 100)
-                ax.set_xlabel('% of rare OGs with annotation')
-                ax.set_title(f'{label} — annotation coverage (n={n_rare})',
-                             fontsize=10, fontweight='bold')
-                for bar, v in zip(bars, vals):
-                    ax.text(v + 1, bar.get_y() + bar.get_height() / 2,
-                            f'{v:.0f}%', va='center', fontsize=8)
-                ax.grid(axis='x', linestyle=':', alpha=0.4)
+        fig, axes = plt.subplots(1, len(d), figsize=(FIG_W_DP, FIG_H_DP),
+                                 squeeze=False, gridspec_kw=dict(wspace=-0.03))
+        for ax, (_, row) in zip(axes.ravel(), d.iterrows()):
+            sizes  = [int(row[c]) for c in classes]
+            wedges, _t, autotxts = ax.pie(
+                sizes, labels=None, colors=colors,
+                autopct='%1.1f%%',
+                startangle=90,
+                wedgeprops=dict(linewidth=1.0, edgecolor='white'),
+                textprops=dict(fontsize=FS_DP - 2))
+            # De-emphasise the 3 non-truly-rare wedges; keep "No hit" solid.
+            for wi, wedge in enumerate(wedges):
+                wedge.set_alpha(1.0 if wi == 3 else NONTRULY_ALPHA)
+            # % text inside each wedge: white on dark slices, black on light slices
+            for tt, col, n in zip(autotxts, colors, sizes):
+                lum = int(col.lstrip('#')[0:2], 16)   # grey ramp -> R==G==B
+                tt.set_color('white' if lum < 128 else 'black')
+                tt.set_fontsize(FS_DP - 2); tt.set_fontweight('bold')
+                tt.set_text(f'{tt.get_text()}\nn = {n:,}')   # move n= inside the wedge
+            ax.set_aspect('equal')
+            ax.set_title(f"{row['Species']}\n"
+                         f"Total = {int(row['Total']):,} rare OGs",
+                         fontsize=FS_DP, fontweight='bold', pad=3)
+        # One shared legend at the bottom-right of the figure
+        handles = [Patch(facecolor=c, edgecolor='white', label=s)
+                   for c, s in zip(colors, short)]
+        fig.legend(handles=handles, title='Rare-OG class',
+                   loc='lower center', bbox_to_anchor=(0.5, 0.0), ncol=4,
+                   fontsize=FS_DP - 2, title_fontsize=FS_DP - 2, frameon=True)
+        fig.suptitle('DIAMOND Classification of Rare Orthogroups',
+                     fontsize=FS_DP + 2, fontweight='bold', y=0.99)
+        plt.tight_layout(rect=[0, 0.14, 1, 0.92])
+        out = NB4_RESULTS / 'diamond_classification_pies.png'
+        fig.savefig(out, dpi=DPI_DP, bbox_inches='tight')
+        print(f'Saved -> {out}  ')
 
-        # --- Panel B: top COG categories ------------------------------------
-        ax = axes[i, 1]
-        if n_rare == 0 or 'COG_category' not in rare.columns:
-            ax.text(0.5, 0.5, 'No COG data', ha='center', va='center',
-                    transform=ax.transAxes)
-            ax.axis('off')
-        else:
-            cogs = rare['COG_category'].dropna().astype(str)
-            # Each entry can be multi-letter like "JKL"; expand
-            counter = Counter()
-            for s in cogs:
-                for ch in s:
-                    if ch.isalpha() and ch != 'S':  # exclude 'S' (function unknown)
-                        counter[ch] += 1
-            top = counter.most_common(top_cog_n)
-            if top:
-                cogs_lbl = [c for c, _ in top]
-                cogs_val = [v for _, v in top]
-                cogs_full = [f"{c}: {COG_DESCRIPTIONS.get(c, '?')[:30]}"
-                             for c in cogs_lbl]
-                # Consistent colour per COG category across all species
-                colors = [COG_COLORS.get(c, '#888888') for c in cogs_lbl]
-                bars = ax.barh(range(len(cogs_lbl)), cogs_val, color=colors)
-                ax.set_yticks(range(len(cogs_lbl)))
-                ax.set_yticklabels(cogs_full, fontsize=8)
-                ax.invert_yaxis()
-                ax.set_xlabel('Number of rare OGs')
-                ax.set_title(f'{label} — top COG categories',
-                             fontsize=10, fontweight='bold')
-                for bar, v in zip(bars, cogs_val):
-                    ax.text(v + 0.1, bar.get_y() + bar.get_height() / 2,
-                            f'{v}', va='center', fontsize=8)
-                ax.grid(axis='x', linestyle=':', alpha=0.4)
+    return fig
+
+
+def build_pooled_covariances(nb1_results, nb4_results, tree_path, species=['fumigatus', 'flavus', 'niger', 'oryzae']):
+    """Assemble the covariance matrices used by the pooled burden models.
+
+    Places the per-species kinship matrices block-diagonally and builds the
+    combined species-tree covariance. Writes pooled_kinship_nb2.tsv and
+    combined_tree_vcv.tsv.
+    """
+    SPECIES = species
+    NB1_RESULTS = Path(nb1_results)
+    NB4_RESULTS = Path(nb4_results)
+    TREE = str(tree_path)
+
+
+    import numpy as np, pandas as pd, re, warnings
+    from Bio import Phylo
+    from scipy.linalg import block_diag
+    import funpan_utils as fpu
+    warnings.filterwarnings('ignore')
+
+    _ACC = re.compile(r'(GC[AF]_\d+\.\d+)')
+    meta = pd.read_csv(NB4_RESULTS / 'rare_gene_burden_all_genomes.csv')
+
+    keep, Ks = [], []
+    for sp in SPECIES:
+        K = pd.read_csv(NB1_RESULTS / sp / f'{sp}_kinship.tsv', sep='\t', index_col=0)
+        K.index = [(_ACC.search(s).group(1) if _ACC.search(s) else s) for s in K.index]; K.columns = K.index
+        m = meta[(meta.Species == f'A. {sp}') & (meta.Phenotype != 'Unknown')]
+        g = [x for x in m.Genome if x in set(K.index)]
+        keep += g
+        Kn = K.loc[g, g].values
+        Ks.append(Kn / np.mean(np.diag(Kn)))
+    Kbd = block_diag(*Ks)
+    pd.DataFrame(Kbd, index=keep, columns=keep).to_csv(NB4_RESULTS / 'pooled_kinship_nb2.tsv', sep='\t')
+
+    # --- combined species-tree covariance ---
+    T = Phylo.read(TREE, 'newick'); tip = {}
+    for t in T.get_terminals():
+        mm = _ACC.search(t.name or '')
+        if mm: tip[mm.group(1)] = t
+    paths = {}
+    for g in keep:
+        d, acc = 0.0, []
+        for cl in T.get_path(tip[g]):
+            d += (cl.branch_length or 0.0); acc.append((id(cl), d))
+        paths[g] = acc
+    n = len(keep); C = np.zeros((n, n)); seen = {g: {c: d for c, d in paths[g]} for g in keep}
+    for i, gi in enumerate(keep):
+        for j in range(i, n):
+            sj = seen[keep[j]]; sh = 0.0
+            for c, d in paths[gi]:
+                if c in sj: sh = d
+                else: break
+            C[i, j] = C[j, i] = sh
+        C[i, i] = paths[gi][-1][1] if paths[gi] else 0.0
+    C = C / np.mean(np.diag(C))
+    pd.DataFrame(C, index=keep, columns=keep).to_csv(NB4_RESULTS / 'combined_tree_vcv.tsv', sep='\t')
+
+    spv = np.array([next(s for s in SPECIES if g in set(meta.loc[meta.Species == f'A. {s}', 'Genome'])) for g in keep])
+    off = ~np.eye(n, dtype=bool)
+    print(f'Pooled covariance for the burden models = block-diagonal NB2 per-species kinship, {n} x {n}')
+    print(f'Saved -> {NB4_RESULTS / "pooled_kinship_nb2.tsv"}')
+    print(f'Tree VCV (phylANOVA + diagnostic only) -> {NB4_RESULTS / "combined_tree_vcv.tsv"}\n')
+    print('Within-species INDEPENDENT variation -- why the NB2 GRM is used to fit and the tree is not:')
+    print(f"{'species':13s} {'n':>4s} {'NB2 GRM':>22s} {'combined protein tree':>24s}")
+    for sp in SPECIES:
+        m_ = (spv == sp)[:, None] & (spv == sp)[None, :] & off
+        i_ = np.flatnonzero(spv == sp)
+        kb = Kbd[np.ix_(i_, i_)]; ct = C[np.ix_(i_, i_)]
+        kshare = 100 * (np.mean(np.diag(kb)) - kb[~np.eye(len(i_), dtype=bool)].mean()) / np.mean(np.diag(kb))
+        cshare = 100 * (np.mean(np.diag(ct)) - ct[~np.eye(len(i_), dtype=bool)].mean()) / np.mean(np.diag(ct))
+        print(f'  A. {sp:11s} {len(i_):4d} {kshare:21.1f}% {cshare:23.1f}%')
+    print('\nThe NB2 GRM retains essentially all within-species variation; the protein tree retains ~1%.')
+    print('Between-species entries are 0 in the block-diagonal matrix by construction -- handled by')
+    print('species fixed effects in every model, not by the covariance.')
+
+    return {'kinship': pd.DataFrame(Kbd, index=keep, columns=keep),
+            'tree_vcv': pd.DataFrame(C, index=keep, columns=keep)}
+
+
+def run_burden_kinship_control(nb1_results, nb4_results, npc=5):
+    """Burden contrasts corrected for population structure.
+
+    Reports the naive p-value, the SNP-PC-corrected p-value, the kinship
+    mixed-model p-value and the burden heritability per contrast.
+    """
+    NPC = npc
+    NB1_RESULTS = Path(nb1_results)
+    NB4_RESULTS = Path(nb4_results)
+
+    import numpy as np, pandas as pd, re, warnings
+    from scipy.optimize import minimize_scalar
+    from scipy import stats
+    import statsmodels.formula.api as smf
+    import funpan_utils as fpu
+    warnings.filterwarnings('ignore')
+
+    _VCV = pd.read_csv(NB4_RESULTS / 'pooled_kinship_nb2.tsv', sep='\t', index_col=0)
+    _excl = set().union(*fpu.ANI_EXCLUDED.values())
+    _ACC = re.compile(r'(GC[AF]_\d+\.\d+)')
+    meta = pd.read_csv(NB4_RESULTS / 'rare_gene_burden_all_genomes.csv')
+
+    def _truly(sp):
+        pav = pd.read_csv(NB1_RESULTS / sp / f'{sp}_pav.tsv', sep='\t'); pav['og'] = pav['Orthogroup'].astype(str)
+        gcols = [c for c in pav.columns if c not in ('Orthogroup', 'og') and not any(a in c for a in _excl)]
+        dc = pd.read_csv(NB4_RESULTS / sp / 'diamond_rare_classification.tsv', sep='\t')
+        nohit = set(dc.loc[dc['blast_class'] == 'No hit', 'Orthogroup'].astype(str))
+        b = (pav[pav['og'].isin(nohit)][gcols] > 0).sum(0)
+        return {g: int(v) for g, v in b.items()}
+
+    def _load(sp, case):
+        tr = _truly(sp)
+        K = pd.read_csv(NB1_RESULTS / sp / f'{sp}_kinship.tsv', sep='\t', index_col=0)
+        K.index = [(_ACC.search(s).group(1) if _ACC.search(s) else s) for s in K.index]; K.columns = K.index
+        pcs = pd.read_csv(NB1_RESULTS / sp / f'{sp}_snp_pcs.tsv', sep='\t')
+        pcs['acc'] = pcs['sample_id'].apply(lambda s: _ACC.search(s).group(1) if _ACC.search(s) else None)
+        m = meta[meta.Species == f'A. {sp}'][['Genome', 'Phenotype', 'Species']].copy(); m['burden'] = m['Genome'].map(tr)
+        m = m[(m.Phenotype != 'Unknown') & (m.Genome.isin(K.index))].merge(
+            pcs[['acc'] + [f'PC{i}' for i in range(1, NPC + 1)]], left_on='Genome', right_on='acc', how='inner')
+        m['is_case'] = (m.Phenotype == case).astype(float)
+        Kn = K.loc[m.Genome, m.Genome].values; Kn = Kn / np.mean(np.diag(Kn))
+        return m.reset_index(drop=True), Kn
+
+    def _grm_lmm(y, X, K):
+        n = len(y); lam, U = np.linalg.eigh(K); lam = np.maximum(lam, 1e-6)
+        Uty, UtX = U.T @ y, U.T @ X
+        def nll(ld):
+            d = lam + np.exp(ld); XtWX = (UtX.T * (1 / d)) @ UtX; beta = np.linalg.solve(XtWX, (UtX.T * (1 / d)) @ Uty)
+            r = Uty - UtX @ beta; s2 = np.sum(r * r / d) / n
+            return 0.5 * (n * np.log(2 * np.pi * s2) + np.sum(np.log(d)) + n)
+        res = minimize_scalar(nll, bounds=(-8, 8), method='bounded'); delta = np.exp(res.x); d = lam + delta
+        XtWX = (UtX.T * (1 / d)) @ UtX; beta = np.linalg.solve(XtWX, (UtX.T * (1 / d)) @ Uty)
+        r = Uty - UtX @ beta; s2 = np.sum(r * r / d) / n; se = np.sqrt(np.diag(s2 * np.linalg.inv(XtWX)))
+        p = 2 * stats.t.sf(np.abs(beta / se), n - X.shape[1])
+        return beta[1], p[1], 1 / (1 + delta)
+
+    def _pc_block(M, pair):
+        """Per-species PC covariates, zero-padded across species (for the combined GRM)."""
+        cols = []
+        for sp in pair:
+            mask = (M.Species == f'A. {sp}').astype(float).values
+            for i in range(1, NPC + 1):
+                cols.append(np.nan_to_num(M[f'PC{i}'].values) * mask)
+        return cols
+
+    rows = []
+    # --- per species ---
+    for sp, case in [('fumigatus', 'Human-pathogenic'), ('flavus', 'Human-pathogenic'), ('niger', 'Industrial-trait')]:
+        m, K = _load(sp, case)
+        y = np.log1p(m['burden'].values.astype(float)); one = np.ones(len(y))
+        pcc = [m[f'PC{i}'].values for i in range(1, NPC + 1)]
+        naive = smf.ols("np.log1p(burden) ~ is_case", m).fit().pvalues['is_case']
+        pc = smf.ols("np.log1p(burden) ~ is_case + " + "+".join(f'PC{i}' for i in range(1, NPC + 1)), m).fit().pvalues['is_case']
+        _, pk, h2 = _grm_lmm(y, np.column_stack([one, m.is_case.values]), K)
+        _, pkpc, _ = _grm_lmm(y, np.column_stack([one, m.is_case.values] + pcc), K)
+        rows.append({'contrast': f'A. {sp} | {case} vs rest', 'n': len(m), 'naive_p': naive,
+                     'PC_only_p': pc, 'kinship_only_p': pk, 'kinship_plus_PC_p': pkpc, 'burden_h2': round(h2, 2)})
+    # --- combined (NB2 per-species kinship + species fixed effect) ---
+    for pair, case, sp2 in [(('fumigatus', 'flavus'), 'Human-pathogenic', 'flavus'),
+                            (('niger', 'oryzae'), 'Industrial-trait', 'oryzae')]:
+        ms, Ks = [], []
+        for sp in pair:
+            m, K = _load(sp, case); ms.append(m); Ks.append(K)
+        M = pd.concat(ms, ignore_index=True); Kc = _VCV.loc[M.Genome, M.Genome].values
+        M['is_sp2'] = (M.Species == f'A. {sp2}').astype(float)
+        y = np.log1p(M['burden'].values.astype(float)); base = [np.ones(len(M)), M.is_case.values, M.is_sp2.values]
+        naive = smf.mixedlm("np.log1p(burden) ~ is_case", M, groups=M['Species']).fit(reml=False).pvalues['is_case']
+        _, pk, h2 = _grm_lmm(y, np.column_stack(base), Kc)
+        _, pkpc, _ = _grm_lmm(y, np.column_stack(base + _pc_block(M, pair)), Kc)
+        rows.append({'contrast': f'{"+".join(pair)} (combined) | {case} vs rest', 'n': len(M), 'naive_p': naive,
+                     'PC_only_p': np.nan, 'kinship_only_p': pk, 'kinship_plus_PC_p': pkpc, 'burden_h2': round(h2, 2)})
+
+    res = pd.DataFrame(rows)
+    res.to_csv(NB4_RESULTS / 'rare_burden_kinship_control.csv', index=False)
+    disp = res.copy()
+    for c in ('naive_p', 'PC_only_p', 'kinship_only_p', 'kinship_plus_PC_p'):
+        disp[c] = disp[c].apply(lambda v: f'{v:.1e}' if pd.notna(v) else '-')
+    print('Does the truly-rare burden survive correction for phylogenetic relatedness?')
+    print('(burden_h2 = fraction of burden variance explained by kinship;')
+    print(' kinship_only = GRM random effect; kinship_plus_PC = GRM + top-5 SNP PCs as fixed covariates)\n')
+    print(disp[['contrast', 'n', 'naive_p', 'PC_only_p', 'kinship_only_p', 'kinship_plus_PC_p', 'burden_h2']].to_string(index=False))
+    print(f"\nSaved -> {NB4_RESULTS / 'rare_burden_kinship_control.csv'}")
+
+    return res
+
+
+def plot_burden_four_panel(nb1_results, nb4_results, qc_table, fs=23, dpi=400, fig_w=13.2, fig_h=13.9, c_rest='#8a97a3', bg_pair1='#eaf1f8', bg_pair2='#e9f4ea', species=['fumigatus', 'flavus', 'niger', 'oryzae']):
+    """The four burden contrasts in two pairs on a shared axis.
+    """
+    FS = fs
+    DPI = dpi
+    FIG_W = fig_w
+    FIG_H = fig_h
+    C_REST = c_rest
+    BG_PAIR1 = bg_pair1
+    BG_PAIR2 = bg_pair2
+    SPECIES = species
+    NB1_RESULTS = Path(nb1_results)
+    NB4_RESULTS = Path(nb4_results)
+    QC_TABLE = str(qc_table)
+
+    C_PHENO = {'Human-pathogenic': '#e74c3c', 'Plant-pathogenic': '#e67e22',
+               'Animal-pathogenic': '#7d3c98', 'Environmental': '#27ae60',
+               'Industrial-trait': '#3498db'}
+
+    import numpy as np, pandas as pd, re, warnings, zlib
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Patch, FancyBboxPatch
+    from scipy.optimize import minimize_scalar
+    from scipy import stats
+    import funpan_utils as fpu
+    warnings.filterwarnings('ignore')
+
+    _excl = set().union(*fpu.ANI_EXCLUDED.values()); _ACC = re.compile(r'(GC[AF]_\d+\.\d+)')
+    meta = pd.read_csv(NB4_RESULTS / 'rare_gene_burden_all_genomes.csv')
+
+
+    def _truly(sp):
+        pav = pd.read_csv(NB1_RESULTS / sp / f'{sp}_pav.tsv', sep='\t'); pav['og'] = pav['Orthogroup'].astype(str)
+        gcols = [c for c in pav.columns if c not in ('Orthogroup', 'og') and not any(a in c for a in _excl)]
+        dc = pd.read_csv(NB4_RESULTS / sp / 'diamond_rare_classification.tsv', sep='\t')
+        nohit = set(dc.loc[dc['blast_class'] == 'No hit', 'Orthogroup'].astype(str))
+        return {g: int(v) for g, v in (pav[pav['og'].isin(nohit)][gcols] > 0).sum(0).items()}
+
+
+    bm = {}
+    for sp in SPECIES:
+        bm.update(_truly(sp))
+    KIN = pd.read_csv(NB4_RESULTS / 'pooled_kinship_nb2.tsv', sep='\t', index_col=0)
+    TREE = pd.read_csv(NB4_RESULTS / 'combined_tree_vcv.tsv', sep='\t', index_col=0)
+    M = meta.set_index('Genome').loc[list(KIN.index)].reset_index()
+    M.columns = ['Genome'] + list(M.columns[1:])
+    M['burden'] = M['Genome'].map(bm)
+    qc = pd.read_csv(QC_TABLE); qc['Genome'] = qc['Assembly Accession']
+    M = M.merge(qc[['Genome', 'total_len']], on='Genome', how='left')
+    M['Mb'] = M.total_len / 1e6; M['rate'] = M.burden / M.Mb
+    M = M.reset_index(drop=True)
+
+
+    def _fit(sub, cov, species_fe):
+        """log1p(burden) - log(Mb) ~ case [+ species FE], with the given covariance."""
+        n = len(sub); Ks = cov.loc[sub.Genome, sub.Genome].values
+        lam, U = np.linalg.eigh(Ks); lam = np.maximum(lam, 1e-8)
+        y = np.log1p(sub.burden.values.astype(float)) - np.log(sub.Mb.values)
+        cols = [np.ones(n), sub['case'].values]
+        if species_fe:
+            pres = [s for s in SPECIES if (sub.Species == f'A. {s}').any()]
+            cols += [(sub.Species == f'A. {s}').astype(float).values for s in pres[1:]]
+        X = np.column_stack(cols); Uty, UtX = U.T @ y, U.T @ X
+        def nll(ld):
+            d = lam + np.exp(ld); A = (UtX.T * (1/d)) @ UtX; b = np.linalg.solve(A, (UtX.T * (1/d)) @ Uty)
+            r = Uty - UtX @ b
+            return 0.5 * (n * np.log(2 * np.pi * np.sum(r*r/d)/n) + np.sum(np.log(d)) + n)
+        dl = np.exp(minimize_scalar(nll, bounds=(-10, 10), method='bounded').x); d = lam + dl
+        A = (UtX.T * (1/d)) @ UtX; b = np.linalg.solve(A, (UtX.T * (1/d)) @ Uty); r = Uty - UtX @ b
+        s2 = np.sum(r*r/d) / n; se = np.sqrt(np.diag(s2 * np.linalg.inv(A)))
+        return float(np.exp(b[1])), float(2 * stats.t.sf(abs(b[1] / se[1]), n - X.shape[1]))
+
+
+    # Species names are set in italic via mathtext: \mathbfit inside the bold panel titles and
+    # pair headings, \mathit inside the regular-weight tick labels. _PLAIN() strips the markup
+    # again so the CSV keeps readable text.
+    def _BI(s): return r'$\mathbfit{' + s.replace(' ', r'\ ') + '}$'     # bold italic
+
+
+    def _IT(s): return r'$\mathit{' + s.replace(' ', r'\ ') + '}$'       # regular italic
+
+
+    def _PLAIN(s):
+        return re.sub(r'\$\\math(?:bfit|it)\{(.*?)\}\$',
+                      lambda m: m.group(1).replace('\\ ', ' '), s)
+
+
+    SPP = M.Species
+    PANELS = [
+     ('A', f"Human-pathogenic vs Rest\n({_BI('A. fumigatus')} + {_BI('A. flavus')})",
+      SPP.isin(['A. fumigatus', 'A. flavus']) & (M.Phenotype == 'Human-pathogenic'),
+      SPP.isin(['A. fumigatus', 'A. flavus']) & (M.Phenotype != 'Human-pathogenic'),
+      'Human-\npathogenic', 'Rest', C_PHENO['Human-pathogenic'], C_REST, KIN, True),
+     ('B', f"Industrial vs Rest\n({_BI('A. niger')} + {_BI('A. oryzae')})",
+      SPP.isin(['A. niger', 'A. oryzae']) & (M.Phenotype == 'Industrial-trait'),
+      SPP.isin(['A. niger', 'A. oryzae']) & (M.Phenotype != 'Industrial-trait'),
+      'Industrial', 'Rest', C_PHENO['Industrial-trait'], C_REST, KIN, True),
+     ('C', f"{_BI('A. oryzae')} Industrial vs\n{_BI('A. flavus')} Human-pathogenic",
+      (SPP == 'A. oryzae') & (M.Phenotype == 'Industrial-trait'),
+      (SPP == 'A. flavus') & (M.Phenotype == 'Human-pathogenic'),
+      f"{_IT('A. oryzae')}\nIndustrial", f"{_IT('A. flavus')}\nHuman-pathogenic",
+      C_PHENO['Industrial-trait'], C_PHENO['Human-pathogenic'], KIN, False),
+     ('D', f"{_BI('A. oryzae')} Industrial vs\n{_BI('A. flavus')} Plant-pathogenic",
+      (SPP == 'A. oryzae') & (M.Phenotype == 'Industrial-trait'),
+      (SPP == 'A. flavus') & (M.Phenotype == 'Plant-pathogenic'),
+      f"{_IT('A. oryzae')}\nIndustrial", f"{_IT('A. flavus')}\nPlant-pathogenic",
+      C_PHENO['Industrial-trait'], C_PHENO['Plant-pathogenic'], KIN, False),
+    ]
+    res = []
+    for tag, ttl, a, b, la, lb, ca, cb, cov, fe in PANELS:
+        A, B = M[a.values], M[b.values]
+        sub = pd.concat([A.assign(case=1.0), B.assign(case=0.0)], ignore_index=True)
+        f, p = _fit(sub, cov, fe)
+        res.append(dict(panel=tag, contrast=_PLAIN(ttl).replace('\n', ' '), n_case=len(A), n_rest=len(B),
+                        mean_case=A.rate.mean(), mean_rest=B.rate.mean(), fold=f, p=p,
+                        covariance='NB2 kinship + species FE' if fe else 'NB2 kinship, no species FE'))
+    R = pd.DataFrame(res)
+    R.to_csv(NB4_RESULTS / 'burden_manuscript_four_panel.csv', index=False)
+
+
+    def _stars(p): return '***' if p < 1e-3 else '**' if p < 1e-2 else '*' if p < 5e-2 else 'ns'
+
+
+    def _jit(k, key):
+        return np.random.RandomState(zlib.crc32(key.encode()) % (2 ** 31)).uniform(-0.10, 0.10, k)
+
+
+    gmax = M.rate.max()
+    fig = plt.figure(figsize=(FIG_W, FIG_H))
+    gs = fig.add_gridspec(2, 2, hspace=1.05, wspace=0.08,
+                          top=0.915, bottom=0.145, left=0.130, right=0.980)
+    axes = [fig.add_subplot(gs[0, 0])]
+    axes += [fig.add_subplot(gs[r, c], sharey=axes[0]) for r, c in [(0, 1), (1, 0), (1, 1)]]
+    for ax, (tag, ttl, a, b, la, lb, ca, cb, cov, fe), (_, r) in zip(axes, PANELS, R.iterrows()):
+        A, B = M[a.values], M[b.values]
+        groups, cols, labs = [A, B], [ca, cb], [la, lb]
+        bp = ax.boxplot([g['rate'].values for g in groups], positions=[0, 0.72], widths=0.34,
+                        showfliers=False, patch_artist=True,
+                        medianprops=dict(color='black', linewidth=1.4),
+                        whiskerprops=dict(color='#444'), capprops=dict(color='#444'))
+        for patch, c in zip(bp['boxes'], cols):
+            patch.set_facecolor(c); patch.set_alpha(0.55); patch.set_edgecolor('black')
+        for x, g, c, key in zip([0, 0.72], groups, cols, [tag + la, tag + lb]):
+            ax.scatter(x + _jit(len(g), key), g['rate'].values, s=26, color=c, alpha=0.9,
+                       edgecolor='black', linewidth=0.3, zorder=3)
+            ax.scatter([x], [g['rate'].mean()], marker='D', s=68, color='white',
+                       edgecolor='black', linewidth=1.3, zorder=5)
+        trans = ax.get_xaxis_transform(); by = 0.79
+        ax.plot([0, 0, 0.72, 0.72], [by, by + 0.02, by + 0.02, by], transform=trans, color='black',
+                linewidth=1.2, clip_on=False)
+        sig = r.p < 0.05
+        arrow = '\u25b2' if r.fold > 1 else '\u25bc'
+        ax.text(0.36, by + 0.04, f"{_stars(r.p)}   {r.fold:.2f}\u00d7 {arrow}\np = {r.p:.1e}", transform=trans,
+                ha='center', va='bottom', fontsize=FS - 5, fontweight='bold',
+                color='black' if sig else '#666',
+                bbox=dict(boxstyle='round,pad=0.30', facecolor='#ffe066' if sig else '#ffffff',
+                          edgecolor='#c9a227' if sig else '#c8ccd2', linewidth=1.0))
+        ax.set_xticks([0, 0.72])
+        ax.set_xticklabels([f"{labs[0]}\nn={len(A)}\nx\u0304={A.rate.mean():.2f}",
+                            f"{labs[1]}\nn={len(B)}\nx\u0304={B.rate.mean():.2f}"], fontsize=FS - 7)
+        ax.tick_params(axis='y', labelsize=FS - 7)
+        ax.set_title(ttl, fontsize=FS - 5, fontweight='bold', pad=10)
+        ax.set_facecolor('none')                       # the pair block behind shows through
+        ax.set_xlim(-0.45, 1.17)
+        ax.set_ylim(-0.05, gmax * 1.34)
+        for s_ in ('top', 'right'):
+            ax.spines[s_].set_visible(False)
+        ax.spines['bottom'].set_bounds(-0.32, 1.04)      # keep the axis line inside the pair block
+    for ax in (axes[1], axes[3]):
+        ax.tick_params(labelleft=False); ax.spines['left'].set_visible(False)
+        ax.tick_params(axis='y', length=0)
+
+    # --- one large coloured block behind each pair ---------------------------------------
+    # Sized from the true drawn extent of each row (get_tightbbox: titles, tick labels,
+    # annotation boxes and all), then padded equally on every side, so nothing bleeds out
+    # and the plots sit centred inside their block.
+    for ax in (axes[0], axes[2]):
+        ax.set_ylabel('Truly-rare orthogroups\nper Mb', fontsize=FS - 5)
+    fig.canvas.draw()
+    _rend = fig.canvas.get_renderer()
+    _inv = fig.transFigure.inverted()
+    _bb = [axes[k].get_tightbbox(_rend).transformed(_inv) for k in range(4)]
+    PAD_X, PAD_Y = 0.022, 0.020
+    NOTE_H = 0.034                                  # room reserved for the methods note
+    BX0 = min(b.x0 for b in _bb) - PAD_X
+    BX1 = max(b.x1 for b in _bb) + PAD_X
+
+
+    def _block(i, j, colour, title, note):
+        y0 = min(_bb[i].y0, _bb[j].y0) - PAD_Y - NOTE_H
+        y1 = max(_bb[i].y1, _bb[j].y1) + PAD_Y
+        fig.add_artist(FancyBboxPatch((BX0, y0), BX1 - BX0, y1 - y0,
+                                      boxstyle='round,pad=0.004,rounding_size=0.014',
+                                      transform=fig.transFigure, facecolor=colour,
+                                      edgecolor='none', linewidth=0, zorder=0))
+        fig.text((BX0 + BX1) / 2, y1 + 0.012, title, ha='center', va='bottom',
+                 fontsize=FS - 2, fontweight='bold', color='#222')
+        fig.text((BX0 + BX1) / 2, y0 + 0.012, note, ha='center', va='bottom',
+                 fontsize=FS - 8, color='#3f4b56')
+        return y0
+
+
+    NOTE1 = ('Log-transformed, size-normalised and kinship-corrected; species differences removed')
+    NOTE2 = ('Log-transformed, size-normalised and kinship-corrected')
+
+    _block(0, 1, BG_PAIR1, 'PAIR 1 : lineage-matched phenotype contrasts', NOTE1)
+    _BLK2_Y0 = _block(2, 3, BG_PAIR2, 'PAIR 2 : domestication: ' + _BI('A. oryzae')
+                        + ' vs wild progenitor ' + _BI('A. flavus'), NOTE2)
+
+    handles = [Patch(facecolor=C_PHENO[p], alpha=0.38, edgecolor='black', label=p)
+               for p in ['Human-pathogenic', 'Industrial-trait', 'Plant-pathogenic']] + \
+              [Patch(facecolor=C_REST, alpha=0.38, edgecolor='black', label='Rest'),
+               plt.Line2D([0], [0], marker='D', color='w', markerfacecolor='w', markeredgecolor='black',
+                          markersize=9, label='group mean')]
+    fig.legend(handles=handles, loc='upper center', bbox_to_anchor=(0.5, _BLK2_Y0 - 0.014), ncol=len(handles),
+               frameon=False, fontsize=FS - 7)
+
+    out = NB4_RESULTS / 'burden_manuscript_four_panel.png'
+    print(f'Saved -> {out} \n')
+    show = R.copy()
+    for c in ('mean_case', 'mean_rest'):
+        show[c] = show[c].map('{:.2f}'.format)
+    show['fold'] = show['fold'].map('{:.2f}x'.format); show['p'] = show['p'].map('{:.2e}'.format)
+    print(show.to_string(index=False))
+    print(f"\nSaved -> {NB4_RESULTS / 'burden_manuscript_four_panel.csv'}")
+
+    return fig, R
+
+
+def plot_compartment_length_pfam_orf(nb1_results, nb4_results, base_path, edge_bp=100, fs=13, dpi=400, fig_w=11.4, fig_h=4.4, compartments=['Core', 'Accessory', 'Rare', 'Truly-rare'], sp_keys=['fumigatus', 'flavus', 'niger', 'oryzae']):
+    """Protein length, Pfam coverage and ORF completeness per compartment.
+
+    Per-OG lengths and per-gene ORF flags are cached under nb4_results.
+    """
+    EDGE_BP = edge_bp
+    FS = fs
+    DPI = dpi
+    FIG_W = fig_w
+    FIG_H = fig_h
+    COMPARTMENTS = compartments
+    SP_KEYS = sp_keys
+    NB1_RESULTS = Path(nb1_results)
+    NB4_RESULTS = Path(nb4_results)
+    BASE = str(base_path)
+
+    COMP_COLOR = {'Core': '#2ca02c', 'Accessory': "#fdbd4d", 'Rare': "#db4c3c", 'Truly-rare': "#1E6BD6"}
+    SP_MARK = {'fumigatus': 'o', 'flavus': 's', 'niger': '^', 'oryzae': 'D'}
+    SP_OFF = {'fumigatus': -0.185, 'flavus': -0.062, 'niger': 0.062, 'oryzae': 0.185}
+
+    import glob, os, re, warnings
+    import numpy as np, pandas as pd, matplotlib.pyplot as plt
+    import funpan_utils as fpu
+    warnings.filterwarnings('ignore')
+
+    _excl = set().union(*fpu.ANI_EXCLUDED.values()); _ACC = re.compile(r'GC[AF]_\d+\.\d+')
+    LEN_CACHE = NB4_RESULTS / 'og_length_by_class.csv'
+    ORF_CACHE = NB4_RESULTS / 'orf_completeness_by_class.csv'
+    STOPS = {'TAA', 'TAG', 'TGA'}
+
+    def _priv(sp):
+        priv = set()
+        for f in glob.glob(f'{BASE}/{sp}/orthofinder_output/*/Orthogroups/Orthogroups.tsv') + \
+                 glob.glob(f'{BASE}/{sp}/orthofinder_output/*/Orthogroups/Orthogroups_UnassignedGenes.tsv'):
+            with open(f) as fh:
+                hdr = fh.readline().rstrip('\n').split('\t'); ex = {i for i, h in enumerate(hdr) if any(a in h for a in _excl)}
+                if not ex: continue
+                for l in fh:
+                    r = l.rstrip('\n').split('\t'); p = [i for i in range(1, len(r)) if r[i].strip()]
+                    if p and all(i in ex for i in p): priv.add(r[0])
+        return priv
+
+    def _og_median_len(fa):
+        lens = []; cur = 0
+        with open(fa) as fh:
+            for line in fh:
+                if line[:1] == '>':
+                    if cur: lens.append(cur); cur = 0
+                else: cur += len(line.strip())
+        if cur: lens.append(cur)
+        return float(np.median(lens)) if lens else np.nan
+
+    # ---------- per-OG protein length (cached) ----------
+    if not LEN_CACHE.exists():
+        print('Parsing Orthogroup_Sequences for per-OG protein lengths (first run, ~2-3 min)...')
+        lrows = []
+        for sp in SP_KEYS:
+            seqdir = glob.glob(f'{BASE}/{sp}/orthofinder_output/*/Orthogroup_Sequences')[0]
+            ogc = pd.read_csv(NB1_RESULTS / sp / f'{sp}_og_consensus.tsv', sep='\t')
+            cls = dict(zip(ogc['Orthogroup'].astype(str), ogc['Pangenome_Class']))
+            dc = pd.read_csv(NB4_RESULTS / sp / 'diamond_rare_classification.tsv', sep='\t')
+            nohit = set(dc.loc[dc['blast_class'] == 'No hit', 'Orthogroup'].astype(str)); priv = _priv(sp)
+            for fn in os.scandir(seqdir):
+                og = fn.name[:-3]
+                if og in priv or cls.get(og) is None: continue
+                lrows.append({'Species': sp, 'og': og, 'Class': cls[og], 'TrulyRare': og in nohit,
+                              'median_len': _og_median_len(fn.path)})
+        pd.DataFrame(lrows).to_csv(LEN_CACHE, index=False)
+        print(f'Saved per-OG lengths -> {LEN_CACHE.name}')
+
+    # ---------- intrinsic ORF completeness, per species x compartment (cached) ----------
+    def _cds_flags(fp):
+        d = {}; k = None; buf = []
+        with open(fp) as fh:
+            for l in fh:
+                if l[0] == '>':
+                    if k:
+                        s = ''.join(buf).upper(); d[k] = (s[:3] == 'ATG', s[-3:] in STOPS, len(s) % 3 == 0)
+                    k = l[1:].split()[0]; buf = []
+                else: buf.append(l.strip())
+        if k:
+            s = ''.join(buf).upper(); d[k] = (s[:3] == 'ATG', s[-3:] in STOPS, len(s) % 3 == 0)
+        return d
+
+    def _gff_genes(fp):
+        d = {}
+        with open(fp) as fh:
+            for l in fh:
+                if l[0] == '#': continue
+                f = l.rstrip('\n').split('\t')
+                if len(f) < 9 or f[2] != 'gene': continue
+                m = re.search(r'ID=([^;]+)', f[8])
+                if m: d[m.group(1)] = (f[0], int(f[3]), int(f[4]))
+        return d
+
+    def _fa_lens(fp):
+        d = {}; k = None; n = 0
+        with open(fp) as fh:
+            for l in fh:
+                if l[0] == '>':
+                    if k: d[k] = n
+                    k = l[1:].split()[0]; n = 0
+                else: n += len(l.strip())
+        if k: d[k] = n
+        return d
+
+    if ORF_CACHE.exists():
+        orf_sp = pd.read_csv(ORF_CACHE)
+        print(f'Loaded cached ORF completeness from {ORF_CACHE.name}')
+    else:
+        print('Scanning Funannotate CDS/GFF3 for intrinsic ORF completeness (first run, ~3 min)...')
+        from collections import defaultdict, Counter
+        rows = []
+        for sp in SP_KEYS:
+            ogc = pd.read_csv(NB1_RESULTS / sp / f'{sp}_og_consensus.tsv', sep='\t')
+            dc = pd.read_csv(NB4_RESULTS / sp / 'diamond_rare_classification.tsv', sep='\t')
+            nohit = set(dc.loc[dc['blast_class'] == 'No hit', 'Orthogroup'].astype(str))
+            cls = dict(zip(ogc['Orthogroup'].astype(str), ogc['Pangenome_Class'])); priv = _priv(sp)
+            OGt = glob.glob(f'{BASE}/{sp}/orthofinder_output/*/Orthogroups/Orthogroups.tsv')[0]
+            OG = pd.read_csv(OGt, sep='\t')
+            acols = [c for c in OG.columns if c != 'Orthogroup' and not any(a in c for a in _excl)]
+            g2c = defaultdict(dict); C = defaultdict(Counter)
+            for _, r in OG.iterrows():
+                og = str(r['Orthogroup']); k = cls.get(og)
+                if og in priv or k not in ('Core', 'Accessory', 'Rare'): continue
+                comps = [k] if k != 'Rare' else (['Rare', 'Truly-rare'] if og in nohit else ['Rare'])
+                for c in acols:
+                    cell = r[c]
+                    if isinstance(cell, str) and cell.strip():
+                        for g in cell.replace(' ', '').split(','):
+                            if g: g2c[c][g] = comps
+            for c in acols:
+                asm = c.replace('.proteins', '')
+                P = f'{BASE}/{sp}/funannotate_output/{asm}_genomic_renamed/predict_results'
+                cds = f'{P}/{asm}.cds-transcripts.fa'
+                if not os.path.exists(cds): continue
+                CD = _cds_flags(cds)
+                GF = _gff_genes(f'{P}/{asm}.gff3') if os.path.exists(f'{P}/{asm}.gff3') else {}
+                SL = _fa_lens(f'{P}/{asm}.scaffolds.fa') if os.path.exists(f'{P}/{asm}.scaffolds.fa') else {}
+                for g, comps in g2c.get(c, {}).items():
+                    v = CD.get(g)
+                    if not v: continue
+                    atg, stop, tri = v
+                    gi = GF.get(g.split('-T')[0]); edge = None
+                    if gi and gi[0] in SL:
+                        L = SL[gi[0]]; edge = (gi[1] <= EDGE_BP or (L - gi[2]) <= EDGE_BP)
+                    for comp in comps:
+                        C[comp]['n'] += 1
+                        if not atg: C[comp]['no_start'] += 1
+                        if not stop: C[comp]['no_stop'] += 1
+                        if not tri: C[comp]['not_x3'] += 1
+                        if edge: C[comp]['edge'] += 1
+                        if (not atg) or (not stop) or (not tri) or (edge is True): C[comp]['incomplete'] += 1
+            for comp in COMPARTMENTS:
+                n = C[comp]['n']
+                if n:
+                    rows.append({'Species': sp, 'Compartment': comp, 'n_genes': n,
+                                 'pct_no_start': 100*C[comp]['no_start']/n, 'pct_no_stop': 100*C[comp]['no_stop']/n,
+                                 'pct_not_x3': 100*C[comp]['not_x3']/n, 'pct_contig_edge': 100*C[comp]['edge']/n,
+                                 'pct_incomplete': 100*C[comp]['incomplete']/n})
+            print(f'  {sp}: done', flush=True)
+        orf_sp = pd.DataFrame(rows); orf_sp.to_csv(ORF_CACHE, index=False)
+        print(f'Saved per-species ORF completeness -> {ORF_CACHE.name}')
+
+    len_df = pd.read_csv(LEN_CACHE)
+    _NA = {'', '-', 'nan', 'NaN', 'None'}
+    def _clean(v): v = str(v).strip(); return '' if v in _NA else v
+
+    # ---------- per (species, compartment) metrics ----------
+    recs = []
+    for sp in SP_KEYS:
+        ogc = pd.read_csv(NB1_RESULTS / sp / f'{sp}_og_consensus.tsv', sep='\t')
+        dc = pd.read_csv(NB4_RESULTS / sp / 'diamond_rare_classification.tsv', sep='\t')
+        nohit = set(dc.loc[dc['blast_class'] == 'No hit', 'Orthogroup'].astype(str))
+        ld = len_df[len_df.Species == sp]
+        for comp in COMPARTMENTS:
+            if comp == 'Truly-rare':
+                sub_ogc = ogc[ogc['Orthogroup'].astype(str).isin(nohit)]; len_ogs = ld[ld.TrulyRare]
             else:
-                ax.text(0.5, 0.5, 'No COG hits', ha='center', va='center',
-                        transform=ax.transAxes)
-                ax.axis('off')
+                sub_ogc = ogc[ogc['Pangenome_Class'] == comp]; len_ogs = ld[ld.Class == comp]
+            length = len_ogs['median_len'].mean()
+            pfam = sub_ogc['PFAMs'].apply(lambda v: _clean(v) != '').mean() * 100 if len(sub_ogc) else np.nan
+            m = orf_sp[(orf_sp.Species == sp) & (orf_sp.Compartment == comp)]
+            inc = m['pct_incomplete'].iloc[0] if len(m) else np.nan
+            recs.append({'Species': sp, 'Compartment': comp, 'length': length, 'pfam': pfam, 'incomplete': inc})
+    per_sp = pd.DataFrame(recs)
+    avg = per_sp.groupby('Compartment').agg(length=('length', 'mean'), length_sd=('length', 'std'),
+                                            pfam=('pfam', 'mean'), pfam_sd=('pfam', 'std'),
+                                            incomplete=('incomplete', 'mean'), incomplete_sd=('incomplete', 'std')).reindex(COMPARTMENTS)
+    avg.to_csv(NB4_RESULTS / 'compartment_length_pfam_orf.csv')
 
-        # --- Panel C: protein-count distribution (how big each rare OG is) ---
-        ax = axes[i, 2]
-        if n_rare == 0 or 'n_proteins' not in rare.columns:
-            ax.text(0.5, 0.5, 'No size data', ha='center', va='center',
-                    transform=ax.transAxes)
-            ax.axis('off')
+    # ---------- figure: mean bar per compartment, with every species shown as a point ----------
+    # Bars are means across the four species, whiskers the SD, points the individual species.
+    GRID, AXIS, INK = '#e3e7eb', '#9aa4ad', '#1d2429'
+    fig, axes = plt.subplots(1, 3, figsize=(FIG_W, FIG_H))
+    x = np.arange(len(COMPARTMENTS))
+    panels = [('length', 'Protein length', 'amino acids (mean per orthogroup)', '%.0f'),
+              ('pfam', 'Pfam domain coverage', '% of orthogroups with a domain', '%.0f'),
+              ('incomplete', 'Incomplete gene models', '% of genes', '%.2f')]
+    for ax, (col, title, ylab, fmt) in zip(axes, panels):
+        vals = avg[col].values
+        ax.set_axisbelow(True)
+        ax.yaxis.grid(True, color=GRID, linewidth=1.0)
+        sd = np.nan_to_num(avg[col + '_sd'].values)
+        ax.bar(x, vals, 0.60, color=[COMP_COLOR[c] for c in COMPARTMENTS],
+               edgecolor='#33383d', linewidth=0.7, zorder=2,
+               yerr=sd, error_kw=dict(ecolor='#33383d', elinewidth=1.1, capsize=3, capthick=1.1, zorder=3))
+        tops = []
+        for xi, comp in zip(x, COMPARTMENTS):
+            pts = per_sp[per_sp.Compartment == comp]
+            for _, r in pts.iterrows():
+                ax.scatter(xi + SP_OFF[r.Species], r[col], marker=SP_MARK[r.Species], s=28,
+                           facecolor='white', edgecolor=INK, linewidth=1.0, zorder=5)
+            tops.append(max(vals[xi] + sd[xi], pts[col].max()))
+        span = max(tops)
+        for xi, v, t in zip(x, vals, tops):
+            ax.text(xi, t + span * 0.035, fmt % v, ha='center', va='bottom',
+                    fontsize=FS - 3, fontweight='semibold', color=INK)
+        ax.set_xticks(x); ax.set_xticklabels(COMPARTMENTS, fontsize=FS - 2)
+        ax.set_ylim(0, span * 1.13)
+        ax.set_title(title, fontsize=FS, fontweight='bold', color=INK, pad=8)
+        ax.set_ylabel(ylab, fontsize=FS - 3, color='#41505c')
+        ax.tick_params(axis='both', labelsize=FS - 3, colors='#41505c', length=0)
+        for spn in ('top', 'right', 'left'):
+            ax.spines[spn].set_visible(False)
+        ax.spines['bottom'].set_color(AXIS)
+    axes[1].set_ylim(0, 100)
+
+    handles = [plt.Line2D([0], [0], marker=SP_MARK[s], color='none', markerfacecolor='white',
+                          markeredgecolor=INK, markeredgewidth=1.0, markersize=7,
+                          label=r'$\mathit{A.\ %s}$' % s) for s in SP_KEYS]
+    fig.legend(handles=handles, loc='lower center', bbox_to_anchor=(0.5, -0.030), ncol=4,
+               frameon=False, fontsize=FS - 3, handletextpad=0.4, columnspacing=1.8)
+    fig.suptitle('Pangenome protein length, domain coverage and gene-model quality',
+                 fontsize=FS + 2, fontweight='bold', color=INK, y=1.045)
+    plt.tight_layout(rect=[0, 0.02, 1, 1.0], w_pad=1.4)
+    fig.subplots_adjust(top=0.888)   # tight_layout leaves slack at the top; close it explicitly
+    out = NB4_RESULTS / 'compartment_length_pfam_orf.png'
+    print(f'\nSaved -> {out}  and compartment_length_pfam_orf.csv\n')
+    print(avg[['length', 'pfam', 'incomplete']].round(2).to_string())
+
+    return fig, avg
+
+
+# =============================================================================
+# NB4 INPUT LOADING, PREFLIGHT AND SUMMARY
+# =============================================================================
+
+def load_nb4_species_data(species_list, genus, base_path, nb1_results,
+                          ani_excluded=None):
+    """Per-species PAV matrix, orthogroup consensus table and class thresholds.
+
+    Orthogroups carried only by ANI or contamination excluded genomes are
+    dropped. Returns species_data keyed by species.
+    """
+    import glob
+    import funpan_pangenome as fpp
+    import funpan_utils as fpu
+
+    GENUS = genus
+    NB1_RESULTS = str(nb1_results)
+    SPECIES_LIST = species_list
+    if ani_excluded is None:
+        ani_excluded = fpu.ANI_EXCLUDED
+
+    _, pav_data, _ = fpp.load_all_orthofinder(SPECIES_LIST, str(base_path), NB1_RESULTS)
+
+    species_data = {}
+    for sp in SPECIES_LIST:
+        og_path = os.path.join(NB1_RESULTS, sp, f'{sp}_og_consensus.tsv')
+        if not os.path.exists(og_path):
+            print(f'  [WARN] No OG consensus for {sp} at {og_path}')
+            continue
+        ogc = pd.read_csv(og_path, sep='\t')
+        _excl = set().union(*ani_excluded.values())
+        _priv = set()
+        for _f in glob.glob(f'{base_path}/{sp}/orthofinder_output/*/Orthogroups/Orthogroups.tsv') + \
+                  glob.glob(f'{base_path}/{sp}/orthofinder_output/*/Orthogroups/Orthogroups_UnassignedGenes.tsv'):
+            with open(_f) as fh:
+                _hdr = fh.readline().rstrip('\n').split('\t')
+                _ex = {i for i, h in enumerate(_hdr) if any(a in h for a in _excl)}
+                if not _ex:
+                    continue
+                for _l in fh:
+                    _r = _l.rstrip('\n').split('\t')
+                    _p = [i for i in range(1, len(_r)) if _r[i].strip()]
+                    if _p and all(i in _ex for i in _p):
+                        _priv.add(_r[0])
+        if _priv:
+            ogc = ogc[~ogc['Orthogroup'].isin(_priv)].copy()
+            print(f'  {sp}: dropped {len(_priv)} OGs private to excluded genomes')
+
+        pav = pav_data.get(sp)
+        if pav is not None:
+            _, core_n, _, rare_n = fpp.determine_core_and_rare_thresholds(pav)
         else:
-            sizes = rare['n_proteins'].dropna().astype(int)
-            if len(sizes):
-                ax.hist(sizes, bins=min(30, max(5, sizes.max())),
-                        color='coral', edgecolor='white', alpha=0.85)
-                ax.set_xlabel('Proteins per rare OG')
-                ax.set_ylabel('Count')
-                ax.set_title(f'{label} — rare OG size distribution\n'
-                             f'(median = {int(sizes.median())}, max = {int(sizes.max())})',
-                             fontsize=10, fontweight='bold')
-                ax.grid(axis='y', linestyle=':', alpha=0.4)
+            core_n = rare_n = None
 
-    plt.suptitle('Rare orthogroup characterisation per species',
-                 fontsize=13, fontweight='bold', y=1.001)
-    plt.tight_layout()
+        species_data[sp] = {
+            'pav':          pav,
+            'og_consensus': ogc,
+            'n_strains':    pav.shape[1] if pav is not None else 0,
+            'core_n':       core_n,
+            'rare_n':       rare_n,
+        }
+        n_rare = (ogc['Pangenome_Class'] == 'Rare').sum() if 'Pangenome_Class' in ogc.columns else 0
+        print(f'  {sp}: PAV {pav.shape if pav is not None else "--"}, '
+              f'OG consensus {ogc.shape}, {n_rare} rare OGs, '
+              f'core>={core_n}, rare<={rare_n}')
+    return species_data
 
-    if results_dir is not None:
-        out_path = os.path.join(results_dir, 'rare_ogs_characterization.png')
-        fig.savefig(out_path, dpi=150, bbox_inches='tight')
-        print(f'Saved: {out_path}')
+
+def apply_truly_rare_filter(species_list, species_data, species_config, results_dir):
+    """Reclassify Rare orthogroups outside the DIAMOND No-hit class.
+
+    Edits species_data in place so that Pangenome_Class == 'Rare' means the
+    truly-rare subset from here on. Returns the No-hit orthogroup set per
+    species.
+    """
+    RESULTS_DIR = str(results_dir)
+    SPECIES_LIST = species_list
+    SPECIES_CONFIG = species_config
+
+    truly_rare_by_sp = {}
+    for sp in SPECIES_LIST:
+        p = os.path.join(RESULTS_DIR, sp, 'diamond_rare_classification.tsv')
+        if not os.path.exists(p):
+            print(f'{SPECIES_CONFIG[sp]["label"]}: no DIAMOND table at {p}')
+            continue
+        dc = pd.read_csv(p, sep='\t')
+        truly_rare_by_sp[sp] = set(dc.loc[dc['blast_class'] == 'No hit', 'Orthogroup'])
+
+    for sp in SPECIES_LIST:
+        if sp not in truly_rare_by_sp:
+            continue
+        label = SPECIES_CONFIG[sp]['label']
+        ogc = species_data[sp]['og_consensus']
+        keep = truly_rare_by_sp[sp]
+        rare_mask = ogc['Pangenome_Class'] == 'Rare'
+        n_rare = int(rare_mask.sum())
+        excl_mask = rare_mask & (~ogc['Orthogroup'].isin(keep))
+        n_excl = int(excl_mask.sum())
+        n_kept = n_rare - n_excl
+        ogc.loc[excl_mask, 'Pangenome_Class'] = 'Rare_excluded'
+        print(f'  {label:14s}: {n_rare:>5d} Rare -> {n_kept:>5d} truly-rare kept | '
+              f'{n_excl:>5d} reclassified as Rare_excluded '
+              f'({100*n_kept/max(n_rare,1):.1f} % kept)')
+    return truly_rare_by_sp
+
+
+def nb4_preflight(species_list, species_root, nb0_results, nb1_results,
+                  nb4_results, qc_table=None, verbose=True):
+    """Report which NB4 inputs are present and create the output directories.
+
+    Returns a DataFrame with one row per checked input.
+    """
+    import shutil
+
+    nb0, nb1, nb4 = Path(nb0_results), Path(nb1_results), Path(nb4_results)
+    root = Path(species_root)
+    rows = [
+        ('phenotype table', nb0 / 'phenotype_classified_for_gwas.csv'),
+        ('assembly metadata', Path(qc_table) if qc_table else nb0 / 'qc_passed_metadata_enriched.csv'),
+    ]
+    for sp in species_list:
+        rows += [
+            (f'{sp} PAV matrix', nb1 / sp / f'{sp}_pav.tsv'),
+            (f'{sp} OG consensus', nb1 / sp / f'{sp}_og_consensus.tsv'),
+            (f'{sp} kinship (GRM)', nb1 / sp / f'{sp}_kinship.tsv'),
+            (f'{sp} SNP PCs', nb1 / sp / f'{sp}_snp_pcs.tsv'),
+            (f'{sp} genome directory', root / sp),
+        ]
+    check = pd.DataFrame([{'input': n, 'path': str(p), 'exists': p.exists()} for n, p in rows])
+
+    nb4.mkdir(parents=True, exist_ok=True)
+    for sp in species_list:
+        (nb4 / sp).mkdir(exist_ok=True)
+
+    if verbose:
+        missing = check[~check['exists']]
+        print(f'Inputs present: {int(check["exists"].sum())}/{len(check)}')
+        if len(missing):
+            print('Missing:')
+            for _, r in missing.iterrows():
+                print(f'  {r["input"]:26s} {r["path"]}')
+        for tool in ('diamond', 'mash', 'blastp'):
+            print(f'  {tool:8s} {"on PATH" if shutil.which(tool) else "not on PATH"}')
+        print(f'Output directory: {nb4}')
+    return check
+
+
+def print_nb4_summary(species_list, nb4_results):
+    """Rare and truly-rare counts per species, and every NB4 output file."""
+    nb4 = Path(nb4_results)
+    rows = []
+    for sp in species_list:
+        p = nb4 / sp / 'diamond_rare_classification.tsv'
+        if not p.exists():
+            continue
+        dc = pd.read_csv(p, sep='\t')
+        rows.append({
+            'Species': f'A. {sp}',
+            'Rare OGs': len(dc),
+            'Truly-rare (No hit)': int((dc['blast_class'] == 'No hit').sum()),
+            'Paralog': int((dc['blast_class'] == 'Full-length homolog').sum()),
+            'Fragment': int((dc['blast_class'] == 'Fragment of longer gene').sum()),
+            'No significant similarity': int((dc['blast_class'] == 'No significant similarity').sum()),
+        })
+    counts = pd.DataFrame(rows)
+    if len(counts):
+        counts['% truly-rare'] = (100 * counts['Truly-rare (No hit)'] / counts['Rare OGs']).round(1)
+
+    expected = [
+        'rare_genome_summary.csv',
+        'diamond_classification_pies.png',
+        'rare_gene_burden_all_genomes.csv',
+        'rare_gene_characterisation_summary.csv',
+        'og_length_by_class.csv',
+        'orf_completeness_by_class.csv',
+        'compartment_length_pfam_orf.csv',
+        'compartment_length_pfam_orf.png',
+        'cog_enrichment_rare_vs_nonrare.csv',
+        'rare_xenolog_ncbi_blast_results.tsv',
+        'rare_xenolog_kingdom_summary.csv',
+        'rare_xenolog_confident_hits.csv',
+        'rare_xenolog_taxonomy.png',
+        'xenolog_neighbourhood.png',
+        'burden_contrast_table.csv',
+        'truly_rare_burden_by_phenotype.png',
+        'pooled_kinship_nb2.tsv',
+        'combined_tree_vcv.tsv',
+        'rare_burden_kinship_control.csv',
+        'burden_bidirectional_kinship_corrected.png',
+        'burden_oryzae_vs_flavus.csv',
+        'burden_oryzae_vs_flavus.png',
+        'burden_manuscript_four_panel.csv',
+        'burden_manuscript_four_panel.png',
+    ]
+    per_species = [
+        '{sp}/diamond_rare_classification.tsv',
+        '{sp}/og_gc_content.tsv',
+        '{sp}/phylogenetic_signal.png',
+        '{sp}/ancestral_niche_reconstruction.png',
+        '{sp}/gain_loss_events.tsv',
+        '{sp}/gain_loss_summary.tsv',
+        'mash_clustering/{sp}/{sp}_mash_distance_matrix.tsv',
+        'mash_clustering/{sp}/{sp}_primary_clusters.csv',
+    ]
+    names = list(expected)
+    for sp in species_list:
+        names += [t.format(sp=sp) for t in per_species]
+    names += ['mash_clustering/all_species/all_species_mash_distance_matrix.csv',
+              'mash_clustering/all_species/all_species_mash_heatmap.png']
+
+    files = pd.DataFrame([{'path': str(nb4 / n), 'exists': (nb4 / n).exists()}
+                          for n in names])
+    print(f'Rare-genome outputs under {nb4}')
+    print(f'  present: {int(files["exists"].sum())}/{len(files)}')
+    for _, r in files.iterrows():
+        print(f'  {"OK " if r["exists"] else "-- "}{r["path"]}')
+    return counts, files

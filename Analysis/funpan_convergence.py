@@ -161,118 +161,6 @@ def build_genome_species_mapping(genecount_df: pd.DataFrame) -> Dict[str, str]:
     return mapping
 
 
-def build_pav_from_genecount(genecount_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Convert gene count matrix to presence/absence (PAV) matrix.
-
-    Parameters
-    ----------
-    genecount_df : pd.DataFrame
-        Gene count matrix with Orthogroup as first column
-
-    Returns
-    -------
-    pd.DataFrame
-        PAV matrix (0/1) indexed by Orthogroup
-    """
-    pav = genecount_df.set_index('Orthogroup')
-    pav = (pav > 0).astype(int)
-    return pav
-
-
-def split_pav_by_species(pav: pd.DataFrame, genome_mapping: Dict[str, str]) -> Dict[str, pd.DataFrame]:
-    """
-    Split combined PAV matrix into per-species PAV matrices.
-
-    Parameters
-    ----------
-    pav : pd.DataFrame
-        Combined PAV matrix
-    genome_mapping : Dict[str, str]
-        Mapping from genome column to species
-
-    Returns
-    -------
-    Dict[str, pd.DataFrame]
-        Dictionary of species -> PAV matrix
-    """
-    species_pav = {}
-
-    for species in SPECIES_LIST:
-        # Find columns belonging to this species
-        species_cols = [col for col in pav.columns
-                       if col.startswith(f"{species}__")]
-
-        if species_cols:
-            sp_pav = pav[species_cols].copy()
-            # Rename columns to just accession
-            sp_pav.columns = [col.replace(f"{species}__", "") for col in sp_pav.columns]
-            species_pav[species] = sp_pav
-
-    return species_pav
-
-
-def load_species_metadata(species_dirs: Dict[str, str]) -> Dict[str, pd.DataFrame]:
-    """
-    Load metadata for each species.
-
-    Parameters
-    ----------
-    species_dirs : Dict[str, str]
-        Mapping from species name to metadata CSV path
-
-    Returns
-    -------
-    Dict[str, pd.DataFrame]
-        Dictionary of species -> metadata DataFrame
-    """
-    metadata = {}
-    for species, path in species_dirs.items():
-        if os.path.exists(path):
-            df = pd.read_csv(path)
-            metadata[species] = df
-            print(f"Loaded {len(df)} samples for {species}")
-        else:
-            print(f"[WARN] Metadata not found: {path}")
-
-    return metadata
-
-
-def load_classified_metadata(isolation_csv: str) -> pd.DataFrame:
-    """
-    Load pre-classified isolation source metadata.
-
-    Parameters
-    ----------
-    isolation_csv : str
-        Path to isolation_categorized_5_class.csv or similar
-
-    Returns
-    -------
-    pd.DataFrame
-        Metadata with IsolationClass column
-    """
-    df = pd.read_csv(isolation_csv)
-
-    # Standardize column names if needed
-    col_map = {}
-    for col in df.columns:
-        col_lower = col.lower().replace(' ', '_').replace('-', '_')
-        # Match exact 'isolationclass' or 'isolation_class' but NOT 'isolationsubclass'
-        if col_lower in ('isolationclass', 'isolation_class'):
-            col_map[col] = 'IsolationClass'
-        elif col_lower in ('assembly_accession', 'assemblyaccession'):
-            col_map[col] = 'Assembly_Accession'
-
-    if col_map:
-        df = df.rename(columns=col_map)
-
-    # Standardize Assembly_Accession column name
-    if 'Assembly Accession' in df.columns and 'Assembly_Accession' not in df.columns:
-        df = df.rename(columns={'Assembly Accession': 'Assembly_Accession'})
-
-    return df
-
 # =============================================================================
 # CROSS-SPECIES CONVERGENT HIT DETECTION (Section 6.1)
 # =============================================================================
@@ -595,229 +483,10 @@ def run_meta_analysis(
 # LEAVE-ONE-SPECIES-OUT ROBUSTNESS (Section 6.3)
 # =============================================================================
 
-def run_leave_one_out_analysis(
-    species_results: Dict[str, pd.DataFrame],
-    convergent_hits: pd.DataFrame,
-    meta_method: str = 'fisher'
-) -> pd.DataFrame:
-    """
-    Run leave-one-species-out analysis for robustness testing.
-
-    For each convergent hit, recalculate meta p-value leaving out each species.
-    Hits that remain significant are the most robust.
-
-    Parameters
-    ----------
-    species_results : Dict[str, pd.DataFrame]
-        Per-species association results
-    convergent_hits : pd.DataFrame
-        Identified convergent hits
-    meta_method : str
-        Meta-analysis method ('fisher' or 'stouffer')
-
-    Returns
-    -------
-    pd.DataFrame
-        Robustness analysis results
-    """
-    if convergent_hits.empty:
-        return pd.DataFrame()
-
-    species_list = list(species_results.keys())
-    records = []
-
-    for _, hit in convergent_hits.iterrows():
-        og = hit['Orthogroup']
-
-        # Get original meta p-value
-        original_meta = run_meta_analysis({k: v for k, v in species_results.items()}, method=meta_method)
-        og_meta = original_meta[original_meta['Orthogroup'] == og]
-
-        if len(og_meta) == 0:
-            continue
-
-        original_p = og_meta.iloc[0]['meta_p_value']
-        original_q = og_meta.iloc[0]['meta_q_value']
-
-        # Leave-one-out analysis
-        loo_results = {}
-        for species in species_list:
-            if species not in species_results:
-                continue
-
-            # Create subset without this species
-            subset_results = {k: v for k, v in species_results.items() if k != species}
-
-            if len(subset_results) < 2:
-                continue
-
-            # Run meta-analysis
-            loo_meta = run_meta_analysis(subset_results, method=meta_method)
-            loo_og = loo_meta[loo_meta['Orthogroup'] == og]
-
-            if len(loo_og) > 0:
-                loo_results[species] = {
-                    'p_value': loo_og.iloc[0]['meta_p_value'],
-                    'q_value': loo_og.iloc[0]['meta_q_value']
-                }
-
-        # Determine robustness
-        n_still_significant = sum(1 for r in loo_results.values() if r['q_value'] < 0.1)
-        max_loo_p = max([r['p_value'] for r in loo_results.values()]) if loo_results else np.nan
-
-        # Find which species, when removed, causes biggest change
-        species_impact = {}
-        for species, r in loo_results.items():
-            if not np.isnan(r['p_value']) and not np.isnan(original_p):
-                impact = np.log10(r['p_value']) - np.log10(original_p)
-                species_impact[species] = impact
-
-        driving_species = max(species_impact, key=lambda k: abs(species_impact.get(k, 0))) if species_impact else 'none'
-
-        records.append({
-            'Orthogroup': og,
-            'original_meta_p': original_p,
-            'original_meta_q': original_q,
-            'n_loo_tests': len(loo_results),
-            'n_still_significant': n_still_significant,
-            'max_loo_p': max_loo_p,
-            'robust': n_still_significant == len(loo_results),
-            'driving_species': driving_species,
-            'convergence_type': hit.get('convergence_type', 'unknown'),
-            'convergent_direction': hit.get('convergent_direction', 'unknown')
-        })
-
-    robustness_df = pd.DataFrame(records)
-
-    if not robustness_df.empty:
-        robustness_df = robustness_df.sort_values('original_meta_p')
-
-    return robustness_df
-
-
-def get_tier_classification(robustness_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Classify hits into tiers based on robustness.
-
-    Tier 1: Robust (significant after removing any species)
-    Tier 2: Partially robust (significant after removing most species)
-    Tier 3: Species-dependent (loses significance when key species removed)
-
-    Parameters
-    ----------
-    robustness_df : pd.DataFrame
-        Robustness analysis results
-
-    Returns
-    -------
-    pd.DataFrame
-        Results with tier classification
-    """
-    if robustness_df.empty:
-        return robustness_df
-
-    df = robustness_df.copy()
-
-    def classify_tier(row):
-        if row['robust']:
-            return 'Tier1_Robust'
-        elif row['n_still_significant'] >= row['n_loo_tests'] - 1:
-            return 'Tier2_PartiallyRobust'
-        else:
-            return 'Tier3_SpeciesDependent'
-
-    df['tier'] = df.apply(classify_tier, axis=1)
-
-    return df
-
 
 # =============================================================================
 # ANNOTATION AND INTERPRETATION
 # =============================================================================
-
-def annotate_convergent_hits(
-    convergent_hits: pd.DataFrame,
-    og_annotations: pd.DataFrame,
-    annotation_cols: List[str] = None
-) -> pd.DataFrame:
-    """
-    Add functional annotations to convergent hits.
-
-    Parameters
-    ----------
-    convergent_hits : pd.DataFrame
-        Convergent hit results
-    og_annotations : pd.DataFrame
-        Orthogroup annotations (e.g., from build_og_consensus_table)
-    annotation_cols : List[str], optional
-        Columns to include from annotations
-
-    Returns
-    -------
-    pd.DataFrame
-        Annotated convergent hits
-    """
-    if convergent_hits.empty:
-        return convergent_hits
-
-    if annotation_cols is None:
-        annotation_cols = ['Description', 'GOs', 'PFAMs', 'CAZy', 'COG_category',
-                          'KEGG_ko', 'KEGG_Pathway']
-
-    # Filter to available columns
-    available_cols = [c for c in annotation_cols if c in og_annotations.columns]
-
-    if not available_cols:
-        return convergent_hits
-
-    merge_cols = ['Orthogroup'] + available_cols
-    annot_subset = og_annotations[merge_cols].drop_duplicates(subset=['Orthogroup'])
-
-    annotated = convergent_hits.merge(annot_subset, on='Orthogroup', how='left')
-
-    return annotated
-
-
-def summarize_convergent_functions(
-    convergent_hits: pd.DataFrame,
-    annotation_col: str = 'COG_category',
-    top_n: int = 10
-) -> pd.DataFrame:
-    """
-    Summarize functional categories of convergent hits.
-
-    Parameters
-    ----------
-    convergent_hits : pd.DataFrame
-        Annotated convergent hits
-    annotation_col : str
-        Annotation column to summarize
-    top_n : int
-        Number of top categories to return
-
-    Returns
-    -------
-    pd.DataFrame
-        Summary of functional categories
-    """
-    if annotation_col not in convergent_hits.columns:
-        print(f"Column {annotation_col} not found")
-        return pd.DataFrame()
-
-    # Count categories
-    all_terms = []
-    for val in convergent_hits[annotation_col].dropna():
-        terms = str(val).split(';')
-        all_terms.extend([t.strip() for t in terms if t.strip()])
-
-    term_counts = Counter(all_terms)
-
-    summary = pd.DataFrame([
-        {'Term': term, 'Count': count, 'Percentage': count / len(convergent_hits) * 100}
-        for term, count in term_counts.most_common(top_n)
-    ])
-
-    return summary
 
 
 def generate_cross_species_report(
@@ -933,145 +602,6 @@ def generate_cross_species_report(
 # MAIN WORKFLOW FUNCTIONS
 # =============================================================================
 
-def run_full_cross_species_analysis(
-    genecount_path: str,
-    metadata_path: str,
-    output_dir: str,
-    contrasts: Optional[List[Dict]] = None,
-    fdr_threshold: float = 0.1
-) -> Dict[str, Any]:
-    """
-    Run complete cross-species analysis pipeline.
-
-    Parameters
-    ----------
-    genecount_path : str
-        Path to combined Orthogroups.GeneCount.tsv
-    metadata_path : str
-        Path to classified metadata CSV
-    output_dir : str
-        Output directory for results
-    contrasts : List[Dict], optional
-        Contrast definitions (uses defaults if None)
-    fdr_threshold : float
-        FDR threshold for significance
-
-    Returns
-    -------
-    Dict[str, Any]
-        Dictionary containing all results
-    """
-    os.makedirs(output_dir, exist_ok=True)
-
-    print("=" * 60)
-    print("CROSS-SPECIES PANGENOME ANALYSIS")
-    print("=" * 60)
-
-    # Load data
-    print("\n1. Loading combined orthogroup data...")
-    genecount = load_combined_orthogroups_genecount(genecount_path)
-    pav = build_pav_from_genecount(genecount)
-    genome_mapping = build_genome_species_mapping(genecount)
-    print(f"   Loaded {len(pav)} orthogroups across {len(pav.columns)} genomes")
-
-    # Split by species
-    species_pav = split_pav_by_species(pav, genome_mapping)
-    print(f"   Species: {', '.join(species_pav.keys())}")
-
-    # Load metadata
-    print("\n2. Loading metadata...")
-    metadata = load_classified_metadata(metadata_path)
-    print(f"   Loaded {len(metadata)} samples")
-
-    # Create phenotypes
-    print("\n3. Creating phenotype data...")
-    phenotype = create_phenotype_from_isolation_class(pav, metadata)
-
-    # Split phenotypes by species
-    species_phenotypes = {}
-    for species in species_pav.keys():
-        sp_pheno = phenotype[phenotype['species'] == species]
-        if len(sp_pheno) > 0:
-            species_phenotypes[species] = sp_pheno
-
-    # Get contrasts
-    if contrasts is None:
-        contrasts = define_isolation_contrasts()
-
-    # Results storage
-    all_results = {}
-
-    for contrast in contrasts:
-        contrast_name = contrast['name']
-        print(f"\n{'='*60}")
-        print(f"CONTRAST: {contrast_name}")
-        print(f"{'='*60}")
-
-        # 1. Per-species association tests
-        species_results = run_all_species_association(
-            species_pav, species_phenotypes, contrast
-        )
-
-        if len(species_results) < 2:
-            print("  Insufficient species with results, skipping cross-species analysis")
-            continue
-
-        # 2. Identify convergent hits (Section 6.1)
-        print("\n  Identifying convergent hits...")
-        convergent = identify_convergent_hits(
-            species_results,
-            fdr_threshold=fdr_threshold
-        )
-        print(f"    Found {len(convergent)} convergent hits")
-
-        # 3. Meta-analysis (Section 6.2)
-        print("\n  Running meta-analysis...")
-        meta = run_meta_analysis(species_results, method='fisher')
-        n_sig = (meta['meta_q_value'] < fdr_threshold).sum()
-        print(f"    {n_sig} significant at FDR < {fdr_threshold}")
-
-        # 4. Robustness analysis (Section 6.3)
-        print("\n  Running leave-one-out robustness analysis...")
-        if not convergent.empty:
-            robustness = run_leave_one_out_analysis(species_results, convergent)
-            robustness = get_tier_classification(robustness)
-            n_robust = robustness['robust'].sum() if 'robust' in robustness.columns else 0
-            print(f"    {n_robust} robust hits identified")
-        else:
-            robustness = pd.DataFrame()
-
-        # Store results
-        all_results[contrast_name] = {
-            'species_results': species_results,
-            'convergent_hits': convergent,
-            'meta_analysis': meta,
-            'robustness': robustness
-        }
-
-        # Generate report
-        report = generate_cross_species_report(
-            convergent, meta, robustness, contrast_name
-        )
-        print(report)
-
-        # Save results
-        contrast_dir = os.path.join(output_dir, contrast_name)
-        os.makedirs(contrast_dir, exist_ok=True)
-
-        if not convergent.empty:
-            convergent.to_csv(os.path.join(contrast_dir, 'convergent_hits.csv'), index=False)
-        meta.to_csv(os.path.join(contrast_dir, 'meta_analysis.csv'), index=False)
-        if not robustness.empty:
-            robustness.to_csv(os.path.join(contrast_dir, 'robustness.csv'), index=False)
-
-        for species, res in species_results.items():
-            res.to_csv(os.path.join(contrast_dir, f'{species}_association.csv'), index=False)
-
-        with open(os.path.join(contrast_dir, 'report.txt'), 'w') as f:
-            f.write(report)
-
-    return all_results
-
 
 # =============================================================================
 # ANNOTATION MAPPING FROM INDIVIDUAL SPECIES TO COMBINED PANGENOME
@@ -1087,1390 +617,20 @@ def run_full_cross_species_analysis(
 # 3. Aggregate protein-level annotations up to the combined orthogroup level
 # =============================================================================
 
-def load_species_protein_annotations(
-    species_base_dirs: Dict[str, str],
-    annotation_sources: List[str] = None
-) -> Dict[str, pd.DataFrame]:
-    """
-    Load per-protein annotation tables from each species.
-
-    These are the raw annotation outputs (EggNOG, dbCAN, InterProScan, SignalP)
-    which have Protein_ID as the key column.
-
-    Parameters
-    ----------
-    species_base_dirs : Dict[str, str]
-        Mapping from species name to base directory path
-    annotation_sources : List[str], optional
-        Which annotation sources to load ['eggnog', 'dbcan', 'interproscan', 'signalp']
-
-    Returns
-    -------
-    Dict[str, pd.DataFrame]
-        Per-species protein annotation tables (merged from all sources)
-    """
-    if annotation_sources is None:
-        annotation_sources = ['eggnog', 'dbcan', 'interproscan', 'signalp']
-
-    species_annotations = {}
-
-    for species, base_dir in species_base_dirs.items():
-        print(f"\nLoading annotations for {species}...")
-
-        protein_annots = []
-
-        # EggNOG annotations
-        if 'eggnog' in annotation_sources:
-            eggnog_dir = os.path.join(base_dir, 'eggnog_output')
-            if os.path.isdir(eggnog_dir):
-                eggnog_files = [f for f in os.listdir(eggnog_dir)
-                               if f.endswith('.emapper.annotations')]
-                for ef in eggnog_files[:50]:  # Limit for memory
-                    try:
-                        eggnog_path = os.path.join(eggnog_dir, ef)
-                        df = _read_eggnog_simple(eggnog_path)
-                        if not df.empty:
-                            protein_annots.append(df)
-                    except Exception as e:
-                        pass
-                print(f"  Loaded {len(eggnog_files)} EggNOG files")
-
-        # dbCAN annotations
-        if 'dbcan' in annotation_sources:
-            dbcan_dir = os.path.join(base_dir, 'dbcan_output')
-            if os.path.isdir(dbcan_dir):
-                dbcan_count = 0
-                for subdir in os.listdir(dbcan_dir)[:50]:
-                    overview_path = os.path.join(dbcan_dir, subdir, 'overview.tsv')
-                    if os.path.exists(overview_path):
-                        try:
-                            df = _read_dbcan_simple(overview_path)
-                            if not df.empty:
-                                protein_annots.append(df)
-                                dbcan_count += 1
-                        except Exception:
-                            pass
-                print(f"  Loaded {dbcan_count} dbCAN files")
-
-        # InterProScan annotations
-        if 'interproscan' in annotation_sources:
-            interpro_dir = os.path.join(base_dir, 'interproscan_output')
-            if os.path.isdir(interpro_dir):
-                interpro_count = 0
-                for subdir in os.listdir(interpro_dir)[:50]:
-                    subdir_path = os.path.join(interpro_dir, subdir)
-                    if os.path.isdir(subdir_path):
-                        tsv_files = [f for f in os.listdir(subdir_path) if f.endswith('.tsv')]
-                        for tsv in tsv_files[:1]:
-                            try:
-                                df = _read_interproscan_simple(os.path.join(subdir_path, tsv))
-                                if not df.empty:
-                                    protein_annots.append(df)
-                                    interpro_count += 1
-                            except Exception:
-                                pass
-                print(f"  Loaded {interpro_count} InterProScan files")
-
-        # SignalP annotations
-        if 'signalp' in annotation_sources:
-            signalp_dir = os.path.join(base_dir, 'signalp_output')
-            if os.path.isdir(signalp_dir):
-                signalp_count = 0
-                for subdir in os.listdir(signalp_dir)[:50]:
-                    pred_path = os.path.join(signalp_dir, subdir, 'prediction_results.txt')
-                    if os.path.exists(pred_path):
-                        try:
-                            df = _read_signalp_simple(pred_path)
-                            if not df.empty:
-                                protein_annots.append(df)
-                                signalp_count += 1
-                        except Exception:
-                            pass
-                print(f"  Loaded {signalp_count} SignalP files")
-
-        # Merge all protein annotations for this species
-        if protein_annots:
-            merged = pd.concat(protein_annots, ignore_index=True)
-            # Group by Protein_ID and take first non-empty value for each column
-            merged = merged.groupby('Protein_ID', as_index=False).first()
-            merged['Species'] = species
-            species_annotations[species] = merged
-            print(f"  Total: {len(merged)} proteins with annotations")
-        else:
-            print(f"  [WARN] No annotations found for {species}")
-
-    return species_annotations
-
-
-def _read_eggnog_simple(path: str) -> pd.DataFrame:
-    """Simple EggNOG reader - extracts key columns."""
-    # Find header line
-    hdr_idx = None
-    with open(path, 'r', encoding='utf-8', errors='ignore') as f:
-        for i, line in enumerate(f):
-            if line.startswith('#query') or line.startswith('query'):
-                hdr_idx = i
-                break
-
-    if hdr_idx is None:
-        return pd.DataFrame()
-
-    df = pd.read_csv(path, sep='\t', header=0, skiprows=hdr_idx, dtype=str, na_filter=False)
-
-    # Normalize column names
-    col_map = {}
-    for c in df.columns:
-        cl = c.lstrip('#').strip().lower()
-        if cl in ('query', 'query_name'):
-            col_map[c] = 'Protein_ID'
-        elif cl == 'description':
-            col_map[c] = 'Description_EggNog'
-        elif cl in ('cog_category', 'cog', 'cogs'):
-            col_map[c] = 'COG_category'
-        elif cl in ('go', 'gos', 'go_terms'):
-            col_map[c] = 'GOs_EggNog'
-        elif cl in ('kegg_ko', 'ko'):
-            col_map[c] = 'KEGG_ko'
-        elif cl in ('kegg_pathway', 'pathway'):
-            col_map[c] = 'KEGG_Pathway'
-        elif cl in ('pfams', 'pfam'):
-            col_map[c] = 'PFAMs_EggNog'
-        elif cl in ('ec', 'ec_number'):
-            col_map[c] = 'EC_EggNog'
-
-    df = df.rename(columns=col_map)
-
-    keep_cols = ['Protein_ID', 'Description_EggNog', 'COG_category', 'GOs_EggNog',
-                 'KEGG_ko', 'KEGG_Pathway', 'PFAMs_EggNog', 'EC_EggNog']
-    available = [c for c in keep_cols if c in df.columns]
-
-    if 'Protein_ID' not in available:
-        return pd.DataFrame()
-
-    return df[available]
-
-
-def _read_dbcan_simple(path: str) -> pd.DataFrame:
-    """Simple dbCAN reader - extracts CAZy families."""
-    df = pd.read_csv(path, sep='\t', dtype=str, na_filter=False)
-
-    # Normalize column names
-    col_map = {'Gene ID': 'Protein_ID', 'Recommend Results': 'CAZy_dbCAN'}
-    df = df.rename(columns=col_map)
-
-    if 'Protein_ID' not in df.columns:
-        return pd.DataFrame()
-
-    keep_cols = ['Protein_ID', 'CAZy_dbCAN']
-    available = [c for c in keep_cols if c in df.columns]
-
-    return df[available]
-
-
-def _read_interproscan_simple(path: str) -> pd.DataFrame:
-    """Simple InterProScan reader - extracts IPR and GO terms."""
-    try:
-        df = pd.read_csv(
-            path, sep='\t', header=None, dtype=str, na_filter=False,
-            names=['Protein_ID', 'MD5', 'Length', 'Analysis', 'Signature_Acc',
-                   'Signature_Desc', 'Start', 'Stop', 'Score', 'Status', 'Date',
-                   'IPR_Acc', 'IPR_Desc', 'GO', 'Pathways']
-        )
-    except Exception:
-        return pd.DataFrame()
-
-    # Aggregate per protein
-    grouped = df.groupby('Protein_ID', as_index=False).agg({
-        'IPR_Acc': lambda x: ';'.join([v for v in x if v and v != '-']),
-        'GO': lambda x: ';'.join([v for v in x if v and v != '-']),
-        'IPR_Desc': lambda x: ';'.join(set([v for v in x if v and v != '-']))[:200]
-    })
-
-    grouped = grouped.rename(columns={
-        'IPR_Acc': 'interpro_IPR',
-        'GO': 'GOs_Interpro',
-        'IPR_Desc': 'Description_Interpro'
-    })
-
-    return grouped
-
-
-def _read_signalp_simple(path: str) -> pd.DataFrame:
-    """Simple SignalP reader."""
-    rows = []
-    with open(path, 'r') as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-            parts = line.split('\t')
-            if len(parts) >= 4:
-                prot_id = parts[0].split()[0]
-                prediction = parts[1]
-                sp_prob = parts[3] if len(parts) > 3 else ''
-                rows.append({
-                    'Protein_ID': prot_id,
-                    'signalp_Prediction': prediction,
-                    'signalp_SP_Probability': sp_prob
-                })
-
-    return pd.DataFrame(rows) if rows else pd.DataFrame()
-
-
-def aggregate_protein_annotations_to_orthogroups(
-    combined_og_long: pd.DataFrame,
-    species_protein_annotations: Dict[str, pd.DataFrame],
-    annotation_cols: List[str] = None
-) -> pd.DataFrame:
-    """
-    Aggregate protein-level annotations up to orthogroup level.
-
-    Uses the combined OrthoFinder long format to know which proteins belong
-    to which orthogroup, then aggregates annotations using consensus.
-
-    Parameters
-    ----------
-    combined_og_long : pd.DataFrame
-        Combined pangenome long format with Orthogroup, Species, Protein_ID
-    species_protein_annotations : Dict[str, pd.DataFrame]
-        Per-species protein annotation tables
-    annotation_cols : List[str], optional
-        Annotation columns to aggregate
-
-    Returns
-    -------
-    pd.DataFrame
-        Orthogroup-level annotation table
-    """
-    if annotation_cols is None:
-        annotation_cols = [
-            'Description_EggNog', 'Description_Interpro',
-            'COG_category', 'GOs_EggNog', 'GOs_Interpro',
-            'KEGG_ko', 'KEGG_Pathway', 'PFAMs_EggNog',
-            'EC_EggNog', 'CAZy_dbCAN', 'interpro_IPR',
-            'signalp_Prediction', 'signalp_SP_Probability'
-        ]
-
-    print("\nAggregating protein annotations to orthogroups...")
-
-    # Merge all species protein annotations
-    all_protein_annots = []
-    for species, annot_df in species_protein_annotations.items():
-        if not annot_df.empty:
-            all_protein_annots.append(annot_df)
-
-    if not all_protein_annots:
-        print("  [WARN] No protein annotations to aggregate")
-        return pd.DataFrame({'Orthogroup': combined_og_long['Orthogroup'].unique()})
-
-    protein_annots = pd.concat(all_protein_annots, ignore_index=True)
-
-    # Remove duplicates (same protein from multiple sources)
-    protein_annots = protein_annots.groupby('Protein_ID', as_index=False).first()
-
-    print(f"  Total proteins with annotations: {len(protein_annots)}")
-
-    # Join with combined OG long format
-    og_with_annots = combined_og_long.merge(
-        protein_annots,
-        on='Protein_ID',
-        how='left'
-    )
-
-    print(f"  Proteins matched to orthogroups: {og_with_annots['Description_EggNog'].notna().sum() if 'Description_EggNog' in og_with_annots.columns else 0}")
-
-    # Aggregate by orthogroup
-    def consensus_agg(series):
-        """Get most common non-empty value."""
-        vals = series.dropna().astype(str)
-        vals = vals[vals != '']
-        vals = vals[vals != '-']
-        vals = vals[vals != 'nan']
-        if len(vals) == 0:
-            return ''
-        counts = Counter(vals)
-        return counts.most_common(1)[0][0]
-
-    # Filter to available annotation columns
-    available_cols = [c for c in annotation_cols if c in og_with_annots.columns]
-
-    # Build aggregation dict
-    agg_dict = {col: consensus_agg for col in available_cols}
-    agg_dict['Protein_ID'] = 'count'  # Count proteins per OG
-    if 'Species_x' in og_with_annots.columns:
-        agg_dict['Species_x'] = lambda x: ';'.join(sorted(set(x.dropna())))
-    elif 'Species' in og_with_annots.columns:
-        agg_dict['Species'] = lambda x: ';'.join(sorted(set(x.dropna())))
-
-    og_annotations = og_with_annots.groupby('Orthogroup', as_index=False).agg(agg_dict)
-
-    # Rename columns
-    og_annotations = og_annotations.rename(columns={
-        'Protein_ID': 'n_proteins',
-        'Species_x': 'species_contributing',
-        'Species': 'species_contributing'
-    })
-
-    # Create combined columns
-    if 'Description_EggNog' in og_annotations.columns:
-        og_annotations['Description'] = og_annotations['Description_EggNog']
-    if 'Description_Interpro' in og_annotations.columns and 'Description' in og_annotations.columns:
-        # Fill missing with Interpro description
-        mask = og_annotations['Description'] == ''
-        og_annotations.loc[mask, 'Description'] = og_annotations.loc[mask, 'Description_Interpro']
-
-    if 'GOs_EggNog' in og_annotations.columns and 'GOs_Interpro' in og_annotations.columns:
-        og_annotations['GOs'] = og_annotations.apply(
-            lambda r: ';'.join(set(filter(None, [str(r.get('GOs_EggNog', '')), str(r.get('GOs_Interpro', ''))]))),
-            axis=1
-        )
-    elif 'GOs_EggNog' in og_annotations.columns:
-        og_annotations['GOs'] = og_annotations['GOs_EggNog']
-
-    if 'PFAMs_EggNog' in og_annotations.columns:
-        og_annotations['PFAMs'] = og_annotations['PFAMs_EggNog']
-
-    if 'CAZy_dbCAN' in og_annotations.columns:
-        og_annotations['CAZy'] = og_annotations['CAZy_dbCAN']
-
-    if 'EC_EggNog' in og_annotations.columns:
-        og_annotations['EC'] = og_annotations['EC_EggNog']
-
-    # Report coverage
-    print("\nAnnotation coverage:")
-    for col in ['Description', 'COG_category', 'GOs', 'PFAMs', 'CAZy', 'KEGG_ko',
-                'interpro_IPR', 'signalp_Prediction']:
-        if col in og_annotations.columns:
-            n_annot = (og_annotations[col].fillna('').astype(str) != '').sum()
-            pct = 100 * n_annot / len(og_annotations)
-            print(f"  {col}: {n_annot}/{len(og_annotations)} ({pct:.1f}%)")
-
-    return og_annotations
-
-
-def transfer_annotations_to_combined_via_proteins(
-    combined_og_long: pd.DataFrame,
-    species_base_dirs: Dict[str, str],
-    output_path: str = None
-) -> pd.DataFrame:
-    """
-    Main function to transfer annotations from individual species to combined pangenome.
-
-    Uses protein IDs as the linking key (NOT orthogroup IDs).
-
-    Parameters
-    ----------
-    combined_og_long : pd.DataFrame
-        Combined pangenome in long format
-    species_base_dirs : Dict[str, str]
-        Species directory mapping
-    output_path : str, optional
-        Path to save output
-
-    Returns
-    -------
-    pd.DataFrame
-        Combined orthogroup annotation table
-    """
-    print("=" * 60)
-    print("TRANSFERRING ANNOTATIONS VIA PROTEIN IDS")
-    print("=" * 60)
-
-    # Step 1: Load protein-level annotations from each species
-    print("\nStep 1: Loading protein-level annotations from each species...")
-    species_protein_annotations = load_species_protein_annotations(species_base_dirs)
-
-    if not species_protein_annotations:
-        print("[WARN] No protein annotations loaded")
-        return pd.DataFrame({'Orthogroup': combined_og_long['Orthogroup'].unique()})
-
-    # Step 2: Aggregate to orthogroup level
-    print("\nStep 2: Aggregating to orthogroup level...")
-    og_annotations = aggregate_protein_annotations_to_orthogroups(
-        combined_og_long,
-        species_protein_annotations
-    )
-
-    # Save if requested
-    if output_path:
-        og_annotations.to_csv(output_path, sep='\t', index=False)
-        print(f"\nSaved to: {output_path}")
-
-    return og_annotations
-
-
-def load_species_bgc_gcf_data(species_base_dirs: Dict[str, str]) -> Dict[str, Dict[str, pd.DataFrame]]:
-    """
-    Load BGC (antiSMASH) and GCF (BiG-SCAPE) data from each species.
-
-    Parses BiG-SCAPE output structure:
-    - record_annotations.tsv for BGC types
-    - *_clustering_*.tsv files for GCF assignments
-
-    Parameters
-    ----------
-    species_base_dirs : Dict[str, str]
-        Mapping from species name to base directory path
-
-    Returns
-    -------
-    Dict[str, Dict[str, pd.DataFrame]]
-        Nested dict: species -> {'bgc': bgc_df, 'gcf': gcf_df}
-    """
-    species_bgc_data = {}
-
-    for species, base_dir in species_base_dirs.items():
-        bgc_data = {}
-
-        # Find BiG-SCAPE output directory
-        bigscape_dir = os.path.join(base_dir, 'bigscape_output', 'output_files')
-
-        if os.path.isdir(bigscape_dir):
-            # Find the clustering output subdirectory (e.g., 2025-12-18_14-33-21_c0.3)
-            subdirs = [d for d in os.listdir(bigscape_dir)
-                      if os.path.isdir(os.path.join(bigscape_dir, d)) and 'c0.' in d]
-
-            if subdirs:
-                # Use most recent
-                clustering_dir = os.path.join(bigscape_dir, sorted(subdirs)[-1])
-
-                # Load record_annotations.tsv for BGC data
-                annot_path = os.path.join(clustering_dir, 'record_annotations.tsv')
-                if os.path.exists(annot_path):
-                    try:
-                        bgc_df = pd.read_csv(annot_path, sep='\t', dtype=str).fillna('')
-                        # Extract assembly accession from Record column
-                        bgc_df['Assembly_Accession'] = bgc_df['Record'].apply(
-                            lambda x: ACC_RE.search(x).group(1) if ACC_RE.search(x) else ''
-                        )
-                        bgc_data['bgc'] = bgc_df
-                        print(f"Loaded BGC data for {species}: {len(bgc_df)} regions from BiG-SCAPE")
-                    except Exception as e:
-                        print(f"[WARN] Failed to load BGC data for {species}: {e}")
-
-                # Load GCF clustering files
-                gcf_dfs = []
-                for subdir in os.listdir(clustering_dir):
-                    subdir_path = os.path.join(clustering_dir, subdir)
-                    if os.path.isdir(subdir_path):
-                        # Look for clustering file
-                        for f in os.listdir(subdir_path):
-                            if f.endswith('_clustering_c0.3.tsv'):
-                                try:
-                                    gcf_df = pd.read_csv(os.path.join(subdir_path, f), sep='\t', dtype=str).fillna('')
-                                    gcf_df['BGC_Category'] = subdir
-                                    gcf_df['Assembly_Accession'] = gcf_df['Record'].apply(
-                                        lambda x: ACC_RE.search(x).group(1) if ACC_RE.search(x) else ''
-                                    )
-                                    gcf_dfs.append(gcf_df)
-                                except Exception:
-                                    pass
-
-                if gcf_dfs:
-                    combined_gcf = pd.concat(gcf_dfs, ignore_index=True)
-                    bgc_data['gcf'] = combined_gcf
-                    print(f"Loaded GCF data for {species}: {len(combined_gcf)} mappings")
-
-        # Fallback: check for pre-existing summary files
-        if 'bgc' not in bgc_data:
-            for p in [os.path.join(base_dir, 'bgc_annotations.tsv'),
-                     os.path.join(base_dir, 'antismash_summary.tsv')]:
-                if os.path.exists(p):
-                    try:
-                        bgc_data['bgc'] = pd.read_csv(p, sep='\t', dtype=str).fillna('')
-                        print(f"Loaded BGC data for {species}: {len(bgc_data['bgc'])} regions")
-                        break
-                    except Exception as e:
-                        print(f"[WARN] Failed to load BGC data for {species}: {e}")
-
-        if bgc_data:
-            species_bgc_data[species] = bgc_data
-
-    return species_bgc_data
-
-
-def map_bgc_to_orthogroups(
-    bgc_df: pd.DataFrame,
-    og_long_df: pd.DataFrame,
-    gene_col: str = 'genes',
-    bgc_id_col: str = 'bgc_id'
-) -> pd.DataFrame:
-    """
-    Map BGCs to orthogroups based on gene content.
-
-    Parameters
-    ----------
-    bgc_df : pd.DataFrame
-        BGC annotation table with gene lists
-    og_long_df : pd.DataFrame
-        Orthogroup long format with Protein_ID
-    gene_col : str
-        Column containing gene/protein IDs in BGC df
-    bgc_id_col : str
-        Column containing BGC identifiers
-
-    Returns
-    -------
-    pd.DataFrame
-        BGC to orthogroup mapping
-    """
-    # Create protein to OG lookup
-    protein_to_og = dict(zip(og_long_df['Protein_ID'], og_long_df['Orthogroup']))
-
-    records = []
-
-    for _, row in bgc_df.iterrows():
-        bgc_id = row.get(bgc_id_col, '')
-        genes_str = row.get(gene_col, '')
-
-        if not genes_str:
-            continue
-
-        # Parse gene list
-        genes = [g.strip() for g in str(genes_str).split(';') if g.strip()]
-
-        # Map to orthogroups
-        mapped_ogs = set()
-        for gene in genes:
-            og = protein_to_og.get(gene)
-            if og:
-                mapped_ogs.add(og)
-
-        if mapped_ogs:
-            records.append({
-                'bgc_id': bgc_id,
-                'n_genes': len(genes),
-                'n_ogs_mapped': len(mapped_ogs),
-                'orthogroups': ';'.join(sorted(mapped_ogs)),
-                'product': row.get('product', row.get('raw_product', '')),
-                'bgc_type': row.get('bgc_type', row.get('type', ''))
-            })
-
-    if not records:
-        return pd.DataFrame()
-
-    return pd.DataFrame(records)
-
-
-def create_og_to_bgc_mapping(
-    bgc_og_mapping: pd.DataFrame
-) -> pd.DataFrame:
-    """
-    Invert BGC-to-OG mapping to get OG-to-BGC mapping.
-
-    Parameters
-    ----------
-    bgc_og_mapping : pd.DataFrame
-        BGC to orthogroup mapping
-
-    Returns
-    -------
-    pd.DataFrame
-        Orthogroup to BGC mapping
-    """
-    records = []
-
-    for _, row in bgc_og_mapping.iterrows():
-        bgc_id = row['bgc_id']
-        ogs = str(row['orthogroups']).split(';')
-        product = row.get('product', '')
-        bgc_type = row.get('bgc_type', '')
-
-        for og in ogs:
-            if og:
-                records.append({
-                    'Orthogroup': og,
-                    'bgc_id': bgc_id,
-                    'bgc_product': product,
-                    'bgc_type': bgc_type
-                })
-
-    if not records:
-        return pd.DataFrame()
-
-    # Aggregate multiple BGCs per orthogroup
-    df = pd.DataFrame(records)
-
-    agg_df = df.groupby('Orthogroup').agg({
-        'bgc_id': lambda x: ';'.join(sorted(set(x))),
-        'bgc_product': lambda x: ';'.join(sorted(set(x))),
-        'bgc_type': lambda x: ';'.join(sorted(set(x)))
-    }).reset_index()
-
-    agg_df['n_bgcs'] = agg_df['bgc_id'].str.split(';').str.len()
-
-    return agg_df
-
-
-def build_combined_annotation_table(
-    combined_og_genecount: pd.DataFrame,
-    combined_og_long: pd.DataFrame,
-    species_base_dirs: Dict[str, str],
-    output_path: str = None
-) -> pd.DataFrame:
-    """
-    Build comprehensive annotation table for combined pangenome.
-
-    Uses PROTEIN IDs as the linking key (not orthogroup IDs, which differ
-    between individual species runs and the combined run).
-
-    Integrates:
-    - Functional annotations (EggNOG, dbCAN, InterProScan, SignalP) via protein IDs
-    - BGC/GCF mappings from antiSMASH/BiG-SCAPE
-    - Pangenome statistics (presence counts, species coverage)
-
-    Parameters
-    ----------
-    combined_og_genecount : pd.DataFrame
-        Combined pangenome gene count matrix
-    combined_og_long : pd.DataFrame
-        Combined pangenome long format (Orthogroup, Species, Protein_ID)
-    species_base_dirs : Dict[str, str]
-        Species directory mapping
-    output_path : str, optional
-        Path to save output
-
-    Returns
-    -------
-    pd.DataFrame
-        Comprehensive annotation table
-    """
-    print("\n" + "=" * 60)
-    print("BUILDING COMBINED ANNOTATION TABLE")
-    print("(Using protein IDs as linking key)")
-    print("=" * 60)
-
-    # Step 1-2: Transfer annotations via protein IDs
-    print("\n1-2. Transferring annotations via protein IDs...")
-    combined_annot = transfer_annotations_to_combined_via_proteins(
-        combined_og_long=combined_og_long,
-        species_base_dirs=species_base_dirs,
-        output_path=None  # Don't save yet - we'll add more columns
-    )
-
-    if combined_annot.empty:
-        # Fallback: create minimal table
-        combined_ogs = combined_og_genecount['Orthogroup'].tolist() if 'Orthogroup' in combined_og_genecount.columns else combined_og_genecount.index.tolist()
-        combined_annot = pd.DataFrame({'Orthogroup': combined_ogs})
-
-    # Step 3: Load and map BGC/GCF data
-    print("\n3. Loading BGC/GCF data...")
-    bgc_data = load_species_bgc_gcf_data(species_base_dirs)
-
-    if bgc_data:
-        print("\n4. Mapping BGCs to orthogroups...")
-        all_bgc_mappings = []
-
-        for species, data in bgc_data.items():
-            if 'bgc' in data:
-                # Filter combined_og_long to this species
-                species_long = combined_og_long[combined_og_long['Species'] == species]
-
-                bgc_og_map = map_bgc_to_orthogroups(
-                    data['bgc'], species_long
-                )
-
-                if not bgc_og_map.empty:
-                    bgc_og_map['species'] = species
-                    all_bgc_mappings.append(bgc_og_map)
-
-        if all_bgc_mappings:
-            combined_bgc = pd.concat(all_bgc_mappings, ignore_index=True)
-            og_bgc = create_og_to_bgc_mapping(combined_bgc)
-
-            # Merge with annotation table
-            combined_annot = combined_annot.merge(
-                og_bgc[['Orthogroup', 'n_bgcs', 'bgc_type', 'bgc_product']],
-                on='Orthogroup', how='left'
-            )
-            combined_annot['n_bgcs'] = combined_annot['n_bgcs'].fillna(0).astype(int)
-
-            print(f"  {(combined_annot['n_bgcs'] > 0).sum()} orthogroups mapped to BGCs")
-
-    # Step 4: Add pangenome statistics
-    print("\n5. Adding pangenome statistics...")
-
-    # Calculate presence across genomes
-    pav_cols = [c for c in combined_og_genecount.columns if c != 'Orthogroup' and '__' in c]
-    if pav_cols:
-        og_col = 'Orthogroup'
-        if og_col in combined_og_genecount.columns:
-            presence_counts = (combined_og_genecount[pav_cols] > 0).sum(axis=1)
-            og_presence = pd.DataFrame({
-                'Orthogroup': combined_og_genecount[og_col],
-                'n_genomes_present': presence_counts.values,
-                'presence_fraction': (presence_counts / len(pav_cols)).values
-            })
-
-            combined_annot = combined_annot.merge(og_presence, on='Orthogroup', how='left')
-
-    # Count species representation from long format
-    species_counts = combined_og_long.groupby('Orthogroup')['Species'].nunique().reset_index()
-    species_counts.columns = ['Orthogroup', 'n_species_present']
-
-    if 'n_species_present' not in combined_annot.columns:
-        combined_annot = combined_annot.merge(species_counts, on='Orthogroup', how='left')
-
-    # Save if path provided
-    if output_path:
-        combined_annot.to_csv(output_path, sep='\t', index=False)
-        print(f"\nSaved combined annotation table to: {output_path}")
-
-    print(f"\nFinal annotation table: {len(combined_annot)} orthogroups")
-
-    return combined_annot
-
-
-def get_annotation_summary(combined_annot: pd.DataFrame) -> pd.DataFrame:
-    """
-    Generate summary statistics for combined annotation table.
-
-    Parameters
-    ----------
-    combined_annot : pd.DataFrame
-        Combined annotation table
-
-    Returns
-    -------
-    pd.DataFrame
-        Summary statistics
-    """
-    summary_rows = []
-
-    # Overall counts
-    n_total = len(combined_annot)
-
-    # Annotation coverage per column
-    annotation_cols = [
-        'Description', 'GOs', 'PFAMs', 'CAZy', 'EC',
-        'COG_category', 'KEGG_ko', 'KEGG_Pathway',
-        'interpro_IPR', 'dbcan_Substrate'
-    ]
-
-    for col in annotation_cols:
-        if col in combined_annot.columns:
-            n_annotated = (combined_annot[col].fillna('').astype(str) != '').sum()
-            pct = 100 * n_annotated / n_total
-            summary_rows.append({
-                'Category': col,
-                'N_Annotated': n_annotated,
-                'Percentage': f"{pct:.1f}%"
-            })
-
-    # BGC coverage
-    if 'n_bgcs' in combined_annot.columns:
-        n_bgc = (combined_annot['n_bgcs'] > 0).sum()
-        pct = 100 * n_bgc / n_total
-        summary_rows.append({
-            'Category': 'BGC_associated',
-            'N_Annotated': n_bgc,
-            'Percentage': f"{pct:.1f}%"
-        })
-
-    # Species coverage
-    if 'n_species_present' in combined_annot.columns:
-        for n in range(1, 5):
-            n_multi = (combined_annot['n_species_present'] >= n).sum()
-            summary_rows.append({
-                'Category': f'Present_in_{n}+_species',
-                'N_Annotated': n_multi,
-                'Percentage': f"{100*n_multi/n_total:.1f}%"
-            })
-
-    return pd.DataFrame(summary_rows)
 
 # =============================================================================
 # KINSHIP / GENOMIC RELATIONSHIP MATRIX (GRM)
 # =============================================================================
-
-def calculate_kinship_matrix(
-    pav: pd.DataFrame,
-    method: str = 'realized',
-    center: bool = True
-) -> Tuple[pd.DataFrame, np.ndarray]:
-    """
-    Calculate kinship/genomic relationship matrix from PAV data.
-
-    Parameters
-    ----------
-    pav : pd.DataFrame
-        Presence/absence matrix (binary 0/1) with samples as columns, OGs as rows
-    method : str
-        Kinship method: 'realized' (VanRaden Method 1), 'ibs' (identity by state)
-    center : bool
-        Whether to center the marker matrix (subtract mean frequency)
-
-    Returns
-    -------
-    Tuple[pd.DataFrame, np.ndarray]
-        Kinship matrix as DataFrame and raw numpy array
-    """
-    # Get sample columns (exclude Orthogroup column)
-    sample_cols = [c for c in pav.columns if c != 'Orthogroup']
-
-    if not sample_cols:
-        raise ValueError("No sample columns found in PAV matrix")
-
-    # Create binary marker matrix (samples x markers)
-    # Transpose so samples are rows, markers are columns
-    X = pav[sample_cols].T.values.astype(float)
-    n_samples, n_markers = X.shape
-
-    print(f"Calculating kinship matrix: {n_samples} samples x {n_markers} markers")
-
-    if method == 'realized':
-        # VanRaden Method 1 (centered, scaled)
-        if center:
-            # Calculate allele frequencies
-            p = X.mean(axis=0)
-            # Center the matrix
-            Z = X - p
-            # Scaling factor
-            scale = 2 * np.sum(p * (1 - p))
-            if scale > 0:
-                K = Z @ Z.T / scale
-            else:
-                K = Z @ Z.T / n_markers
-        else:
-            K = X @ X.T / n_markers
-
-    elif method == 'ibs':
-        # Identity by state - proportion of shared markers
-        K = np.zeros((n_samples, n_samples))
-        for i in range(n_samples):
-            for j in range(i, n_samples):
-                # Count matching alleles
-                matches = np.sum(X[i] == X[j])
-                K[i, j] = matches / n_markers
-                K[j, i] = K[i, j]
-
-    else:
-        raise ValueError(f"Unknown method: {method}. Use 'realized' or 'ibs'")
-
-    # Create DataFrame with sample names
-    kinship_df = pd.DataFrame(K, index=sample_cols, columns=sample_cols)
-
-    return kinship_df, K
-
-
-def plot_kinship_heatmap(
-    kinship_df: pd.DataFrame,
-    species_mapping: Dict[str, str] = None,
-    isolation_mapping: Dict[str, str] = None,
-    title: str = "Kinship Matrix",
-    figsize: Tuple[int, int] = (12, 10),
-    output_path: str = None
-):
-    """
-    Plot kinship matrix as annotated heatmap.
-
-    Parameters
-    ----------
-    kinship_df : pd.DataFrame
-        Kinship matrix
-    species_mapping : Dict[str, str], optional
-        Sample -> species mapping for color annotation
-    isolation_mapping : Dict[str, str], optional
-        Sample -> isolation class mapping for color annotation
-    title : str
-        Plot title
-    figsize : Tuple[int, int]
-        Figure size
-    output_path : str, optional
-        Path to save figure
-    """
-    fig, ax = plt.subplots(figsize=figsize)
-
-    # Cluster the kinship matrix
-    from scipy.cluster.hierarchy import linkage, dendrogram, leaves_list
-    from scipy.spatial.distance import squareform
-
-    # Convert kinship to distance
-    K = kinship_df.values
-    # Ensure symmetry and no negative values for distance
-    K_sym = (K + K.T) / 2
-    K_min = K_sym.min()
-    if K_min < 0:
-        K_sym = K_sym - K_min
-    K_max = K_sym.max()
-    if K_max > 0:
-        D = 1 - (K_sym / K_max)  # Convert similarity to distance
-    else:
-        D = np.zeros_like(K_sym)
-    np.fill_diagonal(D, 0)
-
-    # Cluster
-    try:
-        condensed = squareform(D, checks=False)
-        Z = linkage(condensed, method='average')
-        order = leaves_list(Z)
-    except Exception:
-        order = list(range(len(kinship_df)))
-
-    # Reorder
-    ordered_samples = kinship_df.index[order]
-    K_ordered = kinship_df.loc[ordered_samples, ordered_samples]
-
-    # Plot heatmap
-    sns.heatmap(
-        K_ordered,
-        ax=ax,
-        cmap='RdBu_r',
-        center=0,
-        xticklabels=False,
-        yticklabels=False,
-        cbar_kws={'label': 'Kinship coefficient'}
-    )
-
-    ax.set_title(title)
-
-    # Add species color bar if mapping provided
-    if species_mapping:
-        # Create color annotations
-        species_list = [species_mapping.get(s, 'Unknown') for s in ordered_samples]
-        unique_species = sorted(set(species_list))
-        species_palette = dict(zip(unique_species, sns.color_palette('Set1', len(unique_species))))
-
-        # Add as colored bar on top
-        for i, species in enumerate(species_list):
-            ax.add_patch(plt.Rectangle(
-                (i, len(ordered_samples) + 0.5), 1, 2,
-                color=species_palette.get(species, 'gray'),
-                transform=ax.get_xaxis_transform(),
-                clip_on=False
-            ))
-
-    plt.tight_layout()
-
-    if output_path:
-        plt.savefig(output_path, dpi=150, bbox_inches='tight')
-        print(f"Saved kinship heatmap to: {output_path}")
-
 
 
 # =============================================================================
 # PCA ANALYSIS
 # =============================================================================
 
-def run_pca_analysis(
-    pav: pd.DataFrame,
-    n_components: int = 10,
-    scale: bool = True
-) -> Tuple[pd.DataFrame, np.ndarray, np.ndarray]:
-    """
-    Run PCA on presence/absence variation matrix.
-
-    Parameters
-    ----------
-    pav : pd.DataFrame
-        PAV matrix (orthogroups x samples)
-    n_components : int
-        Number of principal components to compute
-    scale : bool
-        Whether to scale variables to unit variance
-
-    Returns
-    -------
-    Tuple[pd.DataFrame, np.ndarray, np.ndarray]
-        - PC scores DataFrame (samples x PCs)
-        - Explained variance ratios
-        - Loadings (PCs x features)
-    """
-    from sklearn.decomposition import PCA
-    from sklearn.preprocessing import StandardScaler
-
-    # Get sample columns
-    sample_cols = [c for c in pav.columns if c != 'Orthogroup']
-
-    if not sample_cols:
-        raise ValueError("No sample columns found in PAV matrix")
-
-    # Transpose: samples as rows, features (OGs) as columns
-    X = pav[sample_cols].T.values.astype(float)
-
-    # Handle missing values
-    X = np.nan_to_num(X, nan=0)
-
-    # Scale if requested
-    if scale:
-        scaler = StandardScaler()
-        X_scaled = scaler.fit_transform(X)
-    else:
-        X_scaled = X
-
-    # Fit PCA
-    n_components = min(n_components, min(X_scaled.shape) - 1)
-    pca = PCA(n_components=n_components)
-    pc_scores = pca.fit_transform(X_scaled)
-
-    # Create scores DataFrame
-    pc_columns = [f'PC{i+1}' for i in range(n_components)]
-    scores_df = pd.DataFrame(pc_scores, index=sample_cols, columns=pc_columns)
-
-    explained_var = pca.explained_variance_ratio_
-    loadings = pca.components_
-
-    print(f"PCA completed: {n_components} components")
-    print(f"Variance explained: PC1={explained_var[0]:.2%}, PC2={explained_var[1]:.2%}, "
-          f"PC3={explained_var[2]:.2%}" if len(explained_var) >= 3 else "")
-    print(f"Cumulative: {sum(explained_var):.2%}")
-
-    return scores_df, explained_var, loadings
-
-
-def plot_pca(
-    scores_df: pd.DataFrame,
-    explained_var: np.ndarray,
-    color_mapping: Dict[str, str] = None,
-    color_label: str = "Group",
-    shape_mapping: Dict[str, str] = None,
-    shape_label: str = "Species",
-    pc_x: int = 1,
-    pc_y: int = 2,
-    figsize: Tuple[int, int] = (10, 8),
-    title: str = "PCA of PAV",
-    output_path: str = None
-):
-    """
-    Plot PCA scatter plot with optional grouping.
-
-    Parameters
-    ----------
-    scores_df : pd.DataFrame
-        PC scores DataFrame from run_pca_analysis
-    explained_var : np.ndarray
-        Explained variance ratios
-    color_mapping : Dict[str, str], optional
-        Sample -> group mapping for coloring
-    color_label : str
-        Legend label for color groups
-    shape_mapping : Dict[str, str], optional
-        Sample -> group mapping for marker shapes
-    shape_label : str
-        Legend label for shape groups
-    pc_x, pc_y : int
-        Which PCs to plot (1-indexed)
-    figsize : Tuple[int, int]
-        Figure size
-    title : str
-        Plot title
-    output_path : str, optional
-        Path to save figure
-    """
-    fig, ax = plt.subplots(figsize=figsize)
-
-    x_col = f'PC{pc_x}'
-    y_col = f'PC{pc_y}'
-
-    if color_mapping is not None:
-        # Get unique groups and assign colors
-        groups = [color_mapping.get(s, 'Unknown') for s in scores_df.index]
-        unique_groups = sorted(set(groups))
-        palette = dict(zip(unique_groups, sns.color_palette('Set2', len(unique_groups))))
-
-        # Plot by group
-        for group in unique_groups:
-            mask = [g == group for g in groups]
-            ax.scatter(
-                scores_df.loc[mask, x_col],
-                scores_df.loc[mask, y_col],
-                c=[palette[group]],
-                label=group,
-                alpha=0.7,
-                s=60,
-                edgecolors='white',
-                linewidths=0.5
-            )
-        ax.legend(title=color_label, bbox_to_anchor=(1.02, 1), loc='upper left')
-    else:
-        ax.scatter(
-            scores_df[x_col],
-            scores_df[y_col],
-            alpha=0.7,
-            s=60,
-            edgecolors='white',
-            linewidths=0.5
-        )
-
-    ax.set_xlabel(f'{x_col} ({explained_var[pc_x-1]:.1%} variance)')
-    ax.set_ylabel(f'{y_col} ({explained_var[pc_y-1]:.1%} variance)')
-    ax.set_title(title)
-    ax.axhline(0, color='gray', linestyle='--', alpha=0.3)
-    ax.axvline(0, color='gray', linestyle='--', alpha=0.3)
-
-    plt.tight_layout()
-
-    if output_path:
-        plt.savefig(output_path, dpi=150, bbox_inches='tight')
-        print(f"Saved PCA plot to: {output_path}")
-
-
-
-def plot_pca_grid(
-    scores_df: pd.DataFrame,
-    explained_var: np.ndarray,
-    species_mapping: Dict[str, str] = None,
-    isolation_mapping: Dict[str, str] = None,
-    n_pcs: int = 4,
-    figsize: Tuple[int, int] = (14, 12),
-    output_path: str = None
-):
-    """
-    Plot grid of PCA plots colored by species and isolation class.
-
-    Parameters
-    ----------
-    scores_df : pd.DataFrame
-        PC scores DataFrame
-    explained_var : np.ndarray
-        Explained variance ratios
-    species_mapping : Dict[str, str], optional
-        Sample -> species mapping
-    isolation_mapping : Dict[str, str], optional
-        Sample -> isolation class mapping
-    n_pcs : int
-        Number of PCs to show (plots PC1 vs PC2, PC3, PC4, etc.)
-    figsize : Tuple[int, int]
-        Figure size
-    output_path : str, optional
-        Path to save figure
-    """
-    n_rows = 2  # Species row and isolation class row
-    n_cols = n_pcs - 1  # PC1 vs PC2, PC1 vs PC3, etc.
-
-    fig, axes = plt.subplots(n_rows, n_cols, figsize=figsize)
-
-    # Species palette
-    if species_mapping:
-        species_list = [species_mapping.get(s, 'Unknown') for s in scores_df.index]
-        unique_species = sorted(set(species_list))
-        species_palette = dict(zip(unique_species, sns.color_palette('Set1', len(unique_species))))
-
-    # Isolation palette
-    if isolation_mapping:
-        iso_list = [isolation_mapping.get(s, 'Unknown') for s in scores_df.index]
-        unique_iso = sorted(set(iso_list))
-        iso_palette = dict(zip(unique_iso,
-                              [ISOLATION_CLASS_COLORS.get(c, '#bdc3c7') for c in unique_iso]))
-
-    for col_idx in range(n_cols):
-        pc_x = 1
-        pc_y = col_idx + 2
-
-        x_col = f'PC{pc_x}'
-        y_col = f'PC{pc_y}'
-
-        # Row 0: Species coloring
-        ax = axes[0, col_idx]
-        if species_mapping:
-            for species in unique_species:
-                mask = [s == species for s in species_list]
-                ax.scatter(
-                    scores_df.loc[mask, x_col],
-                    scores_df.loc[mask, y_col],
-                    c=[species_palette[species]],
-                    label=species if col_idx == 0 else None,
-                    alpha=0.7, s=40, edgecolors='white', linewidths=0.3
-                )
-        else:
-            ax.scatter(scores_df[x_col], scores_df[y_col], alpha=0.7, s=40)
-
-        ax.set_xlabel(f'{x_col} ({explained_var[pc_x-1]:.1%})')
-        ax.set_ylabel(f'{y_col} ({explained_var[pc_y-1]:.1%})')
-        if col_idx == 0:
-            ax.set_title('By Species')
-            if species_mapping:
-                ax.legend(fontsize=8, loc='upper right')
-
-        # Row 1: Isolation class coloring
-        ax = axes[1, col_idx]
-        if isolation_mapping:
-            for iso in unique_iso:
-                mask = [i == iso for i in iso_list]
-                ax.scatter(
-                    scores_df.loc[mask, x_col],
-                    scores_df.loc[mask, y_col],
-                    c=[iso_palette[iso]],
-                    label=iso if col_idx == 0 else None,
-                    alpha=0.7, s=40, edgecolors='white', linewidths=0.3
-                )
-        else:
-            ax.scatter(scores_df[x_col], scores_df[y_col], alpha=0.7, s=40)
-
-        ax.set_xlabel(f'{x_col} ({explained_var[pc_x-1]:.1%})')
-        ax.set_ylabel(f'{y_col} ({explained_var[pc_y-1]:.1%})')
-        if col_idx == 0:
-            ax.set_title('By Isolation Class')
-            if isolation_mapping:
-                ax.legend(fontsize=7, loc='upper right')
-
-    plt.suptitle('PCA of Combined Pangenome', fontsize=14, y=1.02)
-    plt.tight_layout()
-
-    if output_path:
-        plt.savefig(output_path, dpi=150, bbox_inches='tight')
-        print(f"Saved PCA grid to: {output_path}")
-
-
 
 # =============================================================================
 # PAV AND CNV MATRICES
 # =============================================================================
-
-def build_pav_from_genecount(genecount_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Build presence/absence variation matrix from gene count data.
-
-    Parameters
-    ----------
-    genecount_df : pd.DataFrame
-        Gene count matrix (orthogroups x samples)
-
-    Returns
-    -------
-    pd.DataFrame
-        Binary PAV matrix (1=present, 0=absent)
-    """
-    sample_cols = [c for c in genecount_df.columns if c != 'Orthogroup']
-
-    pav = genecount_df.copy()
-    pav[sample_cols] = (pav[sample_cols] > 0).astype(int)
-
-    return pav
-
-
-def build_cnv_from_genecount(genecount_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Build copy number variation matrix from gene count data.
-
-    This is essentially the raw gene count matrix, but can include
-    normalization or categorization.
-
-    Parameters
-    ----------
-    genecount_df : pd.DataFrame
-        Gene count matrix (orthogroups x samples)
-
-    Returns
-    -------
-    pd.DataFrame
-        CNV matrix (raw counts)
-    """
-    return genecount_df.copy()
-
-
-def categorize_cnv(cnv_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Categorize CNV into discrete categories: absent, single, multi-copy.
-
-    Parameters
-    ----------
-    cnv_df : pd.DataFrame
-        CNV matrix (raw counts)
-
-    Returns
-    -------
-    pd.DataFrame
-        Categorized CNV matrix (0=absent, 1=single, 2=multi-copy)
-    """
-    sample_cols = [c for c in cnv_df.columns if c != 'Orthogroup']
-
-    cnv_cat = cnv_df.copy()
-
-    for col in sample_cols:
-        cnv_cat[col] = cnv_df[col].apply(
-            lambda x: 0 if x == 0 else (1 if x == 1 else 2)
-        )
-
-    return cnv_cat
-
-
-def get_pav_cnv_summary(
-    pav: pd.DataFrame,
-    cnv: pd.DataFrame,
-    species_mapping: Dict[str, str] = None
-) -> pd.DataFrame:
-    """
-    Generate summary statistics for PAV and CNV.
-
-    Parameters
-    ----------
-    pav : pd.DataFrame
-        PAV matrix
-    cnv : pd.DataFrame
-        CNV matrix
-    species_mapping : Dict[str, str], optional
-        Sample -> species mapping
-
-    Returns
-    -------
-    pd.DataFrame
-        Summary statistics
-    """
-    sample_cols = [c for c in pav.columns if c != 'Orthogroup']
-
-    summary_rows = []
-
-    # Overall statistics
-    n_og = len(pav)
-    n_samples = len(sample_cols)
-
-    # Core (present in all) vs accessory vs singleton
-    presence_per_og = (pav[sample_cols] > 0).sum(axis=1)
-    n_core = (presence_per_og == n_samples).sum()
-    n_singleton = (presence_per_og == 1).sum()
-    n_accessory = n_og - n_core - n_singleton
-
-    summary_rows.append({
-        'Category': 'Total orthogroups',
-        'Count': n_og,
-        'Percentage': '100%'
-    })
-    summary_rows.append({
-        'Category': 'Core (all samples)',
-        'Count': n_core,
-        'Percentage': f'{100*n_core/n_og:.1f}%'
-    })
-    summary_rows.append({
-        'Category': 'Accessory',
-        'Count': n_accessory,
-        'Percentage': f'{100*n_accessory/n_og:.1f}%'
-    })
-    summary_rows.append({
-        'Category': 'Singletons',
-        'Count': n_singleton,
-        'Percentage': f'{100*n_singleton/n_og:.1f}%'
-    })
-
-    # Multi-copy statistics from CNV
-    cnv_vals = cnv[sample_cols].values
-    n_multicopy = (cnv_vals > 1).any(axis=1).sum()
-
-    summary_rows.append({
-        'Category': 'With multi-copy in any sample',
-        'Count': n_multicopy,
-        'Percentage': f'{100*n_multicopy/n_og:.1f}%'
-    })
-
-    # Per-species statistics if mapping provided
-    if species_mapping:
-        species_to_samples = {}
-        for sample, species in species_mapping.items():
-            if species not in species_to_samples:
-                species_to_samples[species] = []
-            if sample in sample_cols:
-                species_to_samples[species].append(sample)
-
-        for species, samples in sorted(species_to_samples.items()):
-            if samples:
-                n_present = (pav[samples].sum(axis=1) > 0).sum()
-                summary_rows.append({
-                    'Category': f'{species}: present OGs',
-                    'Count': n_present,
-                    'Percentage': f'{100*n_present/n_og:.1f}%'
-                })
-
-    return pd.DataFrame(summary_rows)
 
 
 # =============================================================================
@@ -2518,47 +678,6 @@ def build_bgc_pav_matrix(
     pav = pav.reset_index(drop=True)
 
     return pav
-
-
-def build_bgc_cnv_matrix(
-    antismash_summary_df: pd.DataFrame,
-    sample_col: str = 'Assembly_Accession',
-    bgc_type_col: str = 'product_class'
-) -> pd.DataFrame:
-    """
-    Build BGC copy number matrix per sample.
-
-    Parameters
-    ----------
-    antismash_summary_df : pd.DataFrame
-        antiSMASH summary table
-    sample_col : str
-        Column containing sample/genome identifiers
-    bgc_type_col : str
-        Column containing BGC type/product class
-
-    Returns
-    -------
-    pd.DataFrame
-        BGC CNV matrix (BGC types x samples, values = count)
-    """
-    if sample_col not in antismash_summary_df.columns:
-        raise ValueError(f"Sample column '{sample_col}' not found")
-
-    if bgc_type_col in antismash_summary_df.columns:
-        bgc_counts = antismash_summary_df.groupby(
-            [sample_col, bgc_type_col]
-        ).size().unstack(fill_value=0)
-    else:
-        bgc_counts = antismash_summary_df.groupby(sample_col).size()
-        bgc_counts = pd.DataFrame({'BGC_total': bgc_counts})
-
-    # Transpose
-    cnv = bgc_counts.T.copy()
-    cnv.insert(0, 'BGC_Type', cnv.index)
-    cnv = cnv.reset_index(drop=True)
-
-    return cnv
 
 
 def build_gcf_pav_matrix(
@@ -2638,235 +757,10 @@ def build_gcf_cnv_matrix(
     return cnv
 
 
-def get_bgc_gcf_summary(
-    bgc_pav: pd.DataFrame = None,
-    bgc_cnv: pd.DataFrame = None,
-    gcf_pav: pd.DataFrame = None,
-    gcf_cnv: pd.DataFrame = None
-) -> pd.DataFrame:
-    """
-    Generate summary statistics for BGC and GCF matrices.
-
-    Parameters
-    ----------
-    bgc_pav : pd.DataFrame, optional
-        BGC PAV matrix
-    bgc_cnv : pd.DataFrame, optional
-        BGC CNV matrix
-    gcf_pav : pd.DataFrame, optional
-        GCF PAV matrix
-    gcf_cnv : pd.DataFrame, optional
-        GCF CNV matrix
-
-    Returns
-    -------
-    pd.DataFrame
-        Summary statistics
-    """
-    summary_rows = []
-
-    if bgc_pav is not None:
-        id_col = 'BGC_Type' if 'BGC_Type' in bgc_pav.columns else bgc_pav.columns[0]
-        sample_cols = [c for c in bgc_pav.columns if c != id_col]
-
-        n_types = len(bgc_pav)
-        n_samples = len(sample_cols)
-
-        # Core BGC types (present in all samples)
-        presence = bgc_pav[sample_cols].sum(axis=1)
-        n_core = (presence == n_samples).sum()
-        n_accessory = (presence > 0).sum() - n_core
-
-        summary_rows.extend([
-            {'Category': 'BGC: Total types', 'Count': n_types, 'Percentage': '-'},
-            {'Category': 'BGC: Core types', 'Count': n_core, 'Percentage': f'{100*n_core/max(1,n_types):.1f}%'},
-            {'Category': 'BGC: Accessory types', 'Count': n_accessory, 'Percentage': f'{100*n_accessory/max(1,n_types):.1f}%'}
-        ])
-
-    if gcf_pav is not None:
-        id_col = 'GCF_ID' if 'GCF_ID' in gcf_pav.columns else gcf_pav.columns[0]
-        sample_cols = [c for c in gcf_pav.columns if c != id_col]
-
-        n_gcf = len(gcf_pav)
-        n_samples = len(sample_cols)
-
-        presence = gcf_pav[sample_cols].sum(axis=1)
-        n_core = (presence == n_samples).sum()
-        n_accessory = (presence > 0).sum() - n_core
-
-        summary_rows.extend([
-            {'Category': 'GCF: Total families', 'Count': n_gcf, 'Percentage': '-'},
-            {'Category': 'GCF: Core families', 'Count': n_core, 'Percentage': f'{100*n_core/max(1,n_gcf):.1f}%'},
-            {'Category': 'GCF: Accessory families', 'Count': n_accessory, 'Percentage': f'{100*n_accessory/max(1,n_gcf):.1f}%'}
-        ])
-
-    if bgc_cnv is not None:
-        id_col = 'BGC_Type' if 'BGC_Type' in bgc_cnv.columns else bgc_cnv.columns[0]
-        sample_cols = [c for c in bgc_cnv.columns if c != id_col]
-
-        avg_per_sample = bgc_cnv[sample_cols].sum().mean()
-        max_per_sample = bgc_cnv[sample_cols].sum().max()
-
-        summary_rows.extend([
-            {'Category': 'BGC: Avg per genome', 'Count': f'{avg_per_sample:.1f}', 'Percentage': '-'},
-            {'Category': 'BGC: Max per genome', 'Count': max_per_sample, 'Percentage': '-'}
-        ])
-
-    if gcf_cnv is not None:
-        id_col = 'GCF_ID' if 'GCF_ID' in gcf_cnv.columns else gcf_cnv.columns[0]
-        sample_cols = [c for c in gcf_cnv.columns if c != id_col]
-
-        avg_per_sample = gcf_cnv[sample_cols].sum().mean()
-        max_per_sample = gcf_cnv[sample_cols].sum().max()
-
-        summary_rows.extend([
-            {'Category': 'GCF: Avg per genome', 'Count': f'{avg_per_sample:.1f}', 'Percentage': '-'},
-            {'Category': 'GCF: Max per genome', 'Count': max_per_sample, 'Percentage': '-'}
-        ])
-
-    return pd.DataFrame(summary_rows)
-
-
 # =============================================================================
 # COMBINED POPULATION STRUCTURE ANALYSIS
 # =============================================================================
 
-def run_population_structure_analysis(
-    genecount_df: pd.DataFrame,
-    species_mapping: Dict[str, str] = None,
-    isolation_mapping: Dict[str, str] = None,
-    output_dir: str = None
-) -> Dict[str, Any]:
-    """
-    Run complete population structure analysis: PAV, CNV, kinship, PCA.
-
-    Parameters
-    ----------
-    genecount_df : pd.DataFrame
-        Gene count matrix from OrthoFinder
-    species_mapping : Dict[str, str], optional
-        Sample -> species mapping
-    isolation_mapping : Dict[str, str], optional
-        Sample -> isolation class mapping
-    output_dir : str, optional
-        Directory to save outputs
-
-    Returns
-    -------
-    Dict[str, Any]
-        Dictionary containing all results:
-        - pav: PAV DataFrame
-        - cnv: CNV DataFrame
-        - kinship: Kinship DataFrame
-        - pca_scores: PCA scores DataFrame
-        - pca_variance: Explained variance array
-        - summary: Summary DataFrame
-    """
-    print("=" * 60)
-    print("POPULATION STRUCTURE ANALYSIS")
-    print("=" * 60)
-
-    results = {}
-
-    # Build PAV matrix
-    print("\n1. Building PAV matrix...")
-    pav = build_pav_from_genecount(genecount_df)
-    results['pav'] = pav
-    print(f"   PAV matrix: {len(pav)} orthogroups x {len(pav.columns)-1} samples")
-
-    # Build CNV matrix
-    print("\n2. Building CNV matrix...")
-    cnv = build_cnv_from_genecount(genecount_df)
-    results['cnv'] = cnv
-
-    # Calculate kinship
-    print("\n3. Calculating kinship matrix...")
-    try:
-        kinship_df, K = calculate_kinship_matrix(pav, method='realized')
-        results['kinship'] = kinship_df
-    except Exception as e:
-        print(f"   [WARN] Kinship calculation failed: {e}")
-        results['kinship'] = None
-
-    # Run PCA
-    print("\n4. Running PCA...")
-    try:
-        scores_df, explained_var, loadings = run_pca_analysis(pav, n_components=10)
-        results['pca_scores'] = scores_df
-        results['pca_variance'] = explained_var
-        results['pca_loadings'] = loadings
-    except Exception as e:
-        print(f"   [WARN] PCA failed: {e}")
-        results['pca_scores'] = None
-        results['pca_variance'] = None
-
-    # Generate summary
-    print("\n5. Generating summary...")
-    summary = get_pav_cnv_summary(pav, cnv, species_mapping)
-    results['summary'] = summary
-    print(summary.to_string(index=False))
-
-    # Save outputs if directory provided
-    if output_dir:
-        os.makedirs(output_dir, exist_ok=True)
-
-        pav.to_csv(os.path.join(output_dir, 'pav_matrix.tsv'), sep='\t', index=False)
-        cnv.to_csv(os.path.join(output_dir, 'cnv_matrix.tsv'), sep='\t', index=False)
-
-        if results['kinship'] is not None:
-            results['kinship'].to_csv(os.path.join(output_dir, 'kinship_matrix.tsv'), sep='\t')
-
-        if results['pca_scores'] is not None:
-            results['pca_scores'].to_csv(os.path.join(output_dir, 'pca_scores.tsv'), sep='\t')
-
-            # Save PCA plots
-            if species_mapping or isolation_mapping:
-                plot_pca_grid(
-                    results['pca_scores'],
-                    results['pca_variance'],
-                    species_mapping=species_mapping,
-                    isolation_mapping=isolation_mapping,
-                    output_path=os.path.join(output_dir, 'pca_grid.png')
-                )
-
-        if results['kinship'] is not None:
-            plot_kinship_heatmap(
-                results['kinship'],
-                species_mapping=species_mapping,
-                output_path=os.path.join(output_dir, 'kinship_heatmap.png')
-            )
-
-        summary.to_csv(os.path.join(output_dir, 'population_structure_summary.tsv'), sep='\t', index=False)
-
-        print(f"\nOutputs saved to: {output_dir}")
-
-    return results
-
-
-# if __name__ == "__main__":
-    # Example usage
-#     print("Convergence functions loaded successfully!")
-#     print("\nKey functions:")
-#     print("  - load_combined_orthogroups_genecount(): Load OrthoFinder gene counts")
-#     print("  - identify_convergent_hits(): Find cross-species convergent markers")
-#     print("  - run_meta_analysis(): Combine p-values across species")
-#     print("  - run_leave_one_out_analysis(): Test robustness")
-#     print("  - build_combined_annotation_table(): Create unified annotation table")
-#     print("  - run_full_cross_species_analysis(): Complete pipeline")
-#     print("\nNew population structure functions:")
-#     print("  - calculate_kinship_matrix(): Compute GRM from PAV")
-#     print("  - run_pca_analysis(): PCA on PAV data")
-#     print("  - build_pav_from_genecount(): Build PAV matrix")
-#     print("  - build_cnv_from_genecount(): Build CNV matrix")
-#     print("  - build_bgc_pav_matrix(): BGC presence/absence")
-#     print("  - build_gcf_pav_matrix(): GCF presence/absence")
-#     print("  - run_population_structure_analysis(): Complete analysis")
-
-
-# --- Functions extracted from NB3_Convergence notebook ---
-
-# --- Transfer pan-GWAS significant hits to combined OG space ---
-# For each species, map the significant species-OGs to combined OGs.
 
 def transfer_gwas_hits_to_combined(species_gwas, species_og_to_combined, layer_pattern='pav_assoc'):
     """Map per-species GWAS significant OGs into combined OG space.
@@ -2914,19 +808,6 @@ def transfer_gwas_hits_to_combined(species_gwas, species_og_to_combined, layer_p
 
     return mapped_results
 
-# Transfer PAV results
-# print('Transferring PAV GWAS hits to combined OG space:')
-# mapped_pav = transfer_gwas_hits_to_combined(species_gwas, species_og_to_combined, 'pav_assoc')
-
-# Transfer CNV results
-# print('\nTransferring CNV GWAS hits to combined OG space:')
-# mapped_cnv = transfer_gwas_hits_to_combined(species_gwas, species_og_to_combined, 'cnv_assoc')
-
-# Transfer functional results
-# print('\nTransferring functional GWAS hits to combined OG space:')
-# mapped_func = transfer_gwas_hits_to_combined(species_gwas, species_og_to_combined, 'functional_')
-
-# --- Helper: find convergent hits between two species in mapped results ---
 
 def find_convergent_hits(sp1, sp2, mapped_results, contrast_pattern, fdr_col='qvalue', fdr_thresh=0.1):
     """Find orthogroups significant in BOTH species with consistent direction.
@@ -2958,7 +839,7 @@ def find_convergent_hits(sp1, sp2, mapped_results, contrast_pattern, fdr_col='qv
     sp2_df = pd.concat([mapped_results[k] for k in sp2_keys], ignore_index=True)
 
     # Get significant combined OGs for each species. The fallback only
-    # accepts a column that exists in BOTH dataframes — otherwise sp2 would
+    # accepts a column that exists in BOTH dataframes, otherwise sp2 would
     # silently return empty when the column found in sp1 is absent from sp2.
     if fdr_col not in sp1_df.columns or fdr_col not in sp2_df.columns:
         for alt in ['qvalue', 'q_value', 'fdr', 'FDR']:
@@ -3024,23 +905,6 @@ def find_convergent_hits(sp1, sp2, mapped_results, contrast_pattern, fdr_col='qv
 
     return conv_df
 
-
-# --- Pathogenic convergence: fumigatus vs flavus ---
-# print('=' * 80)
-# print('PATHOGENIC CONVERGENCE: A. fumigatus vs A. flavus')
-# print('  Contrast: human_pathogenic_vs_rest')
-# print('=' * 80)
-
-# PAV convergence
-# print('\n--- PAV OG Convergence ---')
-# path_pav_conv = find_convergent_hits('fumigatus', 'flavus', mapped_pav, 'human_pathogenic')
-
-# CNV convergence
-# print('\n--- CNV OG Convergence ---')
-# path_cnv_conv = find_convergent_hits('fumigatus', 'flavus', mapped_cnv, 'human_pathogenic')
-
-# --- Functional-level convergence for pathogenic species ---
-# Compare functional GWAS results (COG, Pfam, CAZy, KEGG, GO, InterPro) across fumigatus and flavus.
 
 def cross_species_functional_comparison(sp1, sp2, species_gwas, contrast_pattern,
                                          fdr_thresh=0.1):
@@ -3125,42 +989,6 @@ def cross_species_functional_comparison(sp1, sp2, species_gwas, contrast_pattern
     return comp_df
 
 
-# print('=' * 60)
-# print('PATHOGENIC FUNCTIONAL CONVERGENCE: fumigatus vs flavus')
-# print('=' * 60)
-
-# pathogenic_func_conv = cross_species_functional_comparison(
-#     'fumigatus', 'flavus', species_gwas, 'human_pathogenic')
-
-# if not pathogenic_func_conv.empty:
-#     sig_df = pathogenic_func_conv[pathogenic_func_conv['category'].isin(['CONVERGENT', 'DISCORDANT'])]
-#     n_conv = (sig_df['category'] == 'CONVERGENT').sum()
-#     n_disc = (sig_df['category'] == 'DISCORDANT').sum()
-#     n_fum = pathogenic_func_conv['category'].str.contains('fumigatus').sum()
-#     n_fla = pathogenic_func_conv['category'].str.contains('flavus').sum()
-# 
-#     print(f'\n  Shared significant terms: {len(sig_df)}')
-#     print(f'    CONVERGENT (same direction): {n_conv}')
-#     print(f'    DISCORDANT (opposite direction): {n_disc}')
-#     print(f'  fumigatus-only: {n_fum}')
-#     print(f'  flavus-only: {n_fla}')
-# 
-#     if n_conv > 0:
-#         print('\n  Convergent terms by layer:')
-#         for layer, grp in sig_df[sig_df['category'] == 'CONVERGENT'].groupby('layer'):
-#             print(f'    {layer}: {len(grp)} terms')
-# 
-    # Save
-#     pathogenic_func_conv.to_csv(NB3_RESULTS / 'convergence' / 'pathogenic_functional_convergence.csv',
-#                                  index=False)
-#     print(f'\n  Saved: pathogenic_functional_convergence.csv')
-# else:
-#     print('  No functional GWAS results to compare.')
-
-# --- Meta-analysis and leave-one-out for pathogenic convergence ---
-# Use funpan_convergence module functions for formal meta-analysis.
-# We need to reformulate per-species results with standardised columns.
-
 def prepare_species_results_for_meta(species_gwas, species_og_to_combined,
                                       species_list, contrast_pattern, layer_pattern='pav_assoc'):
     """Prepare per-species results in the format expected by fpc.identify_convergent_hits().
@@ -3215,501 +1043,6 @@ def prepare_species_results_for_meta(species_gwas, species_og_to_combined,
             print(f'  {sp}: {len(df)} orthogroups, {n_sig} significant')
 
     return species_results
-
-
-# print('Preparing pathogenic species results for meta-analysis...')
-# pathogenic_species = ['fumigatus', 'flavus']
-# path_meta_input = prepare_species_results_for_meta(
-#     species_gwas, species_og_to_combined,
-#     pathogenic_species, 'human_pathogenic', 'pav_assoc')
-
-# Identify convergent hits
-# print('\nIdentifying convergent hits (PAV level)...')
-# path_convergent = fpc.identify_convergent_hits(path_meta_input, fdr_threshold=FDR_THRESHOLD)
-# print(f'  Convergent hits found: {len(path_convergent)}')
-
-# if not path_convergent.empty:
-#     display(path_convergent.head(10))
-
-# Meta-analysis (Fisher method)
-# print('\nRunning Fisher meta-analysis...')
-# path_meta = fpc.run_meta_analysis(path_meta_input, method='fisher')
-# n_meta_sig = (path_meta['meta_q_value'] < FDR_THRESHOLD).sum() if not path_meta.empty else 0
-# print(f'  Meta-analysis significant (FDR < {FDR_THRESHOLD}): {n_meta_sig}')
-
-# Leave-one-out robustness
-# print('\nRunning leave-one-out analysis...')
-# if not path_convergent.empty:
-#     path_robust = fpc.run_leave_one_out_analysis(path_meta_input, path_convergent)
-#     path_robust = fpc.get_tier_classification(path_robust)
-#     if not path_robust.empty:
-#         print(path_robust['tier'].value_counts().to_string())
-# else:
-#     path_robust = pd.DataFrame()
-#     print('  No convergent hits to test for robustness.')
-
-# --- Multi-layer convergence summary ---
-
-# convergence_summary = []
-
-# Helper to count convergent hits in a convergence comparison DataFrame
-def count_convergent(conv_df, layer_name, comparison_name):
-    if conv_df is None or conv_df.empty:
-        return {'layer': layer_name, 'comparison': comparison_name,
-                'n_tested': 0, 'n_convergent': 0, 'n_discordant': 0,
-                'n_sp1_only': 0, 'n_sp2_only': 0}
-    
-    n_tested = len(conv_df[conv_df['category'].isin(['CONVERGENT', 'DISCORDANT'])])
-    n_conv = (conv_df['category'] == 'CONVERGENT').sum()
-    n_disc = (conv_df['category'] == 'DISCORDANT').sum()
-    n_sp1 = conv_df['category'].str.endswith('_ONLY').sum() // 2  # rough count
-    n_sp2 = n_sp1  # symmetric
-    
-    return {'layer': layer_name, 'comparison': comparison_name,
-            'n_tested': n_tested, 'n_convergent': n_conv, 'n_discordant': n_disc,
-            'n_sp1_only': int(conv_df['category'].str.contains('fumigatus|niger').sum()),
-            'n_sp2_only': int(conv_df['category'].str.contains('flavus|oryzae').sum())}
-
-
-# --- PATHOGENIC ---
-# OG PAV
-# convergence_summary.append(count_convergent(path_pav_conv, 'OG_PAV', 'pathogenic'))
-# OG CNV
-# convergence_summary.append(count_convergent(path_cnv_conv, 'OG_CNV', 'pathogenic'))
-# Functional terms
-# if not pathogenic_func_conv.empty:
-#     for layer in pathogenic_func_conv['layer'].unique():
-#         layer_df = pathogenic_func_conv[pathogenic_func_conv['layer'] == layer]
-#         convergence_summary.append(count_convergent(layer_df, f'Functional_{layer}', 'pathogenic'))
-
-# --- INDUSTRIAL ---
-# convergence_summary.append(count_convergent(ind_pav_conv, 'OG_PAV', 'industrial'))
-# convergence_summary.append(count_convergent(ind_cnv_conv, 'OG_CNV', 'industrial'))
-# if not industrial_func_conv.empty:
-#     for layer in industrial_func_conv['layer'].unique():
-#         layer_df = industrial_func_conv[industrial_func_conv['layer'] == layer]
-#         convergence_summary.append(count_convergent(layer_df, f'Functional_{layer}', 'industrial'))
-
-# --- BGC/GCF layer ---
-# Test GCF convergence across species
-# for comparison_name, sp1, sp2, contrast in [
-#     ('pathogenic', 'fumigatus', 'flavus', 'human_pathogenic'),
-#     ('industrial', 'niger', 'oryzae', 'industrial')]:
-# 
-#     sp1_gcf_keys = [k for k in species_gwas.get(sp1, {}) if 'gcf' in k and contrast in k]
-#     sp2_gcf_keys = [k for k in species_gwas.get(sp2, {}) if 'gcf' in k and contrast in k]
-# 
-#     if sp1_gcf_keys and sp2_gcf_keys:
-        # Direct comparison of GCF features (shared family IDs)
-#         r1 = species_gwas[sp1][sp1_gcf_keys[0]]
-#         r2 = species_gwas[sp2][sp2_gcf_keys[0]]
-# 
-#         shared = set(r1.index) & set(r2.index)
-#         fdr_col = 'qvalue' if 'qvalue' in r1.columns else 'fdr'
-#         beta_col = 'beta' if 'beta' in r1.columns else 'effect'
-# 
-#         n_conv_gcf, n_disc_gcf = 0, 0
-#         for feat in shared:
-#             q1 = float(r1.loc[feat].get(fdr_col, 1))
-#             q2 = float(r2.loc[feat].get(fdr_col, 1))
-#             if q1 < FDR_THRESHOLD and q2 < FDR_THRESHOLD:
-#                 if beta_col in r1.columns and beta_col in r2.columns:
-#                     b1 = float(r1.loc[feat][beta_col])
-#                     b2 = float(r2.loc[feat][beta_col])
-#                     if (b1 > 0) == (b2 > 0):
-#                         n_conv_gcf += 1
-#                     else:
-#                         n_disc_gcf += 1
-# 
-#         convergence_summary.append({
-#             'layer': 'BGC_GCF', 'comparison': comparison_name,
-#             'n_tested': len(shared), 'n_convergent': n_conv_gcf,
-#             'n_discordant': n_disc_gcf, 'n_sp1_only': 0, 'n_sp2_only': 0
-#         })
-#     else:
-#         convergence_summary.append({
-#             'layer': 'BGC_GCF', 'comparison': comparison_name,
-#             'n_tested': 0, 'n_convergent': 0, 'n_discordant': 0,
-#             'n_sp1_only': 0, 'n_sp2_only': 0
-#         })
-
-
-# Build summary table
-# convergence_summary_df = pd.DataFrame(convergence_summary)
-# convergence_summary_df = convergence_summary_df.sort_values(['comparison', 'layer'])
-
-# print('=' * 80)
-# print('CONVERGENCE SUMMARY BY ANALYTICAL LAYER')
-# print('=' * 80)
-# display(convergence_summary_df)
-
-# Save
-# convergence_summary_df.to_csv(NB3_RESULTS / 'convergence_summary_by_layer.csv', index=False)
-# print(f'\nSaved: convergence_summary_by_layer.csv')
-
-# Print key finding
-# total_conv = convergence_summary_df['n_convergent'].sum()
-# total_tested = convergence_summary_df['n_tested'].sum()
-# print(f'\nTotal convergent hits across all layers: {total_conv}/{total_tested}')
-
-# --- Permutation null model for convergence ---
-
-def run_convergence_null_model(sp1_name, sp2_name,
-                                sp1_sig_ogs, sp2_sig_ogs,
-                                sp1_background, sp2_background,
-                                n_permutations=10000, seed=42):
-    """Permutation null model for convergence testing.
-    
-    Repeatedly draw random sets of the same size as the observed significant sets
-    from each species' background, count the overlap.
-    
-    Returns
-    -------
-    observed : int
-        Observed overlap count
-    null_distribution : np.ndarray
-        Null distribution of overlap counts
-    p_value : float
-        Empirical p-value (fraction of null >= observed)
-    """
-    rng = np.random.RandomState(seed)
-
-    sp1_sig_list = list(sp1_sig_ogs)
-    sp2_sig_list = list(sp2_sig_ogs)
-    n1 = len(sp1_sig_list)
-    n2 = len(sp2_sig_list)
-
-    # Observed overlap
-    observed = len(sp1_sig_ogs & sp2_sig_ogs)
-
-    # Background (all OGs testable in both)
-    bg1 = list(sp1_background)
-    bg2 = list(sp2_background)
-
-    null_overlaps = np.zeros(n_permutations, dtype=int)
-
-    for i in range(n_permutations):
-        perm1 = set(rng.choice(bg1, size=min(n1, len(bg1)), replace=False))
-        perm2 = set(rng.choice(bg2, size=min(n2, len(bg2)), replace=False))
-        null_overlaps[i] = len(perm1 & perm2)
-
-    # Empirical p-value
-    p_value = (np.sum(null_overlaps >= observed) + 1) / (n_permutations + 1)
-
-    return observed, null_overlaps, p_value
-
-
-# --- Run permutation test for pathogenic convergence ---
-# print('=' * 60)
-# print('PERMUTATION NULL MODEL: Pathogenic Convergence')
-# print('=' * 60)
-
-# Gather significant OGs and backgrounds in combined OG space
-# path_sp1_keys = [k for k in mapped_pav if k.startswith('fumigatus__') and 'human_pathogenic' in k]
-# path_sp2_keys = [k for k in mapped_pav if k.startswith('flavus__') and 'human_pathogenic' in k]
-
-# fdr_col_detect = 'qvalue'
-
-# if path_sp1_keys and path_sp2_keys:
-#     sp1_mapped = pd.concat([mapped_pav[k] for k in path_sp1_keys], ignore_index=True)
-#     sp2_mapped = pd.concat([mapped_pav[k] for k in path_sp2_keys], ignore_index=True)
-# 
-    # Detect FDR column
-#     for alt in ['qvalue', 'q_value', 'fdr']:
-#         if alt in sp1_mapped.columns:
-#             fdr_col_detect = alt
-#             break
-# 
-#     fum_sig_ogs = set(sp1_mapped[sp1_mapped[fdr_col_detect] < FDR_THRESHOLD]['combined_og'].unique())
-#     fla_sig_ogs = set(sp2_mapped[sp2_mapped[fdr_col_detect] < FDR_THRESHOLD]['combined_og'].unique())
-#     fum_bg = set(sp1_mapped['combined_og'].unique())
-#     fla_bg = set(sp2_mapped['combined_og'].unique())
-# 
-#     print(f'  fumigatus: {len(fum_sig_ogs)} sig OGs from {len(fum_bg)} background')
-#     print(f'  flavus: {len(fla_sig_ogs)} sig OGs from {len(fla_bg)} background')
-# 
-#     obs_path, null_path, pval_path = run_convergence_null_model(
-#         'fumigatus', 'flavus',
-#         fum_sig_ogs, fla_sig_ogs,
-#         fum_bg, fla_bg,
-#         n_permutations=10000
-#     )
-#     print(f'\n  Observed overlap: {obs_path}')
-#     print(f'  Null distribution: mean={null_path.mean():.2f}, median={np.median(null_path):.1f}, '
-#           f'max={null_path.max()}')
-#     print(f'  Empirical p-value: {pval_path:.4f}')
-# else:
-#     obs_path, null_path, pval_path = 0, np.zeros(10000), 1.0
-#     print('  No mapped PAV results for pathogenic convergence test.')
-
-# --- Run permutation test for industrial convergence ---
-# print(f'\n{"=" * 60}')
-# print('PERMUTATION NULL MODEL: Industrial Convergence')
-# print('=' * 60)
-
-# ind_sp1_keys = [k for k in mapped_pav if k.startswith('niger__') and 'industrial' in k]
-# ind_sp2_keys = [k for k in mapped_pav if k.startswith('oryzae__') and 'industrial' in k]
-
-# if ind_sp1_keys and ind_sp2_keys:
-#     sp1_mapped = pd.concat([mapped_pav[k] for k in ind_sp1_keys], ignore_index=True)
-#     sp2_mapped = pd.concat([mapped_pav[k] for k in ind_sp2_keys], ignore_index=True)
-# 
-#     for alt in ['qvalue', 'q_value', 'fdr']:
-#         if alt in sp1_mapped.columns:
-#             fdr_col_detect = alt
-#             break
-# 
-#     nig_sig_ogs = set(sp1_mapped[sp1_mapped[fdr_col_detect] < FDR_THRESHOLD]['combined_og'].unique())
-#     ory_sig_ogs = set(sp2_mapped[sp2_mapped[fdr_col_detect] < FDR_THRESHOLD]['combined_og'].unique())
-#     nig_bg = set(sp1_mapped['combined_og'].unique())
-#     ory_bg = set(sp2_mapped['combined_og'].unique())
-# 
-#     print(f'  niger: {len(nig_sig_ogs)} sig OGs from {len(nig_bg)} background')
-#     print(f'  oryzae: {len(ory_sig_ogs)} sig OGs from {len(ory_bg)} background')
-# 
-#     obs_ind, null_ind, pval_ind = run_convergence_null_model(
-#         'niger', 'oryzae',
-#         nig_sig_ogs, ory_sig_ogs,
-#         nig_bg, ory_bg,
-#         n_permutations=10000
-#     )
-#     print(f'\n  Observed overlap: {obs_ind}')
-#     print(f'  Null distribution: mean={null_ind.mean():.2f}, median={np.median(null_ind):.1f}, '
-#           f'max={null_ind.max()}')
-#     print(f'  Empirical p-value: {pval_ind:.4f}')
-# else:
-#     obs_ind, null_ind, pval_ind = 0, np.zeros(10000), 1.0
-#     print('  No mapped PAV results for industrial convergence test (expected: A. oryzae has 0 sig hits).')
-
-
-
-# --- From NB3 cell 25 ---
-# --- CAZy family cross-species comparison ---
-
-# CAZY_RE = re.compile(r'\b(?:GH|GT|PL|CE|CBM|AA)\d+(?:_\d+)?\b')
-
-def build_family_profile(og_consensus_dict, family_col, family_regex=None):
-    """Build a per-species family count profile from OG consensus annotations."""
-    species_profiles = {}
-
-    for sp, df in og_consensus_dict.items():
-        # Try alternate column names
-        col_actual = None
-        for alt in [family_col, f'{family_col}_dbCAN', f'{family_col}_EggNog',
-                    'CAZy_dbCAN', 'CAZy', 'PFAMs_EggNog', 'PFAMs']:
-            if alt in df.columns:
-                col_actual = alt
-                break
-        if col_actual is None:
-            continue
-
-        counts = Counter()
-        for val in df[col_actual].dropna():
-            val_str = str(val).strip()
-            if val_str in ('', '-', 'nan'):
-                continue
-            if family_regex:
-                families = family_regex.findall(val_str)
-            else:
-                families = [t.strip() for t in re.split(r'[;,|]', val_str) if t.strip()]
-            for fam in families:
-                counts[fam] += 1
-        species_profiles[sp] = counts
-
-    all_families = sorted(set().union(*[set(c.keys()) for c in species_profiles.values()]))
-    present_species = [sp for sp in SPECIES_LIST if sp in species_profiles]
-    rows = [{fam: species_profiles[sp].get(fam, 0) for fam in all_families} for sp in present_species]
-    return pd.DataFrame(rows, index=present_species)
-
-
-# cazy_profile = build_family_profile(og_consensus, 'CAZy', CAZY_RE)
-# print(f'CAZy family profile: {cazy_profile.shape}')
-
-# if not cazy_profile.empty:
-#     top_n = min(30, cazy_profile.shape[1])
-#     top_families = cazy_profile.sum().nlargest(top_n).index
-#     plot_df = cazy_profile[top_families]
-# 
-#     fig, ax = plt.subplots(figsize=(14, 4))
-#     sns.heatmap(plot_df, annot=True, fmt='d', cmap='YlOrRd', ax=ax,
-#                 linewidths=0.5, cbar_kws={'label': 'OG count'})
-#     ax.set_title('CAZy Family Distribution Across Species (Top 30)')
-#     ax.set_ylabel('Species')
-#     plt.tight_layout()
-#     fig.savefig(NB3_RESULTS / 'cazy_cross_species_comparison.png', dpi=150, bbox_inches='tight')
-# 
-#     cazy_profile.to_csv(NB3_RESULTS / 'cazy_family_comparison.csv')
-#     print('Saved: cazy_cross_species_comparison.png, cazy_family_comparison.csv')
-# else:
-#     print('No CAZy annotation data available.')
-
-
-
-# --- From NB3 cell 26 ---
-# --- Protease family cross-species comparison ---
-# Use PFAM families known to be proteases (from funpan_utils.PROTEASE_PFAMS)
-
-# PROTEASE_PFAM_IDS = set(fpu.PROTEASE_PFAMS.keys())
-
-def build_protease_profile(og_consensus_dict):
-    """Count protease PFAM families per species."""
-    species_profiles = {}
-
-    for sp, df in og_consensus_dict.items():
-        pfam_col = None
-        for alt in ['PFAMs', 'PFAMs_EggNog', 'PFAMs_Interpro']:
-            if alt in df.columns:
-                pfam_col = alt
-                break
-        if pfam_col is None:
-            continue
-
-        counts = Counter()
-        for val in df[pfam_col].dropna():
-            val_str = str(val).strip()
-            if val_str in ('', '-', 'nan'):
-                continue
-            pfams = [t.strip() for t in re.split(r'[;,|]', val_str) if t.strip()]
-            for pf in pfams:
-                if pf in PROTEASE_PFAM_IDS:
-                    counts[pf] += 1
-        species_profiles[sp] = counts
-
-    all_pfams = sorted(set().union(*[set(c.keys()) for c in species_profiles.values()]))
-    present_species = [sp for sp in SPECIES_LIST if sp in species_profiles]
-    rows = [{pf: species_profiles[sp].get(pf, 0) for pf in all_pfams} for sp in present_species]
-    profile_df = pd.DataFrame(rows, index=present_species)
-
-    # Add human-readable descriptions as column suffixes
-    renamed = {}
-    for col in profile_df.columns:
-        desc = fpu.PROTEASE_PFAMS.get(col, '')
-        renamed[col] = f'{col} ({desc})' if desc else col
-    profile_df = profile_df.rename(columns=renamed)
-
-    return profile_df
-
-
-# protease_profile = build_protease_profile(og_consensus)
-# print(f'Protease family profile: {protease_profile.shape}')
-
-# if not protease_profile.empty:
-#     fig, ax = plt.subplots(figsize=(14, 4))
-#     sns.heatmap(protease_profile, annot=True, fmt='d', cmap='YlGnBu', ax=ax,
-#                 linewidths=0.5, cbar_kws={'label': 'OG count'})
-#     ax.set_title('Protease PFAM Family Distribution Across Species')
-#     ax.set_ylabel('Species')
-#     plt.xticks(rotation=45, ha='right', fontsize=8)
-#     plt.tight_layout()
-#     fig.savefig(NB3_RESULTS / 'protease_cross_species_comparison.png', dpi=150, bbox_inches='tight')
-# 
-#     protease_profile.to_csv(NB3_RESULTS / 'protease_family_comparison.csv')
-#     print('Saved: protease_cross_species_comparison.png, protease_family_comparison.csv')
-# else:
-#     print('No protease PFAM data available.')
-
-
-
-# --- From NB3 cell 27 ---
-# --- Secretome cross-species comparison ---
-# Secreted proteins: identified by SignalP prediction (SP/Sec) or secretion-related GO terms
-
-def build_secretome_profile(og_consensus_dict):
-    """Count secreted protein OGs per species using SignalP and GO annotations."""
-    records = []
-
-    for sp, df in og_consensus_dict.items():
-        n_total = len(df)
-
-        # SignalP-based secretome
-        n_signalp = 0
-        for col in ['signalp_Prediction', 'signalp_prediction']:
-            if col in df.columns:
-                n_signalp = df[col].fillna('').astype(str).str.contains('SP|Sec', case=False).sum()
-                break
-
-        # GO-based secretome (extracellular/secretion GO terms)
-        n_go_secreted = 0
-        secretion_go_ids = set(fpu.SECRETION_GO_TERMS.keys())
-        for col in ['GOs', 'GOs_EggNog', 'GOs_Interpro']:
-            if col in df.columns:
-                for val in df[col].dropna():
-                    gos = set(re.findall(r'GO:\d+', str(val)))
-                    if gos & secretion_go_ids:
-                        n_go_secreted += 1
-                break
-
-        # Combined (union of both criteria)
-        n_either = 0
-        for _, row in df.iterrows():
-            is_sp = False
-            for col in ['signalp_Prediction', 'signalp_prediction']:
-                if col in df.columns:
-                    val = str(row.get(col, '')).strip()
-                    if 'SP' in val.upper() or 'Sec' in val:
-                        is_sp = True
-                    break
-
-            is_go = False
-            for col in ['GOs', 'GOs_EggNog', 'GOs_Interpro']:
-                if col in df.columns:
-                    gos = set(re.findall(r'GO:\d+', str(row.get(col, ''))))
-                    if gos & secretion_go_ids:
-                        is_go = True
-                    break
-
-            if is_sp or is_go:
-                n_either += 1
-
-        records.append({
-            'Species': sp,
-            'Total_OGs': n_total,
-            'SignalP_secreted': n_signalp,
-            'GO_secreted': n_go_secreted,
-            'Either_secreted': n_either,
-            'Secretome_fraction': round(n_either / n_total * 100, 1) if n_total > 0 else 0,
-        })
-
-    return pd.DataFrame(records)
-
-
-# secretome_df = build_secretome_profile(og_consensus)
-# print(f'Secretome comparison:')
-
-# if not secretome_df.empty:
-#     display(secretome_df)
-# 
-    # Bar plot
-#     fig, axes = plt.subplots(1, 2, figsize=(12, 4))
-# 
-#     ax = axes[0]
-#     x = range(len(secretome_df))
-#     colors = [fpu.SPECIES_COLORS.get(sp, '#888888') for sp in secretome_df['Species']]
-#     ax.bar(x, secretome_df['Either_secreted'], color=colors, edgecolor='white')
-#     ax.set_xticks(x)
-#     ax.set_xticklabels([f'A. {sp}' for sp in secretome_df['Species']], rotation=30, ha='right')
-#     ax.set_ylabel('Number of secreted OGs')
-#     ax.set_title('Secretome Size (OGs with signal peptide or secretion GO)')
-# 
-#     ax = axes[1]
-#     ax.bar(x, secretome_df['Secretome_fraction'], color=colors, edgecolor='white')
-#     ax.set_xticks(x)
-#     ax.set_xticklabels([f'A. {sp}' for sp in secretome_df['Species']], rotation=30, ha='right')
-#     ax.set_ylabel('Secretome fraction (%)')
-#     ax.set_title('Secretome as Fraction of Total Pangenome')
-# 
-#     plt.tight_layout()
-#     fig.savefig(NB3_RESULTS / 'secretome_cross_species_comparison.png', dpi=150, bbox_inches='tight')
-# 
-#     secretome_df.to_csv(NB3_RESULTS / 'secretome_comparison.csv', index=False)
-#     print('Saved: secretome_cross_species_comparison.png, secretome_comparison.csv')
-# else:
-#     print('No secretome data available.')
-
-
-# =============================================================================
-# Functions extracted from NB3_Convergence notebook
-# =============================================================================
 
 
 def load_gwas_results_from_nb2(species_list, nb2_results_dir):
@@ -3798,10 +1131,19 @@ def build_species_to_combined_og_map(species_list, species_root, combined_og_lon
                 SPECIES_OG_PATHS[sp] = sorted(alt_paths)[-1]
                 print(f'  {sp}: using {SPECIES_OG_PATHS[sp]}')
 
+    # Funannotate assigns generic per-genome locus tags (FUN_000001-T1), so a
+    # protein ID alone is NOT unique across genomes -- keying on it collapses
+    # ~2.3M protein rows onto ~13k keys and makes the mapping arbitrary. Key on
+    # (assembly accession, protein ID) instead.
     protein_to_combined_og = dict(zip(
-        combined_og_long['Protein_ID'],
+        combined_og_long['Assembly_Accession'].astype(str)
+        + '|' + combined_og_long['Protein_ID'].astype(str),
         combined_og_long['Orthogroup']
     ))
+    if len(protein_to_combined_og) < 0.99 * len(combined_og_long):
+        raise ValueError(
+            f'Protein key is not unique: {len(combined_og_long)} rows collapsed to '
+            f'{len(protein_to_combined_og)} keys. Check Assembly_Accession parsing.')
     print(f'Protein-to-combined-OG lookup: {len(protein_to_combined_og)} proteins')
 
     species_og_to_combined = {}
@@ -3815,25 +1157,41 @@ def build_species_to_combined_og_map(species_list, species_root, combined_og_lon
         print(f'\n{sp}: loading species OrthoFinder from {og_path}')
         sp_og = pd.read_csv(og_path, sep='\t')
 
+        # Species-level column headers carry the same assembly accession as the
+        # combined run, so resolve each column to its accession once up front.
+        col_acc = {}
+        for col in sp_og.columns:
+            if col == 'Orthogroup':
+                continue
+            m = ACC_RE.search(str(col))
+            if m:
+                col_acc[col] = m.group(1)
+        if not col_acc:
+            print(f'[WARN] {sp}: no assembly accessions parsed from column headers')
+
         mapping = defaultdict(set)
         n_mapped = 0
 
         for _, row in sp_og.iterrows():
             sp_og_id = row['Orthogroup']
-            for col in sp_og.columns:
-                if col == 'Orthogroup':
-                    continue
+            for col, acc in col_acc.items():
                 proteins = row.get(col, '')
                 if pd.isna(proteins) or proteins == '':
                     continue
                 for prot in str(proteins).split(', '):
                     prot = prot.strip()
-                    if prot and prot in protein_to_combined_og:
-                        mapping[sp_og_id].add(protein_to_combined_og[prot])
+                    if not prot:
+                        continue
+                    cog = protein_to_combined_og.get(f'{acc}|{prot}')
+                    if cog is not None:
+                        mapping[sp_og_id].add(cog)
                         n_mapped += 1
 
         species_og_to_combined[sp] = dict(mapping)
+        _fan = np.array([len(v) for v in mapping.values()]) if mapping else np.array([0])
         print(f'  {len(mapping)} species OGs mapped to combined OGs ({n_mapped} protein links)')
+        print(f'    combined OGs per species OG: median {np.median(_fan):.0f}, '
+              f'mean {_fan.mean():.2f}, max {_fan.max()}')
 
     return species_og_to_combined, SPECIES_OG_PATHS
 
@@ -3930,132 +1288,95 @@ def test_industrial_convergence(species_gwas, mapped_pav, mapped_cnv,
     }
 
 
-def build_gcf_convergence_table(species_gwas, fdr_threshold=0.1, nb3_results=None):
-    """Build a cross-species GCF convergence table.
+def gcf_orthogroup_overlap(species_pair, contrast, species_root, nb1_results,
+                          nb2_results, combined_og_tsv, nb3_results=None):
+    """Compare two species' significant GCFs through genus-level orthogroups.
 
-    Parameters
-    ----------
-    species_gwas : dict
-        Per-species GWAS results.
-    fdr_threshold : float
-    nb3_results : pathlib.Path or None
-        Output directory.
+    BiG-SCAPE families are defined per species and share no identifier across
+    runs, so families are resolved to the orthogroups of their constituent
+    genes in the combined multi-species OrthoFinder run and compared there.
 
     Returns
     -------
-    pd.DataFrame
-        GCF convergence comparison table.
+    (dict, pandas.DataFrame)
+        ``{species: {GCF: set(orthogroups)}}`` for the significant families,
+        and one row per cross-species family pair with the shared orthogroup
+        count.
     """
+    import glob
     from pathlib import Path
 
-    gcf_records = []
-    for comparison_name, sp1, sp2, contrast in [
-        ('pathogenic', 'fumigatus', 'flavus', 'human_pathogenic'),
-        ('industrial', 'niger', 'oryzae', 'industrial'),
-    ]:
-        sp1_gcf_keys = [k for k in species_gwas.get(sp1, {}) if 'gcf' in k and contrast in k]
-        sp2_gcf_keys = [k for k in species_gwas.get(sp2, {}) if 'gcf' in k and contrast in k]
-
-        if not sp1_gcf_keys or not sp2_gcf_keys:
+    comb = pd.read_csv(combined_og_tsv, sep='\t', dtype=str)
+    acc_re = re.compile(r'(GC[AF]_\d+\.\d+)')
+    gene2og = {}
+    for col in comb.columns[1:]:
+        m = acc_re.search(col)
+        if not m:
             continue
+        acc = m.group(1)
+        cells = comb[col].dropna()
+        for og, cell in zip(comb.loc[cells.index, 'Orthogroup'], cells):
+            for g in cell.split(', '):
+                b = re.match(r'(FUN_\d+)', g.strip())
+                if b:
+                    gene2og[(acc, b.group(1))] = og
 
-        r1 = species_gwas[sp1][sp1_gcf_keys[0]]
-        r2 = species_gwas[sp2][sp2_gcf_keys[0]]
-        shared = set(r1.index) & set(r2.index)
-        fdr_col = 'qvalue' if 'qvalue' in r1.columns else 'fdr'
-        beta_col = 'beta' if 'beta' in r1.columns else 'effect'
+    fam_ogs, sig = {}, {}
+    for sp in species_pair:
+        runs = sorted((Path(species_root) / sp / 'bigscape_output' /
+                       'output_files').glob('*_c0*'))
+        clus = pd.concat([pd.read_csv(f, sep='\t')
+                          for f in glob.glob(str(runs[-1] / '*' / '*_clustering_*.tsv'))])
+        clus = clus[~clus.Record.astype(str).str.startswith('BGC')].copy()
+        ex = clus.Record.str.extract(r'(GC[AF]_\d+\.\d+).*?(scaffold_\d+)\.region(\d+)')
+        clus['acc'], clus['scaf'], clus['reg'] = ex[0], ex[1], ex[2]
+        clus = clus.dropna(subset=['acc', 'scaf', 'reg'])
 
-        for feat in shared:
-            q1 = float(r1.loc[feat].get(fdr_col, 1))
-            q2 = float(r2.loc[feat].get(fdr_col, 1))
-            b1 = (float(r1.loc[feat].get(beta_col, 0))
-                  if beta_col in r1.columns else 0)
-            b2 = (float(r2.loc[feat].get(beta_col, 0))
-                  if beta_col in r2.columns else 0)
-            sig1 = q1 < fdr_threshold
-            sig2 = q2 < fdr_threshold
+        gmap = pd.read_csv(Path(nb1_results) / sp / 'bgc_og_mapping.tsv', sep='\t',
+                           usecols=['gene_id', 'accession', 'bgc_id'])
+        parts = gmap.bgc_id.str.split('__', expand=True)
+        gmap['scaf'] = parts[1]
+        gmap['reg'] = parts[2].str.extract(r'region(\d+)')
+        gmap['base'] = gmap.gene_id.str.extract(r'(FUN_\d+)')
+        gmap = gmap.dropna(subset=['base', 'reg'])
+        by_region = gmap.groupby(['accession', 'scaf', 'reg'])['base'].apply(list)
 
-            if sig1 and sig2:
-                cat = 'CONVERGENT' if (b1 > 0) == (b2 > 0) else 'DISCORDANT'
-            elif sig1:
-                cat = f'{sp1}_ONLY'
-            elif sig2:
-                cat = f'{sp2}_ONLY'
-            else:
-                cat = 'NOT_SIGNIFICANT'
+        assoc = pd.read_csv(Path(nb2_results) / sp / 'pangwas_results' /
+                            f'gcf_pav_assoc_{contrast}.tsv', sep='\t')
+        sig[sp] = assoc.loc[assoc['significant'], 'feature'].tolist()
 
-            gcf_records.append({
-                'gcf_family': feat, 'comparison': comparison_name,
-                f'{sp1}_qvalue': q1, f'{sp2}_qvalue': q2,
-                f'{sp1}_beta': b1, f'{sp2}_beta': b2,
-                'category': cat,
-            })
+        fam_ogs[sp] = {}
+        for fam in sig[sp]:
+            ogs = set()
+            g = clus[clus.Family == fam]
+            for acc, scaf, reg in zip(g.acc, g.scaf, g.reg):
+                for b in by_region.get((acc, scaf, str(int(reg))), []):
+                    og = gene2og.get((acc, b))
+                    if og:
+                        ogs.add(og)
+            fam_ogs[sp][fam] = ogs
 
-    if gcf_records:
-        gcf_conv_df = pd.DataFrame(gcf_records)
-        if nb3_results is not None:
-            gcf_conv_df.to_csv(
-                Path(nb3_results) / 'cross_species_gcf_convergence.csv', index=False)
-        print(f'Saved cross_species_gcf_convergence.csv: '
-              f'{len(gcf_conv_df)} GCF families compared')
-        return gcf_conv_df
-    else:
-        print('No GCF data available for cross-species comparison.')
-        return pd.DataFrame()
+    sp1, sp2 = species_pair
+    rows = []
+    for f1, o1 in fam_ogs[sp1].items():
+        for f2, o2 in fam_ogs[sp2].items():
+            inter = o1 & o2
+            rows.append({f'{sp1}_GCF': f1, f'{sp2}_GCF': f2,
+                         f'{sp1}_n_orthogroups': len(o1),
+                         f'{sp2}_n_orthogroups': len(o2),
+                         'shared_orthogroups': len(inter),
+                         'shared_ids': '; '.join(sorted(inter))})
+    pairs = pd.DataFrame(rows)
 
+    if nb3_results is not None and not pairs.empty:
+        pairs.to_csv(Path(nb3_results) / 'gcf_orthogroup_overlap.csv', index=False)
 
-def plot_convergence_null_model(null_path, obs_path, pval_path,
-                                null_ind, obs_ind, pval_ind,
-                                nb3_results=None):
-    """Plot two-panel null-model figure for convergence permutation test.
-
-    Parameters
-    ----------
-    null_path, null_ind : array-like
-        Null distributions (pathogenic, industrial).
-    obs_path, obs_ind : int
-        Observed overlaps.
-    pval_path, pval_ind : float
-        P-values.
-    nb3_results : pathlib.Path or None
-        Output directory.
-    """
-    import matplotlib.pyplot as plt
-    from pathlib import Path
-
-    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
-
-    ax = axes[0]
-    ax.hist(null_path,
-            bins=range(0, max(int(null_path.max()) + 3, 5)),
-            color='steelblue', alpha=0.7, edgecolor='white',
-            density=True, label='Null distribution')
-    ax.axvline(obs_path, color='red', linewidth=2, linestyle='--',
-               label=f'Observed = {obs_path}')
-    ax.set_xlabel('Number of overlapping significant OGs')
-    ax.set_ylabel('Density')
-    ax.set_title(f'Pathogenic Convergence Null Model\n'
-                 f'(fumigatus vs flavus, p={pval_path:.4f})')
-    ax.legend()
-
-    ax = axes[1]
-    ax.hist(null_ind,
-            bins=range(0, max(int(null_ind.max()) + 3, 5)),
-            color='darkorange', alpha=0.7, edgecolor='white',
-            density=True, label='Null distribution')
-    ax.axvline(obs_ind, color='red', linewidth=2, linestyle='--',
-               label=f'Observed = {obs_ind}')
-    ax.set_xlabel('Number of overlapping significant OGs')
-    ax.set_ylabel('Density')
-    ax.set_title(f'Industrial Convergence Null Model\n'
-                 f'(niger vs oryzae, p={pval_ind:.4f})')
-    ax.legend()
-
-    plt.tight_layout()
-    if nb3_results is not None:
-        fig.savefig(Path(nb3_results) / 'convergence_null_model.png',
-                    dpi=150, bbox_inches='tight')
-    print('Saved: convergence_null_model.png')
+    u1 = set().union(*fam_ogs[sp1].values()) if fam_ogs[sp1] else set()
+    u2 = set().union(*fam_ogs[sp2].values()) if fam_ogs[sp2] else set()
+    print(f'{sp1}: {len(sig[sp1])} significant GCFs -> {len(u1)} genus-level orthogroups')
+    print(f'{sp2}: {len(sig[sp2])} significant GCFs -> {len(u2)} genus-level orthogroups')
+    print(f'shared orthogroups between the two sets: {len(u1 & u2)}')
+    return fam_ogs, pairs
 
 
 def load_og_consensus_annotations(species_list, nb1_results):
@@ -4094,3 +1415,1197 @@ def load_og_consensus_annotations(species_list, nb1_results):
 
     return og_consensus
 
+
+# =============================================================================
+# NB3 ANALYSIS AND FIGURE FUNCTIONS
+# =============================================================================
+
+def _show(obj):
+    """Print a DataFrame or object; stands in for the notebook's display()."""
+    try:
+        print(obj.to_string())
+    except AttributeError:
+        print(obj)
+
+
+def method3_directional_convergence(species_og_to_combined, nb2_results, nb3_results, pair_m3=['fumigatus', 'flavus'], contrast_m3='human_pathogenic_vs_rest', pangenome_size_m3={'fumigatus': 10881, 'flavus': 14450}):
+    """Directional convergence across orthogroups tested in both species.
+
+    Projects each species' pan-GWAS results into genus-level orthogroup
+    coordinates, keeps the orthogroups tested in both, and classifies each by
+    whether the sign of beta agrees. Writes the projection accounting,
+    concordance and merge-rule sensitivity tables under ``nb3_results``.
+
+    Returns a dict of the three DataFrames.
+    """
+    PAIR_M3 = pair_m3
+    CONTRAST_M3 = contrast_m3
+    PANGENOME_SIZE_M3 = pangenome_size_m3
+    NB2_RESULTS = Path(nb2_results)
+    NB3_RESULTS = Path(nb3_results)
+
+    import numpy as np
+    import pandas as pd
+    from collections import defaultdict
+    from scipy import stats
+
+    if 'species_og_to_combined' not in dir():
+        raise NameError(
+            "species_og_to_combined is not defined - run the setup cells and "
+            "build_species_to_combined_og_map(...) above before this cell.")
+
+    (NB3_RESULTS / 'convergence').mkdir(parents=True, exist_ok=True)
+
+    _proj, _conc, _sens = [], [], []
+
+    for _layer in ['pav', 'cnv']:
+        _per_sp = {}
+        for _sp in PAIR_M3:
+            _d = pd.read_csv(
+                NB2_RESULTS / _sp / 'pangwas_results' / f'{_layer}_assoc_{CONTRAST_M3}.tsv',
+                sep='\t')
+            _d['feature'] = _d['feature'].astype(str)
+            _m = species_og_to_combined[_sp]
+            _L = pd.DataFrame(
+                [(str(r.feature), c, r.beta, r.pvalue, r.qvalue)
+                 for r in _d.itertuples() for c in _m.get(str(r.feature), set())],
+                columns=['species_og', 'genus_og', 'beta', 'p', 'q'])
+
+            _fan = _L.groupby('species_og')['genus_og'].nunique()
+            _rev = _L.groupby('genus_og')['species_og'].nunique()
+            _split_extra = int((_fan - 1).clip(lower=0).sum())
+            _merge_lost = int((_rev - 1).clip(lower=0).sum())
+            assert len(_d) + _split_extra == len(_L)
+            assert len(_L) - _merge_lost == _L['genus_og'].nunique()
+
+            _proj.append({
+                'layer': _layer.upper(), 'species': _sp,
+                'og_in_pangenome': PANGENOME_SIZE_M3[_sp],
+                'og_tested': len(_d),
+                'og_sig_q05': int((_d.qvalue < 0.05).sum()),
+                'species_og_split': int((_fan > 1).sum()),
+                'links_added_by_splits': _split_extra,
+                'total_links': len(_L),
+                'genus_og_receiving_multiple': int((_rev > 1).sum()),
+                'links_lost_to_merges': _merge_lost,
+                'distinct_genus_og': _L['genus_og'].nunique(),
+            })
+            _per_sp[_sp] = _L
+
+        _A, _B = _per_sp['fumigatus'], _per_sp['flavus']
+        _shared = sorted(set(_A.genus_og) & set(_B.genus_og))
+
+        def _collapse(L, rule, shared=None):
+            shared = _shared if shared is None else shared
+            L = L[L.genus_og.isin(shared)]
+            if rule == 'most_significant':
+                return L.sort_values('p').drop_duplicates('genus_og').set_index('genus_og')
+            if rule == 'median_beta':
+                return L.groupby('genus_og').agg(beta=('beta', 'median'),
+                                                 p=('p', 'min'), q=('q', 'min'))
+            if rule == 'drop_ambiguous':
+                _k = L.groupby('genus_og')['species_og'].nunique()
+                return L[L.genus_og.isin(_k[_k == 1].index)].set_index('genus_og')
+            raise ValueError(rule)
+
+        for _rule in ['most_significant', 'median_beta', 'drop_ambiguous']:
+            _a, _b = _collapse(_A, _rule), _collapse(_B, _rule)
+            _i = _a.index.intersection(_b.index)
+            _j = pd.DataFrame({'b1': _a.loc[_i, 'beta'], 'b2': _b.loc[_i, 'beta'],
+                               'q1': _a.loc[_i, 'q'], 'q2': _b.loc[_i, 'q']})
+            _j = _j[(_j.b1 != 0) & (_j.b2 != 0)]
+            _same = (_j.b1 > 0) == (_j.b2 > 0)
+            _n, _k = len(_j), int(_same.sum())
+            _bt = stats.binomtest(_k, _n, 0.5)
+            _rho, _prho = stats.spearmanr(_j.b1, _j.b2)
+            _r, _pr = stats.pearsonr(_j.b1, _j.b2)
+            _rec = {'layer': _layer.upper(), 'merge_rule': _rule, 'n_shared_tested': _n,
+                    'n_concordant': _k, 'n_discordant': _n - _k,
+                    'pct_concordant': round(100 * _k / _n, 1),
+                    'sign_test_p': _bt.pvalue,
+                    'ci_low': _bt.proportion_ci().low, 'ci_high': _bt.proportion_ci().high,
+                    'spearman_rho': _rho, 'spearman_p': _prho,
+                    'pearson_r': _r, 'pearson_p': _pr}
+            _sens.append(_rec)
+
+            if _rule == 'most_significant':
+                _rec = dict(_rec)
+                _rec.update({
+                    'n_concordant_up': int(((_j.b1 > 0) & (_j.b2 > 0)).sum()),
+                    'n_concordant_down': int(((_j.b1 < 0) & (_j.b2 < 0)).sum()),
+                    'n_sig_fumigatus_only': int(((_j.q1 < .05) & (_j.q2 >= .05)).sum()),
+                    'n_sig_flavus_only': int(((_j.q2 < .05) & (_j.q1 >= .05)).sum()),
+                    'n_sig_both': int(((_j.q1 < .05) & (_j.q2 < .05)).sum()),
+                    'n_sig_neither': int(((_j.q1 >= .05) & (_j.q2 >= .05)).sum())})
+                _conc.append(_rec)
+
+                _out = _j.reset_index().rename(columns={
+                    'genus_og': 'combined_og', 'b1': 'fumigatus_beta', 'b2': 'flavus_beta',
+                    'q1': 'fumigatus_qvalue', 'q2': 'flavus_qvalue'})
+                _out['category'] = np.where(
+                    (_out.fumigatus_beta > 0) == (_out.flavus_beta > 0),
+                    'CONVERGENT', 'DISCORDANT')
+                _out.to_csv(NB3_RESULTS / 'convergence' /
+                            f'pathogenic_method3_{_layer}_convergence.csv', index=False)
+
+        _sa = set(_A[_A.q < 0.05].genus_og); _sb = set(_B[_B.q < 0.05].genus_og)
+        print(f'{_layer.upper()}: sig genus OGs {len(_sa)} vs {len(_sb)}, '
+              f'jointly significant {len(_sa & _sb)}; significant but untested in the '
+              f'partner species: fumigatus {len(_sa - set(_B.genus_og))}, '
+              f'flavus {len(_sb - set(_A.genus_og))}')
+
+    method3_projection = pd.DataFrame(_proj)
+    method3_concordance = pd.DataFrame(_conc)
+    method3_sensitivity = pd.DataFrame(_sens)
+    method3_projection.to_csv(NB3_RESULTS / 'method3_projection_accounting.csv', index=False)
+    method3_concordance.to_csv(NB3_RESULTS / 'method3_directional_concordance.csv', index=False)
+    method3_sensitivity.to_csv(NB3_RESULTS / 'method3_merge_rule_sensitivity.csv', index=False)
+
+    print('\n--- projection accounting ---'); _show(method3_projection)
+    print('--- directional concordance ---'); _show(method3_concordance)
+    print('--- merge-rule sensitivity ---'); _show(method3_sensitivity)
+
+    return {'projection': method3_projection, 'concordance': method3_concordance,
+            'sensitivity': method3_sensitivity}
+
+
+def run_permutation_null(mapped_pav, mapped_cnv, nb3_results, n_perms=1000,
+                         fdr_threshold=0.1):
+    """Permutation null for the overlap of per-species significant orthogroups.
+
+    Draws random orthogroup sets of the observed sizes and records how often
+    they overlap at least as much as the real sets, per layer and species pair.
+
+    Returns a dict with the summary table and, per pair and layer, the null
+    array, the observed overlap and the p-value.
+    """
+    N_PERMS = n_perms
+    FDR_THRESHOLD = fdr_threshold
+    NB3_RESULTS = Path(nb3_results)
+
+    import numpy as _np
+
+
+    def _per_species_sig_sets(mapped_dict, contrast_pattern, fdr_thresh, fdr_col='qvalue'):
+        out = {}
+        for key, df in mapped_dict.items():
+            if contrast_pattern not in key:
+                continue
+            sp = key.split('__')[0]
+            if df.empty or fdr_col not in df.columns:
+                continue
+            sig = set(df.loc[df[fdr_col] < fdr_thresh, 'combined_og'].dropna().astype(str))
+            bg = set(df['combined_og'].dropna().astype(str))
+            out.setdefault(sp, {'sig': set(), 'bg': set()})
+            out[sp]['sig'].update(sig)
+            out[sp]['bg'].update(bg)
+        return out
+
+    def _null_overlap(mapped_dict, sp1, sp2, contrast_pattern, fdr_thresh,
+                      n_perms=1000, seed=42):
+        rng_local = _np.random.default_rng(seed)
+        sets = _per_species_sig_sets(mapped_dict, contrast_pattern, fdr_thresh)
+        if sp1 not in sets or sp2 not in sets:
+            return 0, _np.zeros(n_perms), 0, 0
+        n1, n2 = len(sets[sp1]['sig']), len(sets[sp2]['sig'])
+        bg1 = _np.array(sorted(sets[sp1]['bg']))
+        bg2 = _np.array(sorted(sets[sp2]['bg']))
+        observed = len(sets[sp1]['sig'] & sets[sp2]['sig'])
+        nulls = _np.zeros(n_perms)
+        if min(n1, n2, len(bg1), len(bg2)) == 0:
+            return observed, nulls, n1, n2
+        for i in range(n_perms):
+            s1 = set(rng_local.choice(bg1, size=min(n1, len(bg1)), replace=False))
+            s2 = set(rng_local.choice(bg2, size=min(n2, len(bg2)), replace=False))
+            nulls[i] = len(s1 & s2)
+        return observed, nulls, n1, n2
+
+    obs_path_pav, null_path_pav, n_fum_pav, n_fla_pav = _null_overlap(
+        mapped_pav, 'fumigatus', 'flavus', 'human_pathogenic_vs_rest',
+        fdr_thresh=FDR_THRESHOLD, n_perms=N_PERMS, seed=42)
+    obs_path_cnv, null_path_cnv, n_fum_cnv, n_fla_cnv = _null_overlap(
+        mapped_cnv, 'fumigatus', 'flavus', 'human_pathogenic_vs_rest',
+        fdr_thresh=FDR_THRESHOLD, n_perms=N_PERMS, seed=43)
+    obs_ind_pav, null_ind_pav, n_nig_pav, n_ory_pav = _null_overlap(
+        mapped_pav, 'niger', 'oryzae', 'industrial_trait_vs_rest',
+        fdr_thresh=FDR_THRESHOLD, n_perms=N_PERMS, seed=44)
+    obs_ind_cnv, null_ind_cnv, n_nig_cnv, n_ory_cnv = _null_overlap(
+        mapped_cnv, 'niger', 'oryzae', 'industrial_trait_vs_rest',
+        fdr_thresh=FDR_THRESHOLD, n_perms=N_PERMS, seed=45)
+
+    p_path_pav = (null_path_pav >= obs_path_pav).sum() / max(1, len(null_path_pav))
+    p_path_cnv = (null_path_cnv >= obs_path_cnv).sum() / max(1, len(null_path_cnv))
+    p_ind_pav  = (null_ind_pav  >= obs_ind_pav ).sum() / max(1, len(null_ind_pav))
+    p_ind_cnv  = (null_ind_cnv  >= obs_ind_cnv ).sum() / max(1, len(null_ind_cnv))
+
+    null_summary = pd.DataFrame([
+        {'contrast':'pathogenic (fumigatus vs flavus)', 'layer':'PAV',
+         'n_sp1_sig': n_fum_pav, 'n_sp2_sig': n_fla_pav,
+         'observed': obs_path_pav, 'null_mean': float(null_path_pav.mean()),
+         'null_max': int(null_path_pav.max()), 'null_q95': float(_np.quantile(null_path_pav, 0.95)),
+         'p_value': p_path_pav, 'n_perms': N_PERMS},
+        {'contrast':'pathogenic (fumigatus vs flavus)', 'layer':'CNV',
+         'n_sp1_sig': n_fum_cnv, 'n_sp2_sig': n_fla_cnv,
+         'observed': obs_path_cnv, 'null_mean': float(null_path_cnv.mean()),
+         'null_max': int(null_path_cnv.max()), 'null_q95': float(_np.quantile(null_path_cnv, 0.95)),
+         'p_value': p_path_cnv, 'n_perms': N_PERMS},
+        {'contrast':'industrial (niger vs oryzae)', 'layer':'PAV',
+         'n_sp1_sig': n_nig_pav, 'n_sp2_sig': n_ory_pav,
+         'observed': obs_ind_pav, 'null_mean': float(null_ind_pav.mean()),
+         'null_max': int(null_ind_pav.max()), 'null_q95': float(_np.quantile(null_ind_pav, 0.95)),
+         'p_value': p_ind_pav, 'n_perms': N_PERMS},
+        {'contrast':'industrial (niger vs oryzae)', 'layer':'CNV',
+         'n_sp1_sig': n_nig_cnv, 'n_sp2_sig': n_ory_cnv,
+         'observed': obs_ind_cnv, 'null_mean': float(null_ind_cnv.mean()),
+         'null_max': int(null_ind_cnv.max()), 'null_q95': float(_np.quantile(null_ind_cnv, 0.95)),
+         'p_value': p_ind_cnv, 'n_perms': N_PERMS},
+    ])
+    null_summary.to_csv(os.path.join(str(NB3_RESULTS), 'permutation_null_model.csv'), index=False)
+    _np.savez(os.path.join(str(NB3_RESULTS), 'permutation_null_arrays.npz'),
+             null_path_pav=null_path_pav, null_path_cnv=null_path_cnv,
+             null_ind_pav=null_ind_pav, null_ind_cnv=null_ind_cnv)
+
+    # Backwards-compatible aliases for cells that already reference these names
+    null_path = null_path_pav
+    null_ind  = null_ind_pav
+    obs_path  = obs_path_pav
+    obs_ind   = obs_ind_pav
+    pval_path = p_path_pav
+    pval_ind  = p_ind_pav
+
+    print(null_summary.to_string(index=False))
+
+    return {'summary': null_summary,
+            'path_pav': (null_path_pav, obs_path_pav, p_path_pav),
+            'path_cnv': (null_path_cnv, obs_path_cnv, p_path_cnv),
+            'ind_pav': (null_ind_pav, obs_ind_pav, p_ind_pav),
+            'ind_cnv': (null_ind_cnv, obs_ind_cnv, p_ind_cnv)}
+
+
+def plot_null_model(null_result, nb3_results, n_perms=1000):
+    """Null distribution and observed overlap, one panel per pair and layer.
+    """
+    NB3_RESULTS = Path(nb3_results)
+    N_PERMS = n_perms
+    null_path_pav, obs_path_pav, p_path_pav = null_result['path_pav']
+    null_path_cnv, obs_path_cnv, p_path_cnv = null_result['path_cnv']
+    null_ind_pav, obs_ind_pav, p_ind_pav = null_result['ind_pav']
+    null_ind_cnv, obs_ind_cnv, p_ind_cnv = null_result['ind_cnv']
+    fig = None
+
+    import matplotlib.pyplot as _plt
+    import numpy as _np
+
+    fig, axes = _plt.subplots(2, 2, figsize=(13, 8))
+    panels = [
+        (axes[0, 0], null_path_pav, obs_path_pav, p_path_pav,
+            'a  Pathogenic (fumigatus vs flavus) - PAV layer'),
+        (axes[0, 1], null_path_cnv, obs_path_cnv, p_path_cnv,
+            'b  Pathogenic (fumigatus vs flavus) - CNV layer'),
+        (axes[1, 0], null_ind_pav, obs_ind_pav, p_ind_pav,
+            'c  Industrial (niger vs oryzae) - PAV layer'),
+        (axes[1, 1], null_ind_cnv, obs_ind_cnv, p_ind_cnv,
+            'd  Industrial (niger vs oryzae) - CNV layer'),
+    ]
+    for ax, nulls, obs, pval, title in panels:
+        if nulls.max() <= 0 and obs == 0:
+            ax.text(0.5, 0.5, 'No data\n(contrast inestimable)',
+                    ha='center', va='center', transform=ax.transAxes,
+                    fontsize=10, color='#888')
+            ax.set_xticks([]); ax.set_yticks([])
+        else:
+            ax.hist(nulls, bins=max(15, int(nulls.max() + 1)),
+                    color='#cccccc', edgecolor='white', alpha=0.85)
+            ax.axvline(obs, color='#d62728', linewidth=2.5,
+                       label=f'observed = {int(obs)}')
+            ax.axvline(_np.quantile(nulls, 0.95), color='#444',
+                       linestyle='--', linewidth=1.0, label='null 95%')
+            ax.set_xlabel('Cross-species OG overlap (random resampling)')
+            ax.set_ylabel('Permutation count')
+            ax.legend(frameon=False, fontsize=8)
+        ax.set_title(title + f'\n(null mean={nulls.mean():.1f}, p={pval:.3f}, n_perm={N_PERMS})',
+                     loc='left', fontsize=9, fontweight='bold')
+    fig.suptitle('Figure 3 (revised). Permutation null model -- per-layer, per-species sig sizes',
+                 fontsize=11, fontweight='bold', y=1.005)
+    _plt.tight_layout()
+    fig.savefig(os.path.join(str(NB3_RESULTS), 'convergence_null_model.png'),
+                dpi=200, bbox_inches='tight')
+    print('Saved: convergence_null_model.png')
+
+    return fig
+
+
+def compare_cazy_families(og_consensus, species_list, nb3_results, plot=False):
+    """CAZy family counts per species, written to cazy_family_comparison.csv.
+
+    ``plot=True`` also draws a heatmap of the top families.
+    """
+    SPECIES_LIST = species_list
+    NB3_RESULTS = Path(nb3_results)
+    fig = None
+
+    import collections, matplotlib.pyplot as _plt
+
+    cazy_rows = []
+    for sp in SPECIES_LIST:
+        if sp not in og_consensus or og_consensus[sp].empty:
+            continue
+        ogc = og_consensus[sp]
+        pclass_col = 'Pangenome_Class' if 'Pangenome_Class' in ogc.columns else None
+        cazy = ogc['CAZy'].dropna()
+        for og_idx, terms in cazy.items():
+            pclass = ogc.loc[og_idx, pclass_col] if pclass_col else 'Unknown'
+            for term in str(terms).split(';'):
+                term = term.strip()
+                if term and term != 'nan':
+                    cazy_rows.append({'species': sp, 'family': term,
+                                      'pangenome_class': pclass})
+    cazy_df = pd.DataFrame(cazy_rows)
+    cazy_pivot = cazy_df.groupby(['family', 'species']).size().unstack(fill_value=0)
+    cazy_pivot['total'] = cazy_pivot.sum(axis=1)
+    cazy_pivot = cazy_pivot.sort_values('total', ascending=False)
+    cazy_pivot.to_csv(os.path.join(str(NB3_RESULTS), 'cazy_family_comparison.csv'))
+    print(f'CAZy: {len(cazy_pivot)} families across {len(SPECIES_LIST)} species')
+
+    if plot:
+        # Heatmap of top 30
+        top_n = 30
+        top = cazy_pivot.drop(columns='total').head(top_n)
+        fig, ax = _plt.subplots(figsize=(8, max(8, top_n * 0.32)))
+        import numpy as _np
+        im = ax.imshow(top.values, aspect='auto', cmap='YlOrBr')
+        ax.set_yticks(range(len(top))); ax.set_yticklabels(top.index, fontsize=7)
+        ax.set_xticks(range(len(top.columns))); ax.set_xticklabels(
+            [f'A. {c}' for c in top.columns], rotation=45, ha='right')
+        for i in range(top.shape[0]):
+            for j in range(top.shape[1]):
+                ax.text(j, i, int(top.iloc[i, j]), ha='center', va='center',
+                        fontsize=6,
+                        color='white' if top.iloc[i, j] > top.values.max() / 2 else 'black')
+        _plt.colorbar(im, ax=ax, label='OGs in family')
+        ax.set_title(f'CAZy family OG counts (top {top_n} by total)',
+                     loc='left', fontweight='bold')
+        _plt.tight_layout()
+        fig.savefig(os.path.join(str(NB3_RESULTS), 'cazy_cross_species_comparison.png'),
+                    dpi=200, bbox_inches='tight')
+        print('Saved: cazy_cross_species_comparison.png')
+
+    return cazy_pivot, fig
+
+
+def compare_protease_families(og_consensus, species_list, nb3_results, plot=False):
+    """Protease family counts per species, written to protease_family_comparison.csv.
+
+    ``plot=True`` also draws a heatmap of the top families.
+    """
+    SPECIES_LIST = species_list
+    NB3_RESULTS = Path(nb3_results)
+    fig = None
+    prot_pivot = pd.DataFrame()
+    import matplotlib.pyplot as _plt
+
+    prot_rows = []
+    for sp in SPECIES_LIST:
+        if sp not in og_consensus or og_consensus[sp].empty:
+            continue
+        ogc = og_consensus[sp]
+        if 'is_protease' not in ogc.columns:
+            continue
+        proteases = ogc[ogc['is_protease'] == True]
+        for og_idx, fam in proteases['protease_families'].dropna().items():
+            pclass = ogc.loc[og_idx, 'Pangenome_Class'] if 'Pangenome_Class' in ogc.columns else 'Unknown'
+            for f in str(fam).split(';'):
+                f = f.strip()
+                if f and f != 'nan':
+                    prot_rows.append({'species': sp, 'family': f, 'pangenome_class': pclass})
+        n_total = len(proteases)
+        print(f'  {sp}: {n_total} protease OGs')
+    prot_df = pd.DataFrame(prot_rows)
+    if prot_df.empty:
+        print('No protease annotations available.')
+    else:
+        prot_pivot = prot_df.groupby(['family', 'species']).size().unstack(fill_value=0)
+        prot_pivot['total'] = prot_pivot.sum(axis=1)
+        prot_pivot = prot_pivot.sort_values('total', ascending=False)
+        prot_pivot.to_csv(os.path.join(str(NB3_RESULTS), 'protease_family_comparison.csv'))
+        if plot:
+            top_n = 25
+            top = prot_pivot.drop(columns='total').head(top_n)
+            fig, ax = _plt.subplots(figsize=(8, max(6, top_n * 0.3)))
+            im = ax.imshow(top.values, aspect='auto', cmap='Blues')
+            ax.set_yticks(range(len(top))); ax.set_yticklabels(top.index, fontsize=7)
+            ax.set_xticks(range(len(top.columns))); ax.set_xticklabels(
+                [f'A. {c}' for c in top.columns], rotation=45, ha='right')
+            for i in range(top.shape[0]):
+                for j in range(top.shape[1]):
+                    ax.text(j, i, int(top.iloc[i, j]), ha='center', va='center', fontsize=6,
+                            color='white' if top.iloc[i, j] > top.values.max() / 2 else 'black')
+            _plt.colorbar(im, ax=ax, label='Protease OGs in family')
+            ax.set_title(f'Protease family OG counts (top {top_n} by total)',
+                         loc='left', fontweight='bold')
+            _plt.tight_layout()
+            fig.savefig(os.path.join(str(NB3_RESULTS), 'protease_cross_species_comparison.png'),
+                        dpi=200, bbox_inches='tight')
+            print('Saved: protease_cross_species_comparison.png and protease_family_comparison.csv')
+
+    return prot_pivot, fig
+
+
+def compare_secretomes(og_consensus, species_list, nb3_results, plot=False):
+    """Predicted secretome size and pangenome class split per species.
+
+    Written to secretome_comparison.csv. ``plot=True`` also draws a bar chart.
+    """
+    SPECIES_LIST = species_list
+    NB3_RESULTS = Path(nb3_results)
+    fig = None
+    import matplotlib.pyplot as _plt
+
+    import numpy as _np
+    secretome_rows = []
+    for sp in SPECIES_LIST:
+        if sp not in og_consensus or og_consensus[sp].empty:
+            continue
+        ogc = og_consensus[sp]
+        n_total = len(ogc)
+        n_secreted = int(ogc['is_secreted_signalp'].fillna(False).astype(bool).sum()) \
+            if 'is_secreted_signalp' in ogc.columns else 0
+        n_secreted_GO = int(ogc['has_secretion_GO'].fillna(False).astype(bool).sum()) \
+            if 'has_secretion_GO' in ogc.columns else 0
+        pclass_breakdown = {}
+        if 'Pangenome_Class' in ogc.columns and 'is_secreted_signalp' in ogc.columns:
+            sub = ogc[ogc['is_secreted_signalp'].fillna(False).astype(bool)]
+            pclass_breakdown = sub['Pangenome_Class'].value_counts().to_dict()
+        secretome_rows.append({
+            'species': sp, 'n_total_OGs': n_total,
+            'n_secreted_signalp': n_secreted,
+            'pct_secreted_signalp': 100.0 * n_secreted / max(1, n_total),
+            'n_secretion_GO': n_secreted_GO,
+            'n_secreted_in_Core': pclass_breakdown.get('Core', 0),
+            'n_secreted_in_Accessory': pclass_breakdown.get('Accessory', 0),
+            'n_secreted_in_Rare': pclass_breakdown.get('Rare', 0),
+        })
+    secretome_df = pd.DataFrame(secretome_rows)
+    if secretome_df.empty:
+        print('No secretome annotations available; skipping.')
+    else:
+        secretome_df.to_csv(os.path.join(str(NB3_RESULTS), 'secretome_comparison.csv'),
+                            index=False)
+        if plot:
+            fig, axes = _plt.subplots(1, 2, figsize=(11, 4.5))
+            sp_lbls = [f'A. {s}' for s in secretome_df['species']]
+            axes[0].bar(sp_lbls, secretome_df['n_secreted_signalp'],
+                        color=['#d62728', '#ff7f0e', '#2ca02c', '#1f77b4'])
+            for i, v in enumerate(secretome_df['n_secreted_signalp']):
+                axes[0].text(i, v + 5, str(int(v)), ha='center', fontweight='bold', fontsize=9)
+            axes[0].set_title('a  Secretome size (SignalP-positive OGs)',
+                              loc='left', fontweight='bold')
+            axes[0].set_ylabel('Secreted OGs')
+            bottom = _np.zeros(len(secretome_df))
+            for cls, color in [('Core', '#4c72b0'),
+                               ('Accessory', '#dd8452'),
+                               ('Rare', '#c44e52')]:
+                vals = secretome_df[f'n_secreted_in_{cls}'].values
+                axes[1].bar(sp_lbls, vals, bottom=bottom, label=cls, color=color)
+                bottom += vals
+            axes[1].set_title('b  Secretome by pangenome class',
+                              loc='left', fontweight='bold')
+            axes[1].set_ylabel('Secreted OGs'); axes[1].legend(frameon=False)
+            _plt.suptitle('Cross-species secretome comparison', fontweight='bold')
+            _plt.tight_layout()
+            fig.savefig(os.path.join(str(NB3_RESULTS),
+                                      'secretome_cross_species_comparison.png'),
+                        dpi=200, bbox_inches='tight')
+            print('Saved: secretome_cross_species_comparison.png and secretome_comparison.csv')
+
+    return secretome_df, fig
+
+
+def run_functional_convergence(og_consensus, nb2_results, nb3_results, func_conv_n_perm=1000,
+                               functional_layers=None):
+    """Jaccard overlap of each species pair's enriched annotation terms, against a
+    permutation null, per annotation layer and contrast.
+    """
+    FUNC_CONV_N_PERM = func_conv_n_perm
+    FUNCTIONAL_LAYERS = functional_layers if functional_layers is not None else [
+        'COG_category', 'PFAMs', 'CAZy', 'KEGG_ko', 'KEGG_Pathway',
+        'KEGG_TC', 'GOs', 'interpro_IPR', 'EC', 'dbcan_Substrate']
+    NB2_RESULTS = Path(nb2_results)
+    NB3_RESULTS = Path(nb3_results)
+
+    import glob, time
+    from statsmodels.stats.multitest import multipletests as _mt
+
+
+    def _precompute_og_to_terms(og_consensus, layers):
+        """Build OG -> {term} per layer, dropping uninformative annotations
+        (COG-S/R, Pfam DUFs, GO root nodes, EC -.-.-.-) so they are excluded from
+        Jaccard set construction."""
+        from funpan_utils import is_informative_term as _info
+        out = {}
+        for layer in layers:
+            if layer not in og_consensus.columns:
+                continue
+            out[layer] = {}
+            for _, row in og_consensus.iterrows():
+                v = row.get(layer)
+                if pd.isna(v):
+                    continue
+                terms = {t.strip() for t in str(v).split(';')
+                         if t.strip() and t.strip() != 'nan'}
+                terms = {t for t in terms if _info(layer, t)}
+                if terms:
+                    out[layer][row['Orthogroup']] = terms
+        return out
+
+    def _terms_for_og_set(og_set, og_to_terms_layer):
+        out = set()
+        for og in og_set:
+            ts = og_to_terms_layer.get(og)
+            if ts:
+                out |= ts
+        return out
+
+    def _jaccard(a, b):
+        if not a and not b:
+            return 0.0
+        union = a | b
+        return len(a & b) / len(union) if union else 0.0
+
+    def _get_sig_and_bg_ogs(species, contrast, layers=('pav', 'cnv')):
+        sig, bg = set(), set()
+        for layer in layers:
+            fp = f'{NB2_RESULTS}/{species}/pangwas_results/{layer}_assoc_{contrast}.tsv'
+            if not glob.glob(fp):
+                continue
+            df = pd.read_csv(fp, sep='\t')
+            if 'feature' not in df.columns:
+                continue
+            bg.update(df['feature'].astype(str).tolist())
+            if 'significant' in df.columns:
+                sig.update(df.loc[df['significant'], 'feature'].astype(str).tolist())
+        return sig, bg
+
+    def _functional_convergence_pair(sp1, sp2, contrast, layers,
+                                     n_perm=FUNC_CONV_N_PERM, seed=42):
+        sig1, bg1 = _get_sig_and_bg_ogs(sp1, contrast)
+        sig2, bg2 = _get_sig_and_bg_ogs(sp2, contrast)
+        print(f'\n  {sp1} vs {sp2} | {contrast}: '
+              f'{len(sig1)} vs {len(sig2)} sig OGs')
+        if len(sig1) == 0 or len(sig2) == 0:
+            print('    -> NOT TESTABLE (one species has 0 sig OGs)')
+            return None
+        o2t1 = _precompute_og_to_terms(og_consensus[sp1], layers)
+        o2t2 = _precompute_og_to_terms(og_consensus[sp2], layers)
+        bg1_arr = _np.array(sorted(bg1))
+        bg2_arr = _np.array(sorted(bg2))
+        rows = []
+        for layer in layers:
+            if layer not in o2t1 or layer not in o2t2:
+                continue
+            sig1_terms = _terms_for_og_set(sig1, o2t1[layer])
+            sig2_terms = _terms_for_og_set(sig2, o2t2[layer])
+            observed_J = _jaccard(sig1_terms, sig2_terms)
+            observed_shared = sig1_terms & sig2_terms
+            n1 = min(len(sig1), len(bg1_arr)); n2 = min(len(sig2), len(bg2_arr))
+            rng_layer = _np.random.default_rng(seed + (hash(layer) % 10000))
+            null_J = _np.zeros(n_perm)
+            for k in range(n_perm):
+                s1_rand = set(rng_layer.choice(bg1_arr, size=n1, replace=False))
+                s2_rand = set(rng_layer.choice(bg2_arr, size=n2, replace=False))
+                t1 = _terms_for_og_set(s1_rand, o2t1[layer])
+                t2 = _terms_for_og_set(s2_rand, o2t2[layer])
+                null_J[k] = _jaccard(t1, t2)
+            p = float((null_J >= observed_J).sum()) / max(1, len(null_J))
+            rows.append({
+                'sp1': sp1, 'sp2': sp2, 'contrast': contrast, 'layer': layer,
+                'n_sig_sp1': len(sig1), 'n_sig_sp2': len(sig2),
+                'n_terms_sp1_sig': len(sig1_terms),
+                'n_terms_sp2_sig': len(sig2_terms),
+                'n_shared_terms': len(observed_shared),
+                'observed_jaccard': observed_J,
+                'null_mean_jaccard': float(null_J.mean()),
+                'null_q95_jaccard': float(_np.quantile(null_J, 0.95)),
+                'p_value': p,
+                'shared_terms': ';'.join(sorted(observed_shared)[:30]),
+            })
+        df = pd.DataFrame(rows)
+        return df
+
+    # --- Run for all testable contrasts ---
+    _pairs = [
+        ('fumigatus','flavus','human_pathogenic_vs_rest'),
+        ('fumigatus','flavus','environmental_vs_rest'),
+        ('niger','oryzae','industrial_trait_vs_rest'),
+        ('niger','oryzae','environmental_vs_rest'),
+        ('flavus','niger','environmental_vs_rest'),
+    ]
+    import numpy as _np
+    _t0 = time.time()
+    _results = []
+    for sp1, sp2, contrast in _pairs:
+        res = _functional_convergence_pair(sp1, sp2, contrast, FUNCTIONAL_LAYERS)
+        if res is not None and len(res):
+            _results.append(res)
+    _elapsed = time.time() - _t0
+    print(f'\n  Completed {len(_results)} pair x contrast in {_elapsed:.0f}s')
+
+    if _results:
+        func_conv_df = pd.concat(_results, ignore_index=True)
+        func_conv_df['q_value'] = 1.0
+        for (sp1, sp2, c), grp in func_conv_df.groupby(['sp1', 'sp2', 'contrast']):
+            func_conv_df.loc[grp.index, 'q_value'] = _mt(grp['p_value'], method='fdr_bh')[1]
+        func_conv_df['significant'] = func_conv_df['q_value'] < 0.05
+        func_conv_df.to_csv(os.path.join(str(NB3_RESULTS),
+                                         'functional_convergence_results.csv'),
+                            index=False)
+        print(f'\n  Saved: NB3_Results/functional_convergence_results.csv')
+        n_sig = int(func_conv_df['significant'].sum())
+        print(f'\n  Significant functional convergence (q<0.05 per pair/contrast): {n_sig}')
+        if n_sig:
+            print(func_conv_df[func_conv_df['significant']][
+                ['sp1','sp2','contrast','layer','n_shared_terms',
+                 'observed_jaccard','null_mean_jaccard','p_value','q_value',
+                 'shared_terms']].to_string(index=False))
+        else:
+            print('\n  Top 5 trends by p_value (none survive FDR):')
+            print(func_conv_df.sort_values('p_value').head(5)[
+                ['sp1','sp2','contrast','layer','n_shared_terms',
+                 'observed_jaccard','null_mean_jaccard','p_value']].to_string(index=False))
+    else:
+        print('\n  All pairs have at least one species with 0 sig OGs; functional convergence not testable.')
+
+    return func_conv_df, _results
+
+
+def plot_functional_convergence_jaccard(func_conv_df, nb3_results):
+    """Observed against null Jaccard per species pair and contrast.
+    """
+    NB3_RESULTS = Path(nb3_results)
+    _results = func_conv_df is not None and len(func_conv_df) > 0
+    fig = None
+    import numpy as _np
+
+    if _results:
+        import matplotlib.pyplot as _plt
+        pairs_with_data = func_conv_df.groupby(['sp1','sp2','contrast']).size().index.tolist()
+        n_panels = len(pairs_with_data)
+        if n_panels:
+            ncols = 2; nrows = (n_panels + ncols - 1) // ncols
+            fig, axes = _plt.subplots(nrows, ncols, figsize=(13, 3.5 * nrows),
+                                      squeeze=False)
+            for ax, (sp1, sp2, c) in zip(axes.flatten(), pairs_with_data):
+                sub = func_conv_df[(func_conv_df['sp1']==sp1) &
+                                    (func_conv_df['sp2']==sp2) &
+                                    (func_conv_df['contrast']==c)].copy()
+                x = _np.arange(len(sub))
+                ax.bar(x - 0.18, sub['null_mean_jaccard'], width=0.36,
+                       color='#cccccc', edgecolor='white', label='Null mean Jaccard')
+                ax.bar(x + 0.18, sub['observed_jaccard'], width=0.36,
+                       color=['#d62728' if s else '#1f77b4' for s in sub['significant']],
+                       edgecolor='white', label='Observed Jaccard')
+                ax.set_xticks(x)
+                ax.set_xticklabels(sub['layer'], rotation=45, ha='right', fontsize=7)
+                ax.set_ylabel('Jaccard similarity')
+                ax.set_title(f'{sp1} vs {sp2}  |  {c}', loc='left',
+                             fontsize=9, fontweight='bold')
+                for xi, q in zip(x, sub['q_value']):
+                    if q < 0.05:
+                        ax.text(xi, sub['observed_jaccard'].iloc[xi] + 0.01,
+                                f'q={q:.2f}', fontsize=7, ha='center')
+                ax.legend(frameon=False, fontsize=7)
+            # Hide unused panels
+            for ax in axes.flatten()[n_panels:]:
+                ax.axis('off')
+            fig.suptitle('Functional convergence: observed vs null Jaccard per layer',
+                         fontsize=11, fontweight='bold', y=1.005)
+            _plt.tight_layout()
+            fig.savefig(os.path.join(str(NB3_RESULTS),
+                                     'functional_convergence.png'),
+                        dpi=200, bbox_inches='tight')
+            print('Saved: NB3_Results/functional_convergence.png')
+    else:
+        print('No functional convergence data to plot.')
+
+    return fig
+
+
+def plot_convergence_pies(nb3_results, fs_cs=15, dpi_cs=400, fig_w_per_pie_cs=6.5, fig_h_cs=5.6):
+    """Concordant up, concordant down and discordant shares as pie charts.
+    """
+    FS_CS = fs_cs
+    DPI_CS = dpi_cs
+    FIG_W_PER_PIE_CS = fig_w_per_pie_cs
+    FIG_H_CS = fig_h_cs
+    NB3_RESULTS = Path(nb3_results)
+    fig = None
+
+
+    import numpy as np
+    import pandas as pd
+    import matplotlib.pyplot as plt
+    import funpan_utils as fpu
+
+    _panels = [
+        ('PAV (pathogenic: fumigatus vs flavus)',
+         NB3_RESULTS / 'convergence' / 'pathogenic_method3_pav_convergence.csv'),
+        ('CNV (pathogenic: fumigatus vs flavus)',
+         NB3_RESULTS / 'convergence' / 'pathogenic_method3_cnv_convergence.csv'),
+    ]
+    _panels = [(t, p) for t, p in _panels if p.exists()]
+    if not _panels:
+        print('No per-OG convergence CSVs in NB3_Results/convergence/')
+    else:
+        fig, axes = plt.subplots(1, len(_panels),
+                                 figsize=(FIG_W_PER_PIE_CS * len(_panels), FIG_H_CS),
+                                 squeeze=False)
+        for ax, (title, path) in zip(axes.ravel(), _panels):
+            df = pd.read_csv(path)
+            sig = df[df['category'].isin(['CONVERGENT', 'DISCORDANT'])].copy()
+            conv = sig[sig['category'] == 'CONVERGENT']
+            disc = sig[sig['category'] == 'DISCORDANT']
+            up_up   = ((conv['fumigatus_beta'] > 0) & (conv['flavus_beta'] > 0)).sum()
+            dn_dn   = ((conv['fumigatus_beta'] < 0) & (conv['flavus_beta'] < 0)).sum()
+            disc_n  = len(disc)
+            n_total = up_up + dn_dn + disc_n
+            sizes  = [up_up, dn_dn, disc_n]
+            labels = [f'Concordant UP\n(both β > 0)\nn = {up_up:,}',
+                      f'Concordant DOWN\n(both β < 0)\nn = {dn_dn:,}',
+                      f'Discordant\n(opposite β)\nn = {disc_n:,}']
+            colors = ['#2ca02c', '#1f4e79', '#c0392b']
+
+            wedges, _txt, autotxts = ax.pie(
+                sizes, labels=labels, colors=colors,
+                autopct=lambda p: f'{p:.1f}%' if p >= 1 else '',
+                startangle=90,
+                wedgeprops=dict(linewidth=1.0, edgecolor='white'),
+                textprops=dict(fontsize=FS_CS - 1,))# fontweight='bold'))
+            for t in autotxts:
+                t.set_color('white'); t.set_fontsize(FS_CS); t.set_fontweight('bold')
+
+            pct_conv = 100 * (up_up + dn_dn) / max(n_total, 1)
+            ax.set_title(
+                f"{title}\n"
+                f"tested in both = {n_total:,}, concordant = "
+                f"{up_up + dn_dn:,} ({pct_conv:.1f}%)",
+                fontsize=FS_CS, pad=4)
+            ax.set_aspect('equal')
+
+        fig.suptitle('Cross-species Directional Convergence',
+                     fontsize=FS_CS + 3, fontweight='bold', y=0.99)
+        plt.tight_layout(rect=[0, 0, 1, 0.96])
+        out_png = NB3_RESULTS / 'convergence_summary_combined.png'
+        fig.savefig(out_png, dpi=DPI_CS, bbox_inches='tight')
+        print(f'Saved: {out_png}')
+
+    return fig
+
+
+def plot_family_comparison_combined(nb3_results, fs_fam=20, dpi_fam=400, top_n_cazy=10, top_n_prot=10, fig_w_fam=12.0, fig_h_fam=8.0, species=SPECIES_LIST):
+    """Top CAZy and protease families per species, as two heatmaps.
+    """
+    FS_FAM = fs_fam
+    DPI_FAM = dpi_fam
+    TOP_N_CAZY = top_n_cazy
+    TOP_N_PROT = top_n_prot
+    FIG_W_FAM = fig_w_fam
+    FIG_H_FAM = fig_h_fam
+    SPECIES = species
+    NB3_RESULTS = Path(nb3_results)
+    fig = None
+
+
+    import funpan_utils as fpu
+
+    cazy_path = NB3_RESULTS / 'cazy_family_comparison.csv'
+    prot_path = NB3_RESULTS / 'protease_family_comparison.csv'
+    if not (cazy_path.exists() and prot_path.exists()):
+        print('CAZy or protease comparison CSV missing.')
+    else:
+        cazy = (pd.read_csv(cazy_path)
+                  .sort_values('total', ascending=False).head(TOP_N_CAZY))
+        prot = (pd.read_csv(prot_path)
+                  .sort_values('total', ascending=False).head(TOP_N_PROT))
+
+        fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(FIG_W_FAM, FIG_H_FAM))
+
+        def _heat(ax, df, title):
+            M = df[SPECIES].values
+            im = ax.imshow(M, aspect='auto', cmap='YlOrRd')
+            ax.set_xticks(np.arange(len(SPECIES)))
+            ax.set_xticklabels([f"A. {s}" for s in SPECIES],
+                               fontsize=FS_FAM - 1, rotation=20, ha='right')
+            ax.set_yticks(np.arange(len(df)))
+            ax.set_yticklabels(df['family'], fontsize=FS_FAM - 2)
+            ax.set_title(title, fontsize=FS_FAM + 1, fontweight='bold')
+            # Remove any inner gridlines / minor ticks that would slash through annotations
+            ax.grid(False)
+            ax.tick_params(which='both', length=0)
+            ax.set_xticks(np.arange(M.shape[1] + 1) - 0.5, minor=True)
+            ax.set_yticks(np.arange(M.shape[0] + 1) - 0.5, minor=True)
+            ax.tick_params(which='minor', length=0)
+            for spine in ('top', 'right', 'left', 'bottom'):
+                ax.spines[spine].set_visible(False)
+            vmax = M.max() if M.size else 1
+            for i in range(M.shape[0]):
+                for j in range(M.shape[1]):
+                    v = M[i, j]
+                    ax.text(j, i, f'{int(v)}',
+                            ha='center', va='center',
+                            fontsize=FS_FAM - 2, #fontweight='bold',
+                            color='white' if v > vmax * 0.55 else '#222')
+            cb = plt.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
+            cb.ax.tick_params(labelsize=FS_FAM - 3)
+            cb.set_label('Genes / species', fontsize=FS_FAM - 2)
+        _heat(ax1, cazy, f'CAZy families (top {len(cazy)})')
+        _heat(ax2, prot, f'Protease families (top {len(prot)})')
+        plt.tight_layout()
+        out_png = NB3_RESULTS / 'family_comparison_combined.png'
+        fig.savefig(out_png, dpi=DPI_FAM, bbox_inches='tight')
+        print(f'Saved: {out_png}')
+
+    return fig
+
+
+def plot_secretome_stacked(nb3_results, fs_sec=18, dpi_sec=400, fig_w_sec=5.5, fig_h_sec=7.5, core_c='#3b8a86', acc_c='#d6a14a', rare_c='#a85d7a', species=SPECIES_LIST):
+    """Secretome size per species, split by pangenome class.
+    """
+    FS_SEC = fs_sec
+    DPI_SEC = dpi_sec
+    FIG_W_SEC = fig_w_sec
+    FIG_H_SEC = fig_h_sec
+    CORE_C = core_c
+    ACC_C = acc_c
+    RARE_C = rare_c
+    SPECIES = species
+    NB3_RESULTS = Path(nb3_results)
+    fig = None
+
+
+    import funpan_utils as fpu
+
+    _path = NB3_RESULTS / 'secretome_comparison.csv'
+    if not _path.exists():
+        print(f'No secretome CSV at {_path}.')
+    else:
+        sec = pd.read_csv(_path).set_index('species').reindex(SPECIES).reset_index()
+        core_v = sec['n_secreted_in_Core'].values.astype(int)
+        acc_v  = sec['n_secreted_in_Accessory'].values.astype(int)
+        rare_v = sec['n_secreted_in_Rare'].values.astype(int)
+        tot    = core_v + acc_v + rare_v
+
+        x = np.arange(len(SPECIES))
+        fig, ax = plt.subplots(figsize=(FIG_W_SEC, FIG_H_SEC))
+        ax.bar(x, core_v, color=CORE_C, edgecolor='white', linewidth=0.8, label='Core')
+        ax.bar(x, acc_v,  bottom=core_v, color=ACC_C, edgecolor='white', linewidth=0.8,
+               label='Accessory')
+        ax.bar(x, rare_v, bottom=core_v + acc_v, color=RARE_C, edgecolor='white',
+               linewidth=0.8, label='Rare')
+
+        ymax = tot.max()
+        for i in range(len(SPECIES)):
+            t = int(tot[i])
+            # Inline labels for Core / Accessory (always wide enough vertically)
+            for centre, val in [(core_v[i] / 2,             core_v[i]),
+                                (core_v[i] + acc_v[i] / 2,  acc_v[i])]:
+                pct = 100 * val / t if t else 0
+                ax.text(i, centre, f'{int(val):,}\n({pct:.1f}%)',
+                        ha='center', va='center',
+                        fontsize=FS_SEC - 3, color='white')
+            # Rare segment is too thin to label inline -> count + percent above bar
+            r = int(rare_v[i]); rpct = 100 * r / t if t else 0
+            ax.text(i, t + ymax * 0.015, f'{r:,} ({rpct:.1f}%)',
+                    ha='center', va='bottom',
+                    fontsize=FS_SEC - 3, color=RARE_C)
+
+        ax.set_xticks(x)
+        ax.set_xticklabels([f"A. {s}\nn = {int(t):,}"
+                            for s, t in zip(SPECIES, tot)],
+                           fontsize=FS_SEC - 2,
+                           rotation=40, ha='right', rotation_mode='anchor')
+        ax.set_ylabel('Number of secreted orthogroups', fontsize=FS_SEC)
+        ax.set_ylim(0, ymax * 1.13)
+        ax.tick_params(axis='y', labelsize=FS_SEC - 3)
+        ax.set_title('Secretome Composition',
+                     fontsize=FS_SEC + 1, fontweight='bold')
+        ax.legend(loc='lower right', fontsize=FS_SEC - 3, frameon=True, framealpha=0.95)
+        ax.grid(True, axis='y', linestyle=':', alpha=0.5)
+        for s in ('top', 'right'):
+            ax.spines[s].set_visible(False)
+        plt.tight_layout()
+
+        out_png = NB3_RESULTS / 'secretome_combined.png'
+        fig.savefig(out_png, dpi=DPI_SEC, bbox_inches='tight')
+        print(f'Saved: {out_png}')
+
+    return fig
+
+
+def plot_functional_null_result(nb3_results, fs_fc=15, dpi_fc=400, fig_w_fc=13.0, fig_h_fc=6.0, q_threshold_fc=0.05, sp1_fc='fumigatus', sp2_fc='flavus', contrast_fc='human_pathogenic_vs_rest'):
+    """Observed against null Jaccard per annotation layer, with the q-value per layer.
+    """
+    FS_FC = fs_fc
+    DPI_FC = dpi_fc
+    FIG_W_FC = fig_w_fc
+    FIG_H_FC = fig_h_fc
+    Q_THRESHOLD_FC = q_threshold_fc
+    SP1_FC = sp1_fc
+    SP2_FC = sp2_fc
+    CONTRAST_FC = contrast_fc
+    NB3_RESULTS = Path(nb3_results)
+    fig = None
+
+
+    import funpan_utils as fpu
+
+    # Focal contrast for this panel (used only if the results file holds several)
+
+    _path = NB3_RESULTS / 'functional_convergence_results_FILTERED.csv'
+    if not _path.exists():
+        _path = NB3_RESULTS / 'functional_convergence_results.csv'   # current results
+    if not _path.exists():
+        print(f'No functional convergence results at {_path}.')
+    else:
+        fc = pd.read_csv(_path)
+        if {'sp1', 'sp2', 'contrast'} <= set(fc.columns):
+            fc = fc[(fc['sp1'] == SP1_FC) & (fc['sp2'] == SP2_FC) & (fc['contrast'] == CONTRAST_FC)]
+            print(f'{SP1_FC} x {SP2_FC} | {CONTRAST_FC}: {len(fc)} annotation layers')
+        # Sort by observed jaccard so the visually strongest layers go first
+        fc = fc.sort_values('observed_jaccard', ascending=False).reset_index(drop=True)
+
+        fig, ax = plt.subplots(figsize=(FIG_W_FC, FIG_H_FC))
+        x = np.arange(len(fc))
+        w = 0.36
+
+        # Color the observed bars by whether obs > null (trending convergent) or not
+        obs_colors = ['#27ae60' if o > n else '#7f8c8d'
+                      for o, n in zip(fc['observed_jaccard'], fc['null_mean_jaccard'])]
+        ax.bar(x - w/2, fc['observed_jaccard'], width=w, color=obs_colors,
+               edgecolor='white', linewidth=0.6,
+               label='Observed Jaccard\n(green = obs > null trend; grey = below)')
+        ax.bar(x + w/2, fc['null_mean_jaccard'], width=w, color='#bdc3c7',
+               edgecolor='white', linewidth=0.6,
+               label='Null mean (1000 permutations)')
+
+        # Per-layer q-value annotation above the higher of the two bars
+        y_room = max(fc[['observed_jaccard', 'null_mean_jaccard']].max().max() * 1.45, 0.1)
+        for i, row in fc.iterrows():
+            tip = max(row['observed_jaccard'], row['null_mean_jaccard'])
+            sig = bool(row['significant'])
+            q   = row['q_value']
+            col = '#c0392b' if sig else '#666'
+            marker = '★' if sig else 'ns'
+            ax.text(i, tip + y_room * 0.04,
+                    f"q = {q:.2f}\n{marker}",
+                    ha='center', va='bottom',
+                    fontsize=FS_FC - 4, color=col, fontweight='bold')
+
+        ax.set_xticks(x)
+        ax.set_xticklabels(fc['layer'], rotation=20, ha='right',
+                           fontsize=FS_FC - 2)
+        ax.set_ylabel('Jaccard index', fontsize=FS_FC)
+        ax.set_ylim(0, y_room)
+        n_sig    = int(fc['significant'].sum())
+        n_total  = len(fc)
+        n_trend  = int((fc['observed_jaccard'] > fc['null_mean_jaccard']).sum())
+        ax.set_title('Cross-species functional convergence\n'
+                     'A. fumigatus × A. flavus, human-pathogenic vs rest',
+                     fontsize=FS_FC + 1, fontweight='bold')
+
+        ax.legend(loc='upper left', fontsize=FS_FC - 3, frameon=True, framealpha=0.95)
+        ax.tick_params(axis='y', labelsize=FS_FC - 2)
+        ax.grid(True, axis='y', linestyle=':', alpha=0.5)
+        plt.tight_layout()
+        out_png = NB3_RESULTS / 'functional_convergence_combined.png'
+        fig.savefig(out_png, dpi=DPI_FC, bbox_inches='tight')
+        print(f'Saved: {out_png}')
+
+    return fig
+
+
+def load_combined_orthofinder(genecount_path, og_tsv_path, species_list,
+                              ani_excluded=None):
+    """Load the combined OrthoFinder run and restrict it to the analysed genomes.
+
+    The combined run predates ANI and contamination QC, so excluded genomes are
+    still present as columns and are dropped after loading.
+
+    Returns
+    -------
+    combined_genecount, combined_og_long, genome_mapping
+    """
+    if ani_excluded is None:
+        ani_excluded = ANI_EXCLUDED
+    excl = set().union(*ani_excluded.values())
+
+    print('Loading combined OrthoFinder gene count matrix...')
+    combined_genecount = load_combined_orthogroups_genecount(str(genecount_path))
+    print(f'  Gene count matrix: {combined_genecount.shape}')
+
+    print('\nLoading combined OrthoFinder long format...')
+    combined_og_long = load_combined_orthogroups_long(str(og_tsv_path))
+    print(f'  Long format: {combined_og_long.shape}')
+    print(f'  Unique orthogroups: {combined_og_long["Orthogroup"].nunique()}')
+    print(f'  Unique species: {combined_og_long["Species"].nunique()}')
+
+    dropped = [c for c in combined_genecount.columns if any(a in str(c) for a in excl)]
+    combined_genecount = combined_genecount[
+        [c for c in combined_genecount.columns if c not in dropped]]
+    combined_og_long = combined_og_long[
+        ~combined_og_long['Assembly_Accession'].astype(str).apply(
+            lambda a: any(x in a for x in excl))]
+    print(f'  Dropped {len(dropped)} excluded genome column(s): {dropped}')
+
+    genome_mapping = build_genome_species_mapping(combined_genecount)
+    print(f'\nGenome-species mapping: {len(genome_mapping)} genomes')
+    for sp in species_list:
+        n = sum(1 for v in genome_mapping.values() if v == sp)
+        print(f'  {sp}: {n} genomes')
+    return combined_genecount, combined_og_long, genome_mapping
+
+
+def load_og_consensus_filtered(species_list, nb1_results, species_root,
+                               ani_excluded=None):
+    """Load per-species orthogroup annotations, without contaminant-private rows.
+
+    ``{sp}_og_consensus.tsv`` comes from the full OrthoFinder run, so it carries
+    orthogroups whose only member proteins sit on an excluded genome. Dropping a
+    genome column cannot remove those rows, so they are filtered here.
+
+    Returns
+    -------
+    dict
+        ``{species: DataFrame}``.
+    """
+    import glob as _glob
+
+    if ani_excluded is None:
+        ani_excluded = ANI_EXCLUDED
+    excl = set().union(*ani_excluded.values())
+
+    og_consensus = load_og_consensus_annotations(species_list, nb1_results)
+    for sp in species_list:
+        if sp not in og_consensus or og_consensus[sp].empty:
+            continue
+        priv = set()
+        pattern = f'{species_root}/{sp}/orthofinder_output/*/Orthogroups/'
+        for f in _glob.glob(pattern + 'Orthogroups.tsv') + \
+                 _glob.glob(pattern + 'Orthogroups_UnassignedGenes.tsv'):
+            with open(f) as fh:
+                hdr = fh.readline().rstrip('\n').split('\t')
+                ex = {i for i, h in enumerate(hdr) if any(a in h for a in excl)}
+                if not ex:
+                    continue
+                for line in fh:
+                    row = line.rstrip('\n').split('\t')
+                    present = [i for i in range(1, len(row)) if row[i].strip()]
+                    if present and all(i in ex for i in present):
+                        priv.add(row[0])
+        if priv:
+            df = og_consensus[sp]
+            og_consensus[sp] = df[~df['Orthogroup'].isin(priv)].copy()
+            print(f'{sp}: dropped {len(priv)} contaminant-private OGs from og_consensus')
+    return og_consensus
+
+
+def nb3_preflight(species_list, species_root, nb0_results, nb1_results,
+                  nb2_results, nb3_results, combined_of_dir, verbose=True):
+    """Check NB3's inputs exist and create the output directories.
+
+    Looks for the combined OrthoFinder run, NB0's phenotype table, and per
+    species the NB1 annotation table and the NB2 association results. Nothing is
+    computed or written beyond directories.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per species with a boolean per required input.
+    """
+    import glob as _glob
+
+    nb3_results = Path(nb3_results)
+    (nb3_results / 'convergence').mkdir(parents=True, exist_ok=True)
+
+    rows = []
+    for sp in species_list:
+        rows.append({
+            'species': sp,
+            'og_consensus': (Path(nb1_results) / sp / f'{sp}_og_consensus.tsv').exists(),
+            'orthofinder': bool(_glob.glob(f'{species_root}/{sp}/orthofinder_output/*/Orthogroups/Orthogroups.tsv')),
+            'gwas_results': bool(_glob.glob(f'{nb2_results}/{sp}/pangwas_results/*_assoc_*.tsv')),
+            'enrichment': (Path(nb2_results) / sp / f'{sp}_functional_enrichment.csv').exists(),
+        })
+    status = pd.DataFrame(rows).set_index('species')
+
+    combined = Path(combined_of_dir) / 'Orthogroups' / 'Orthogroups.tsv'
+    pheno = Path(nb0_results) / 'phenotype_classified_for_gwas.csv'
+    if verbose:
+        print('NB3 inputs')
+        print('=' * 60)
+        print(f'  combined OrthoFinder run: {"found" if combined.exists() else "MISSING"}')
+        print(f'  -> {combined}')
+        print(f'  NB0 phenotype table: {"found" if pheno.exists() else "MISSING, run NB0 first"}')
+        print()
+        print(status.replace({True: 'ok', False: 'MISSING'}).to_string())
+        missing = int((~status).sum().sum())
+        print()
+        if missing or not combined.exists() or not pheno.exists():
+            print(f'{missing} missing per-species input(s); run NB1 and NB2 first.')
+        else:
+            print('All inputs present.')
+    return status
+
+
+def print_nb3_summary(species_list, nb3_results):
+    """Print every NB3 output with its full path, and the convergence counts.
+
+    Returns
+    -------
+    counts : pd.DataFrame
+        Directional concordance per layer, empty if Method 3 has not run.
+    files : pd.DataFrame
+        Every expected output with its full path and whether it exists.
+    """
+    nb3_results = Path(nb3_results)
+    expected = [
+        'method3_projection_accounting.csv',
+        'method3_directional_concordance.csv',
+        'method3_merge_rule_sensitivity.csv',
+        'convergence/pathogenic_method3_pav_convergence.csv',
+        'convergence/pathogenic_method3_cnv_convergence.csv',
+        'cross_species_gcf_convergence.csv',
+        'permutation_null_model.csv',
+        'convergence_null_model.png',
+        'cazy_family_comparison.csv',
+        'protease_family_comparison.csv',
+        'secretome_comparison.csv',
+        'functional_convergence_results.csv',
+        'functional_convergence.png',
+        'convergence_summary_combined.png',
+        'family_comparison_combined.png',
+        'secretome_combined.png',
+        'functional_convergence_combined.png',
+    ]
+    rows = [{'path': str(nb3_results / n), 'exists': (nb3_results / n).exists()}
+            for n in expected]
+    files = pd.DataFrame(rows)
+
+    conc = nb3_results / 'method3_directional_concordance.csv'
+    counts = pd.read_csv(conc) if conc.exists() else pd.DataFrame()
+    if not counts.empty:
+        keep = [c for c in ['layer', 'n_shared_tested', 'n_concordant', 'n_discordant',
+                            'pct_concordant', 'sign_test_p', 'spearman_rho', 'n_sig_both']
+                if c in counts.columns]
+        counts = counts[keep].set_index('layer')
+
+    print('=' * 70)
+    print('NB3 Cross-Species Convergence complete.')
+    print(f'All outputs saved to: {nb3_results}')
+    for _, r in files.iterrows():
+        print(f"  {' ' if r['exists'] else '!'} {r['path']}")
+    n_missing = int((~files['exists']).sum())
+    if n_missing:
+        print(f'\n  ! = missing ({n_missing} path(s))')
+    print('=' * 70)
+    print('\nDirectional concordance per layer:')
+    return counts, files

@@ -11,6 +11,7 @@ Extracted from Main_Analysis_Functions.py (lines 881+).
 
 from funpan_utils import *
 from funpan_utils import _split_multi_terms, _CAZY_FAM_RE, _MULTI_SEP_RE, _extract_cazy_families
+from collections import defaultdict
 
 # =============================================================================
 # ORTHOFINDER I/O FUNCTIONS (from functions_for_analysis_1_2.py)
@@ -89,59 +90,10 @@ def consensus_terms_for_og(df_og: pd.DataFrame, column: str,
     return filtered[0][0]
 
 
-def build_og_consensus_table(long_annot: pd.DataFrame, unknown_label: str = "Unannotated") -> pd.DataFrame:
-    """Build one consensus-annotation row per Orthogroup."""
-    og_groups = long_annot.groupby("Orthogroup", group_keys=False)
-
-    consensus_cols = []
-    combined_cols = ["Description", "GOs", "PFAMs", "CAZy", "EC"]
-    for c in combined_cols:
-        if c in long_annot.columns:
-            consensus_cols.append(c)
-
-    for c in EGGNOG_KEEP:
-        if c not in ["Description_EggNog", "GOs_EggNog", "PFAMs_EggNog", "CAZy_EggNog", "EC_EggNog"]:
-            if c in long_annot.columns:
-                consensus_cols.append(c)
-
-    for c in DBCAN_KEEP:
-        if c not in ["CAZy_dbCAN", "EC_dbCAN"]:
-            if c in long_annot.columns:
-                consensus_cols.append(c)
-
-    for c in INTERPRO_KEEP:
-        if c not in ["GOs_Interpro", "PFAMs_Interpro", "EC_Interpro", "Description_Interpro"]:
-            if c in long_annot.columns:
-                consensus_cols.append(c)
-
-    for c in SIGNALP_KEEP:
-        if c in long_annot.columns:
-            consensus_cols.append(c)
-
-    rows = []
-    for og, df_og in og_groups:
-        row = {"Orthogroup": og}
-        any_annotation = False
-
-        for col in consensus_cols:
-            cons = consensus_terms_for_og(df_og, col)
-            if cons:
-                any_annotation = True
-            row[f"Consensus_{col}"] = cons
-
-        if not any_annotation:
-            row["Consensus_Description"] = unknown_label
-
-        rows.append(row)
-
-    og_consensus = pd.DataFrame(rows)
-    return og_consensus
-
-
 def build_ortho_annot_table(base_dir: str, species_name: str, out_path: str) -> pd.DataFrame:
     """Build the *long* per-protein OrthoFinder + annotation table."""
     if os.path.isfile(out_path):
-        print(f"[i] Found existing {out_path} — loading long per-protein table.")
+        print(f"[i] Found existing {out_path}, loading long per-protein table.")
         df = pd.read_csv(out_path, sep="\t", dtype=str).fillna("")
         return df
 
@@ -410,22 +362,6 @@ def plot_gene_freq_hist(pav: pd.DataFrame, core_n: int, rare_n: int, ax=None, an
 # ENRICHMENT FUNCTIONS (from notebook cells 15, 16)
 # =============================================================================
 
-def _bh_fdr(pvals: np.ndarray) -> np.ndarray:
-    """Benjamini-Hochberg FDR (nan-safe)."""
-    p = np.asarray(pvals, dtype=float)
-    n = p.size
-    p_clean = np.where(np.isnan(p), 1.0, p)
-    order = np.argsort(p_clean)
-    q = np.empty_like(p_clean, dtype=float)
-    prev = 1.0
-    for i, idx in enumerate(order[::-1]):
-        rank = n - i
-        val = min(prev, p_clean[idx] * n / rank)
-        q[idx] = val
-        prev = val
-    q[np.isnan(p)] = np.nan
-    return q
-
 
 def build_og_consensus_with_pangenome(long_annot, pav, core_n, rare_n):
     """
@@ -666,15 +602,6 @@ def run_pangenome_enrichment_og(og_consensus: pd.DataFrame,
     return results
 
 
-def add_cog_descriptions(df: pd.DataFrame) -> pd.DataFrame:
-    """Add COG category descriptions to enrichment results."""
-    if df.empty:
-        return df
-    df = df.copy()
-    df["Description"] = df["Term"].map(COG_DESCRIPTIONS).fillna("Unknown")
-    return df
-
-
 def plot_enrichment_heatmap_single_species(enr_df: pd.DataFrame, title: str = "",
                                             max_terms: int = 25,
                                             figsize: tuple = (10, 10),
@@ -753,7 +680,7 @@ def plot_enrichment_heatmap_single_species(enr_df: pd.DataFrame, title: str = ""
 
     fig, ax = plt.subplots(figsize=figsize)
 
-    # Symmetric color scale — use the data's actual range so extremes don't get
+    # Symmetric color scale -- use the data's actual range so extremes don't get
     # clipped (the per-cell numeric annotation makes the exact value readable
     # regardless). Floor at 1 so a single weak hit still has visible colour.
     vmax = max(abs(matrix.min()), abs(matrix.max()))
@@ -797,89 +724,6 @@ def plot_enrichment_heatmap_single_species(enr_df: pd.DataFrame, title: str = ""
     plt.tight_layout()
 
 
-
-def plot_enrichment_bars_single_species(enr_df: pd.DataFrame, title: str = "",
-                                         max_terms: int = 12,
-                                         q_threshold: float = 0.05,
-                                         figsize: tuple = (16, 8)) -> tuple:
-    """
-    Bar plot showing top enriched AND depleted terms for Core vs Accessory side by side.
-    Uses signed -log10(q-value): positive = enriched, negative = depleted.
-    Green = enriched, Red = depleted.
-    Filters out COG S (function unknown).
-    """
-    if enr_df.empty:
-        print("[WARN] No enrichment data to plot")
-        return None, None
-
-    df = enr_df.copy()
-
-    # Filter out COG S (function unknown)
-    df = df[df["Term"] != "S"]
-
-    # For COG categories, add descriptions
-    def add_cog_desc(term):
-        if term in COG_DESCRIPTIONS:
-            return f"{term}: {COG_DESCRIPTIONS[term]}"
-        return term
-
-    fig, axes = plt.subplots(1, 2, figsize=figsize)
-
-    for idx, pangenome_class in enumerate(["Core", "Accessory"]):
-        ax = axes[idx]
-
-        class_df = df[df["Pangenome_Class"] == pangenome_class].copy()
-        sig_df = class_df[class_df["q_value"] < q_threshold].copy()
-
-        if len(sig_df) == 0:
-            ax.text(0.5, 0.5, f"No significant terms\n(FDR < {q_threshold})",
-                   ha="center", va="center", transform=ax.transAxes, fontsize=12)
-            ax.set_title(f"{pangenome_class}", fontsize=14, fontweight="bold",
-                        color="#2ca02c" if pangenome_class == "Core" else "#e67e22")
-            ax.set_xlim(-1, 1)
-            continue
-
-        # Get top enriched (OR > 1) and depleted (OR < 1) terms separately
-        enriched = sig_df[sig_df["Odds_Ratio"] > 1].nsmallest(max_terms // 2, "q_value")
-        depleted = sig_df[sig_df["Odds_Ratio"] < 1].nsmallest(max_terms // 2, "q_value")
-        combined = pd.concat([enriched, depleted]).copy()
-
-        if len(combined) == 0:
-            ax.text(0.5, 0.5, f"No significant terms\n(FDR < {q_threshold})",
-                   ha="center", va="center", transform=ax.transAxes, fontsize=12)
-            ax.set_title(f"{pangenome_class}", fontsize=14, fontweight="bold",
-                        color="#2ca02c" if pangenome_class == "Core" else "#e67e22")
-            continue
-
-        # Calculate signed -log10(q-value): positive for enriched, negative for depleted
-        combined["signed_log_q"] = -np.log10(combined["q_value"] + 1e-300)
-        combined.loc[combined["Odds_Ratio"] < 1, "signed_log_q"] *= -1
-        combined = combined.sort_values("signed_log_q")
-
-        # Labels with COG descriptions
-        labels = [add_cog_desc(t) for t in combined["Term"]]
-
-        # Colors: green for enriched (positive), red for depleted (negative)
-        colors = ["#d62728" if x < 0 else "#2ca02c" for x in combined["signed_log_q"]]
-
-        ax.barh(range(len(combined)), combined["signed_log_q"], color=colors, alpha=0.8)
-        ax.set_yticks(range(len(combined)))
-        ax.set_yticklabels(labels, fontsize=9)
-        ax.set_xlabel("-log10(q-value)\n← Depleted | Enriched →", fontsize=10)
-
-        n_enr = len(enriched)
-        n_dep = len(depleted)
-        ax.set_title(f"{pangenome_class}\n({n_enr} enriched, {n_dep} depleted)",
-                    fontsize=14, fontweight="bold",
-                    color="#2ca02c" if pangenome_class == "Core" else "#e67e22")
-        ax.axvline(0, color="black", linewidth=1)
-        ax.grid(axis="x", alpha=0.3)
-
-    plt.suptitle(f"{title} (FDR < {q_threshold})", fontsize=14, fontweight="bold", y=1.02)
-    plt.tight_layout()
-
-
-
 def summarize_enrichment_single_species(enr_results: dict, species: str) -> pd.DataFrame:
     """Create summary table of significant enrichments for a single species."""
     summary_rows = []
@@ -911,203 +755,6 @@ def summarize_enrichment_single_species(enr_results: dict, species: str) -> pd.D
     return pd.DataFrame(summary_rows)
 
 
-def interpret_enrichment_results(all_enrichment_results: dict, og_consensus_tables: dict,
-                                  species_list: list, q_threshold: float = 0.05):
-    """
-    Provide in-depth biological interpretation of enrichment results.
-    Summarizes key findings for Core vs Accessory genome across all species.
-    Includes both enriched AND depleted functional categories.
-    """
-    print("\n" + "="*80)
-    print("IN-DEPTH INTERPRETATION OF ENRICHMENT RESULTS")
-    print("="*80)
-
-    for species in species_list:
-        if species not in all_enrichment_results:
-            continue
-
-        print(f"\n{'='*60}")
-        print(f"A. {species.upper()}")
-        print(f"{'='*60}")
-
-        species_results = all_enrichment_results[species]
-        og_consensus = og_consensus_tables.get(species)
-
-        if og_consensus is not None:
-            n_core = (og_consensus["Pangenome_Class"] == "Core").sum()
-            n_acc = (og_consensus["Pangenome_Class"] == "Accessory").sum()
-            print(f"\nPangenome structure: {n_core} Core OGs, {n_acc} Accessory OGs")
-
-        # Track key findings - both enriched AND depleted
-        core_enriched = []
-        core_depleted = []
-        accessory_enriched = []
-        accessory_depleted = []
-
-        for col, enr_df in species_results.items():
-            if enr_df.empty:
-                continue
-
-            sig = enr_df[enr_df["q_value"] < q_threshold]
-
-            for cls in ["Core", "Accessory"]:
-                # Enriched (OR > 1)
-                cls_enriched = sig[(sig["Pangenome_Class"] == cls) & (sig["Odds_Ratio"] > 1)]
-                if not cls_enriched.empty:
-                    top = cls_enriched.nsmallest(3, "q_value")
-                    terms = [(row["Term"], row["Odds_Ratio"], row["q_value"])
-                             for _, row in top.iterrows()]
-                    if cls == "Core":
-                        core_enriched.append((col, terms))
-                    else:
-                        accessory_enriched.append((col, terms))
-
-                # Depleted (OR < 1)
-                cls_depleted = sig[(sig["Pangenome_Class"] == cls) & (sig["Odds_Ratio"] < 1)]
-                if not cls_depleted.empty:
-                    top = cls_depleted.nsmallest(3, "q_value")
-                    terms = [(row["Term"], row["Odds_Ratio"], row["q_value"])
-                             for _, row in top.iterrows()]
-                    if cls == "Core":
-                        core_depleted.append((col, terms))
-                    else:
-                        accessory_depleted.append((col, terms))
-
-        # Core genome interpretation - ENRICHED
-        print(f"\n📗 CORE GENOME - ENRICHED (over-represented in conserved genes):")
-        if core_enriched:
-            for col, terms in core_enriched:
-                print(f"\n  {col}:")
-                for term, odds, q in terms:
-                    desc = COG_DESCRIPTIONS.get(term, "")
-                    if desc:
-                        print(f"    ↑ {term} ({desc}): OR={odds:.1f}, q={q:.2e}")
-                    else:
-                        print(f"    ↑ {term}: OR={odds:.1f}, q={q:.2e}")
-        else:
-            print("  No significant enrichments detected in core genome")
-
-        # Core genome interpretation - DEPLETED
-        print(f"\n📕 CORE GENOME - DEPLETED (under-represented in conserved genes):")
-        if core_depleted:
-            for col, terms in core_depleted:
-                print(f"\n  {col}:")
-                for term, odds, q in terms:
-                    desc = COG_DESCRIPTIONS.get(term, "")
-                    if desc:
-                        print(f"    ↓ {term} ({desc}): OR={odds:.2f}, q={q:.2e}")
-                    else:
-                        print(f"    ↓ {term}: OR={odds:.2f}, q={q:.2e}")
-        else:
-            print("  No significant depletions detected in core genome")
-
-        # Accessory genome interpretation - ENRICHED
-        print(f"\n📙 ACCESSORY GENOME - ENRICHED (over-represented in variable genes):")
-        if accessory_enriched:
-            for col, terms in accessory_enriched:
-                print(f"\n  {col}:")
-                for term, odds, q in terms:
-                    desc = COG_DESCRIPTIONS.get(term, "")
-                    if desc:
-                        print(f"    ↑ {term} ({desc}): OR={odds:.1f}, q={q:.2e}")
-                    else:
-                        print(f"    ↑ {term}: OR={odds:.1f}, q={q:.2e}")
-        else:
-            print("  No significant enrichments detected in accessory genome")
-
-        # Accessory genome interpretation - DEPLETED
-        print(f"\n📘 ACCESSORY GENOME - DEPLETED (under-represented in variable genes):")
-        if accessory_depleted:
-            for col, terms in accessory_depleted:
-                print(f"\n  {col}:")
-                for term, odds, q in terms:
-                    desc = COG_DESCRIPTIONS.get(term, "")
-                    if desc:
-                        print(f"    ↓ {term} ({desc}): OR={odds:.2f}, q={q:.2e}")
-                    else:
-                        print(f"    ↓ {term}: OR={odds:.2f}, q={q:.2e}")
-        else:
-            print("  No significant depletions detected in accessory genome")
-
-        # Biological insights
-        print(f"\n🔬 BIOLOGICAL INSIGHTS:")
-
-        # Check for secreted proteins
-        if og_consensus is not None and "is_secreted" in og_consensus.columns:
-            core_sec = og_consensus[(og_consensus["Pangenome_Class"] == "Core") &
-                                    (og_consensus["is_secreted"] == True)]
-            acc_sec = og_consensus[(og_consensus["Pangenome_Class"] == "Accessory") &
-                                   (og_consensus["is_secreted"] == True)]
-            core_total = (og_consensus["Pangenome_Class"] == "Core").sum()
-            acc_total = (og_consensus["Pangenome_Class"] == "Accessory").sum()
-
-            core_pct = 100 * len(core_sec) / core_total if core_total > 0 else 0
-            acc_pct = 100 * len(acc_sec) / acc_total if acc_total > 0 else 0
-
-            print(f"  • Secreted proteins: {core_pct:.1f}% of Core vs {acc_pct:.1f}% of Accessory")
-            if acc_pct > core_pct * 1.2:
-                print(f"    → Accessory genome enriched for secreted proteins (potential niche adaptation)")
-
-        # Check for CAZymes
-        if og_consensus is not None and "CAZy" in og_consensus.columns:
-            core_cazy = og_consensus[(og_consensus["Pangenome_Class"] == "Core") &
-                                     (og_consensus["CAZy"].fillna("").str.len() > 0)]
-            acc_cazy = og_consensus[(og_consensus["Pangenome_Class"] == "Accessory") &
-                                    (og_consensus["CAZy"].fillna("").str.len() > 0)]
-
-            core_pct = 100 * len(core_cazy) / core_total if core_total > 0 else 0
-            acc_pct = 100 * len(acc_cazy) / acc_total if acc_total > 0 else 0
-
-            print(f"  • CAZymes: {core_pct:.1f}% of Core vs {acc_pct:.1f}% of Accessory")
-
-        # Check for transporters
-        if og_consensus is not None and "is_transporter" in og_consensus.columns:
-            core_trans = og_consensus[(og_consensus["Pangenome_Class"] == "Core") &
-                                      (og_consensus["is_transporter"] == True)]
-            acc_trans = og_consensus[(og_consensus["Pangenome_Class"] == "Accessory") &
-                                     (og_consensus["is_transporter"] == True)]
-
-            core_pct = 100 * len(core_trans) / core_total if core_total > 0 else 0
-            acc_pct = 100 * len(acc_trans) / acc_total if acc_total > 0 else 0
-
-            print(f"  • Transporters: {core_pct:.1f}% of Core vs {acc_pct:.1f}% of Accessory")
-
-    # Cross-species summary
-    print("\n" + "="*80)
-    print("CROSS-SPECIES SUMMARY")
-    print("="*80)
-    print("""
-INTERPRETING ENRICHMENT AND DEPLETION:
-
-↑ ENRICHED (OR > 1): Category is over-represented in that genome class
-↓ DEPLETED (OR < 1): Category is under-represented in that genome class
-
-Key patterns to look for:
-
-CORE GENOME:
-  • Enriched → Essential, conserved functions (housekeeping, primary metabolism)
-  • Depleted → Functions that vary between strains (not conserved)
-
-ACCESSORY GENOME:
-  • Enriched → Strain-specific adaptations, niche specialization
-  • Depleted → Functions that are consistently present (moved to core)
-
-Note: Core-enriched ≈ Accessory-depleted (and vice versa) - they are complementary views
-
-Common findings in fungal pangenomes:
-  • Core enriched: Translation (J), Energy production (C), Amino acid metabolism (E)
-  • Core depleted: Secondary metabolism (Q), Defense mechanisms (V)
-  • Accessory enriched: Secondary metabolism (Q), Carbohydrate transport (G), Defense (V)
-  • Accessory depleted: Translation (J), Replication/repair (L)
-
-Species-specific considerations:
-  • A. fumigatus: Clinical isolates may have unique virulence factors in accessory
-  • A. flavus: Aflatoxin genes may vary between strains
-  • A. niger: Industrial enzyme diversity in accessory genome
-  • A. oryzae: Domestication may have selected specific accessory genes
-""")
-
-
 # =============================================================================
 # BIGSCAPE/ANTISMASH FUNCTIONS (from functions_for_analysis_1_6.py)
 # =============================================================================
@@ -1129,639 +776,15 @@ _CANON_USAGE = {
 }
 
 
-def canon_usage(x: Optional[str]) -> str:
-    """Canonicalize usage class strings."""
-    if x is None:
-        return "unknown"
-    s = str(x).strip().lower()
-    return _CANON_USAGE.get(s, s) or "unknown"
-
-
-def list_region_files_for_assembly(antismash_dir: Path, assembly: str) -> List[Path]:
-    """Find antiSMASH region GBKs for an assembly."""
-    antismash_dir = Path(antismash_dir)
-    assembly = str(assembly)
-    hits: List[Path] = []
-
-    uniq = antismash_dir / "antismash_gbk_unique"
-    if uniq.exists():
-        hits.extend(sorted(
-            p for p in uniq.rglob("*.region*.gbk")
-            if p.name.startswith(assembly) or assembly in p.name
-        ))
-
-    if not hits:
-        sub = antismash_dir / assembly
-        if sub.exists():
-            hits.extend(sorted(sub.glob("*.region*.gbk")))
-            if not hits:
-                hits.extend(sorted(sub.glob("*.gbk")))
-
-    if not hits:
-        candidates = list(antismash_dir.rglob("*.region*.gbk")) or list(antismash_dir.rglob("*.gbk"))
-        hits = [p for p in candidates if (assembly in p.name) or (assembly in str(p))]
-
-    seen = set()
-    dedup = []
-    for p in hits:
-        if p not in seen:
-            seen.add(p)
-            dedup.append(p)
-    return dedup
-
-
-def parse_antismash_regions_from_files(gbk_paths: Iterable[Path]) -> pd.DataFrame:
-    """Parse antiSMASH .gbk files."""
-    if SeqIO is None:
-        print("[ERROR] biopython not available")
-        return pd.DataFrame()
-
-    rows = []
-    for gbk in gbk_paths:
-        try:
-            for rec in SeqIO.parse(str(gbk), "genbank"):
-                region_id = rec.name or rec.id
-                sc = rec.annotations.get("structured_comment", {}).get("antiSMASH-Data", {})
-                cluster_number = sc.get("cluster-number", "")
-                product = sc.get("product", "")
-
-                if not product:
-                    predicted: List[str] = []
-                    for feat in rec.features:
-                        if "product" in feat.qualifiers:
-                            predicted.extend(feat.qualifiers.get("product", []))
-                    if predicted:
-                        product = ";".join(sorted(set(predicted)))
-
-                rows.append({
-                    "bgc_path": str(gbk),
-                    "region_id": region_id,
-                    "cluster_number": cluster_number,
-                    "raw_product": product or "",
-                })
-        except Exception as e:
-            print(f"[WARN] Failed to parse {gbk}: {e}", file=sys.stderr)
-            continue
-    return pd.DataFrame(rows)
-
-
-def build_regions_from_df(samples: pd.DataFrame,
-                          species_root_map: Dict[str, Path],
-                          antismash_subdir: str = "antismash_output") -> pd.DataFrame:
-    """Build regions dataframe from samples with antiSMASH data."""
-    req = {"Species", "Assembly Accession", "UsageClass"}
-    if not req.issubset(samples.columns):
-        raise ValueError(f"samples must contain columns: {req}")
-
-    parts = []
-    for _, row in samples.iterrows():
-        species = str(row["Species"])
-        assembly = str(row["Assembly Accession"])
-        usage = canon_usage(row.get("UsageClass"))
-
-        root = species_root_map.get(species)
-        if not root or not Path(root).exists():
-            continue
-
-        antismash_dir = Path(root) / antismash_subdir
-        if not antismash_dir.exists():
-            continue
-
-        files = list_region_files_for_assembly(antismash_dir, assembly)
-        if not files:
-            continue
-
-        reg = parse_antismash_regions_from_files(files)
-        if reg.empty:
-            continue
-
-        reg["species"] = species
-        reg["strain"] = assembly
-        reg["genome_id"] = f"{species}-{assembly}"
-        reg["usage_class"] = usage
-        parts.append(reg)
-
-    if not parts:
-        return pd.DataFrame(columns=[
-            "bgc_path", "region_id", "cluster_number", "raw_product",
-            "species", "strain", "genome_id", "usage_class"
-        ])
-    return pd.concat(parts, ignore_index=True)
-
-
 _ANTISMASH_NOISE = {"hypothetical protein", "hypothetical", "protein", "domain", "like protein", "unknown"}
 _TRNA_RE = re.compile(r"\btrna-[a-z]+\b", re.I)
-
-
-def _tokens_from_antismash_product(raw_product: str) -> List[str]:
-    """Split antiSMASH 'product' into tokens."""
-    s = (raw_product or "").replace("_", "-")
-    s = _TRNA_RE.sub(" ", s)
-    toks = [t.strip() for t in re.split(r"[;|,/]+", s) if t.strip()]
-    toks = [t for t in toks if t.lower() not in _ANTISMASH_NOISE]
-    return toks
-
-
-def add_antismash_direct_labels(regions: pd.DataFrame,
-                                raw_col: str = "raw_product",
-                                direct_col: str = "antismash_primary_direct",
-                                collapsed_col: str = "antismash_primary_collapsed",
-                                tokens_col: str = "antismash_tokens",
-                                raw_label_col: str = "antismash_label_raw") -> pd.DataFrame:
-    """Add antiSMASH-derived label columns to regions dataframe."""
-    df = regions.copy()
-    df[raw_label_col] = df[raw_col].fillna("")
-    toks = df[raw_col].apply(_tokens_from_antismash_product)
-    df[tokens_col] = toks.apply(lambda xs: ";".join(xs))
-    df[direct_col] = toks.apply(lambda xs: xs[0] if len(xs) else "Unassigned")
-
-    def _collapse(tok: str) -> str:
-        t = (tok or "").lower()
-        if t in {"t1pks", "t2pks", "t3pks", "polyketide"}:
-            return "PKS"
-        if t.startswith("nrps"):
-            return "NRPS"
-        if t.startswith("terpene"):
-            return "Terpene"
-        if t in {"fungal-ripp"}:
-            return "RiPP"
-        if t in {"ripp-like", "napaa"}:
-            return "RiPP-like"
-        if t in {"indole", "dmats"}:
-            return "Indole"
-        if t in {"ni-siderophore", "siderophore"}:
-            return "Siderophore"
-        if t in {"beta-lactone", "betalactone"}:
-            return "Beta-lactone"
-        if t == "phosphonate":
-            return "Phosphonate"
-        if t == "isocyanide":
-            return "Isocyanide"
-        if t == "saccharide":
-            return "Saccharide"
-        if t == "melanin":
-            return "Melanin"
-        if t == "bacteriocin":
-            return "Bacteriocin"
-        return tok
-
-    df[collapsed_col] = toks.apply(lambda xs: "Unassigned" if not xs else _collapse(xs[0]))
-    return df
-
-
-def vivid_colors(n: int):
-    """Vivid categorical colors built from tab20 / tab20b / tab20c / tab10."""
-    banks = [
-        list(plt.get_cmap("tab20").colors),
-        list(plt.get_cmap("tab20b").colors),
-        list(plt.get_cmap("tab20c").colors),
-        list(plt.get_cmap("tab10").colors),
-    ]
-    base = list(itertools.chain.from_iterable(banks))
-    if n <= len(base):
-        return base[:n]
-    reps = (n + len(base) - 1) // len(base)
-    return (base * reps)[:n]
-
-
-def compute_tag_enrichment(
-    regions: pd.DataFrame,
-    tag_col: str,
-    usage_col: str = "usage_class",
-    exclude_tags: tuple = ("Unassigned",),
-    min_tag_total: int = 3,
-    alternative: str = "greater",
-) -> pd.DataFrame:
-    """For each tag and usage class, test enrichment using Fisher's exact test."""
-    if regions is None or regions.empty:
-        return pd.DataFrame(columns=["usage_class", "tag", "a", "b", "c", "d", "or", "log2_or",
-                                      "pval", "qval", "-log10(qval)", "frac_in_class", "frac_overall",
-                                      "total_in_class", "total_tag", "total_all"])
-
-    def _haldane_or(a, b, c, d) -> float:
-        a_, b_, c_, d_ = a + 0.5, b + 0.5, c + 0.5, d + 0.5
-        return (a_ * d_) / (b_ * c_)
-
-    df = regions[[usage_col, tag_col]].dropna().copy()
-    N = len(df)
-    classes = df[usage_col].astype(str).unique()
-    tags = [t for t in df[tag_col].astype(str).unique() if t not in exclude_tags]
-
-    out = []
-    for tag in tags:
-        tag_mask = (df[tag_col].astype(str) == tag)
-        total_tag = int(tag_mask.sum())
-        if total_tag < min_tag_total:
-            continue
-        for cls in classes:
-            cls_mask = (df[usage_col].astype(str) == cls)
-            total_in_class = int(cls_mask.sum())
-            a = int((tag_mask & cls_mask).sum())
-            b = int(total_in_class - a)
-            c = int(total_tag - a)
-            d = int(N - (a + b + c))
-            OR = _haldane_or(a, b, c, d)
-            try:
-                _, p = fisher_exact([[a, b], [c, d]], alternative=alternative)
-            except Exception:
-                p = np.nan
-            out.append({
-                "usage_class": cls, "tag": tag,
-                "a": a, "b": b, "c": c, "d": d,
-                "or": float(OR), "log2_or": float(np.log2(OR)),
-                "pval": float(p),
-                "frac_in_class": (a / total_in_class) if total_in_class else 0.0,
-                "frac_overall": (total_tag / N) if N else 0.0,
-                "total_in_class": total_in_class, "total_tag": total_tag, "total_all": N
-            })
-    res = pd.DataFrame(out)
-    if res.empty:
-        return res
-    if res["pval"].notna().any():
-        res["qval"] = _bh_fdr(res["pval"].to_numpy())
-        res["-log10(qval)"] = res["qval"].apply(lambda q: -np.log10(q) if (pd.notna(q) and q > 0) else 0.0)
-    else:
-        res["qval"] = np.nan
-        res["-log10(qval)"] = 0.0
-    return res.sort_values(["usage_class", "qval", "or"], ascending=[True, True, False]).reset_index(drop=True)
-
-
-def load_bigscape_full(base_dir: Path, species_list: List[str], similarity_cutoff: str = "c0.3") -> pd.DataFrame:
-    """Load BiG-SCAPE results for all species."""
-    rows = []
-    for species in species_list:
-        species_dir = Path(base_dir) / species / "bigscape_output" / "output_files"
-        if not species_dir.exists():
-            print(f"[SKIP] {species}: no output_files dir at {species_dir}")
-            continue
-
-        ann_candidates = glob.glob(str(species_dir / "**" / "record_annotations.tsv"), recursive=True)
-        if not ann_candidates:
-            continue
-        ann_path = max(ann_candidates, key=os.path.getmtime)
-        ann_df = pd.read_csv(ann_path, sep="\t", dtype=str)
-
-        def _ci_cols(df):
-            return {c.lower(): c for c in df.columns}
-
-        ann_cols = _ci_cols(ann_df)
-        record_col_ann = ann_cols.get("record") or ann_cols.get("bgc") or list(ann_df.columns)[0]
-        ann_df = ann_df.rename(columns={record_col_ann: "Record"})
-
-        cutoff_dirs = glob.glob(str(species_dir / f"*_{similarity_cutoff}"))
-        if not cutoff_dirs:
-            continue
-        cutoff_dir = max(cutoff_dirs, key=os.path.getmtime)
-
-        class_dirs = [d for d in os.listdir(cutoff_dir) if os.path.isdir(os.path.join(cutoff_dir, d))]
-        if not class_dirs:
-            continue
-
-        for bgc_class in class_dirs:
-            clustering_file = os.path.join(cutoff_dir, bgc_class, f"{bgc_class}_clustering_{similarity_cutoff}.tsv")
-            if not os.path.exists(clustering_file):
-                continue
-            clustering_df = pd.read_csv(clustering_file, sep="\t", dtype=str)
-            cc = _ci_cols(clustering_df)
-            record_col = cc.get("record") or cc.get("bgc") or cc.get("cluster") or list(clustering_df.columns)[0]
-            fam_col = cc.get("family") or (list(clustering_df.columns)[1] if len(clustering_df.columns) > 1 else None)
-            cc_col = cc.get("cc") or cc.get("clusterclass")
-            clustering_df = clustering_df.rename(columns={
-                record_col: "Record",
-                **({fam_col: "Family"} if fam_col else {}),
-                **({cc_col: "CC"} if cc_col else {})
-            })
-            merged = clustering_df.merge(ann_df, on="Record", how="left")
-            merged["BGC_Class"] = bgc_class
-            if "Family" not in merged.columns:
-                merged["Family"] = pd.NA
-            if "CC" not in merged.columns:
-                merged["CC"] = pd.NA
-
-            merged["Species"] = species
-            merged["Family_ID"] = merged["Species"].astype(str) + "_" + merged["Family"].astype(str)
-            merged["CC_ID"] = merged["Species"].astype(str) + "_" + merged["CC"].astype(str)
-            rows.append(merged)
-
-    if not rows:
-        return pd.DataFrame()
-    return pd.concat(rows, ignore_index=True)
-
-
-def derive_bgc_key_from_path(p: str) -> str:
-    """Unique key based on file stem."""
-    s = str(p).strip().strip('"').strip("'")
-    try:
-        stem = Path(s).stem
-    except Exception:
-        stem = s.rsplit(".", 1)[0]
-    return stem.lower()
-
-
-def bigscape_to_gcf_map(bigscape_full_df: pd.DataFrame) -> pd.DataFrame:
-    """Create mapping from BGC key to GCF."""
-    if bigscape_full_df is None or bigscape_full_df.empty:
-        return pd.DataFrame(columns=["bgc_key", "GCF"])
-    df = bigscape_full_df.copy()
-    rec_col = next((c for c in ["Record", "record", "BGC", "cluster"] if c in df.columns), None)
-    if not rec_col:
-        return pd.DataFrame(columns=["bgc_key", "GCF"])
-    df["bgc_key"] = df[rec_col].astype(str).apply(derive_bgc_key_from_path)
-    if "Family_ID" in df.columns and df["Family_ID"].notna().any():
-        df["GCF"] = df["Family_ID"].astype(str)
-    elif "Family" in df.columns:
-        df["GCF"] = df["Family"].astype(str)
-    else:
-        df["GCF"] = pd.NA
-    return df[["bgc_key", "GCF"]].dropna().drop_duplicates()
-
-
-def join_regions_with_bigscape_full(regions_df: pd.DataFrame, bigscape_full_df: pd.DataFrame) -> pd.DataFrame:
-    """Join regions with BiG-SCAPE GCF assignments."""
-    mapping = bigscape_to_gcf_map(bigscape_full_df)
-    out = regions_df.copy()
-    out["bgc_key"] = out["bgc_path"].astype(str).apply(derive_bgc_key_from_path)
-    if mapping.empty:
-        out["GCF"] = pd.NA
-        return out
-    return out.merge(mapping, how="left", on="bgc_key")
-
-
-def compute_gcf_uniqueness_and_enrichment(regions_with_gcf: pd.DataFrame,
-                                          usage_col: str = "usage_class",
-                                          gcf_col: str = "GCF",
-                                          min_members: int = 3,
-                                          top_frac_threshold: float = 0.8) -> pd.DataFrame:
-    """Compute GCF uniqueness and enrichment statistics."""
-    if regions_with_gcf is None or regions_with_gcf.empty or gcf_col not in regions_with_gcf.columns:
-        return pd.DataFrame(columns=["GCF", "n_members", "top_class", "top_frac", "is_unique",
-                                      "is_enriched", "classes_breakdown"])
-    df = regions_with_gcf.dropna(subset=[gcf_col])
-    rows = []
-    for gcf, g in df.groupby(gcf_col):
-        counts = g[usage_col].value_counts()
-        n = int(counts.sum())
-        top_class = counts.idxmax()
-        top_frac = float(counts.max()) / n if n else 0.0
-        is_unique = (len(counts) == 1)
-        is_enriched = (counts.max() >= min_members) and (top_frac >= top_frac_threshold)
-        rows.append({
-            "GCF": gcf,
-            "n_members": n,
-            "top_class": top_class,
-            "top_frac": round(top_frac, 3),
-            "is_unique": bool(is_unique),
-            "is_enriched": bool(is_enriched),
-            "classes_breakdown": ";".join(f"{k}:{v}" for k, v in counts.items())
-        })
-    return pd.DataFrame(rows).sort_values(["is_unique", "is_enriched", "top_frac", "n_members"],
-                                          ascending=[False, False, False, False])
-
-
-def annotate_gcf_with_class(regions_with_gcf: pd.DataFrame,
-                            class_col: str = "antismash_primary_collapsed",
-                            gcf_col: str = "GCF") -> pd.DataFrame:
-    """Assign a representative class to each GCF."""
-    if regions_with_gcf is None or regions_with_gcf.empty:
-        return pd.DataFrame(columns=[gcf_col, "GCF_class"])
-    if gcf_col not in regions_with_gcf.columns or class_col not in regions_with_gcf.columns:
-        return pd.DataFrame(columns=[gcf_col, "GCF_class"])
-    df = regions_with_gcf.dropna(subset=[gcf_col]).copy()
-    rep = (df.groupby(gcf_col)[class_col]
-             .agg(lambda s: s.mode().iat[0] if not s.mode().empty else "Unassigned")
-             .reset_index()
-             .rename(columns={class_col: "GCF_class"}))
-    return rep
-
-
-def plot_enrichment_heatmap(enr_df: pd.DataFrame,
-                            value: str = "log2_or",
-                            mask_by_q: float = 0.1,
-                            title: str = None,
-                            savepath: str = None,
-                            cmap_name: str = "viridis"):
-    """Heatmap of tag enrichment across usage classes."""
-    if enr_df is None or enr_df.empty:
-        print("[plot] enrichment table empty; skipping heatmap.")
-        return None, None
-
-    df = enr_df.copy()
-    if (mask_by_q is not None) and ("qval" in df.columns):
-        df.loc[df["qval"].isna() | (df["qval"] > mask_by_q), value] = 0.0
-
-    mat = (df.pivot(index="usage_class", columns="tag", values=value)
-             .fillna(0.0)
-             .sort_index())
-    data = mat.to_numpy(dtype=float)
-
-    fig, ax = plt.subplots()
-    im = ax.imshow(data, aspect="auto", cmap=plt.get_cmap(cmap_name))
-    ax.set_yticks(range(data.shape[0]))
-    ax.set_yticklabels(mat.index.tolist())
-    ax.set_xticks(range(data.shape[1]))
-    ax.set_xticklabels(mat.columns.tolist(), rotation=45, ha="right")
-    ax.set_title(title or f"Enrichment heatmap: {value}")
-    cbar = fig.colorbar(im, ax=ax)
-    cbar.set_label(value)
-    fig.tight_layout()
-    if savepath:
-        fig.savefig(savepath, dpi=150, bbox_inches="tight")
 
 
 # =============================================================================
 # ADDITIONAL NOTEBOOK-SPECIFIC FUNCTIONS
 # =============================================================================
 
-def plot_orthofinder_summary(orthofinder_data, species_list):
-    """
-    Create summary visualization of OrthoFinder results per species.
-    - Bar chart of orthogroup counts (total, single-copy, species-specific)
-    - Pie chart of gene distribution (in OGs vs unassigned)
-    """
-    fig = plt.figure(figsize=(16, 10))
-    gs = gridspec.GridSpec(2, 2, height_ratios=[1, 1], hspace=0.3, wspace=0.25)
     
-    # Prepare data
-    species_names = []
-    total_ogs = []
-    single_copy = []
-    species_specific = []
-    all_species_ogs = []
-    genes_in_og = []
-    unassigned = []
-    pct_in_og = []
-    n_genomes_list = []
-    
-    for sp in species_list:
-        data = orthofinder_data.get(sp, {})
-        stats = data.get("stats", {})
-        
-        species_names.append(f"A. {sp}")
-        total_ogs.append(stats.get("Number of orthogroups", 0))
-        single_copy.append(stats.get("Number of single-copy orthogroups", 0))
-        species_specific.append(stats.get("Number of species-specific orthogroups", 0))
-        all_species_ogs.append(stats.get("Number of orthogroups with all species present", 0))
-        
-        total_genes = stats.get("Number of genes", 0)
-        in_og = stats.get("Number of genes in orthogroups", 0)
-        genes_in_og.append(in_og)
-        unassigned.append(total_genes - in_og)
-        pct_in_og.append(stats.get("Percentage of genes in orthogroups", 0))
-        # Use actual PAV matrix column count (respects ANI exclusions) if available,
-        # otherwise fall back to OrthoFinder stats (may include excluded samples)
-        pav = data.get("pav")
-        if pav is not None:
-            n_genomes_list.append(pav.shape[1])
-        else:
-            n_genomes_list.append(stats.get("Number of species", 0))
-    
-    # 1. Orthogroup counts bar chart
-    ax1 = fig.add_subplot(gs[0, 0])
-    x = np.arange(len(species_names))
-    width = 0.2
-    
-    ax1.bar(x - 1.5*width, total_ogs, width, label='Total OGs', color='steelblue')
-    ax1.bar(x - 0.5*width, all_species_ogs, width, label='Core OGs (all genomes)', color='forestgreen')
-    ax1.bar(x + 0.5*width, single_copy, width, label='Single-copy OGs', color='goldenrod')
-    ax1.bar(x + 1.5*width, species_specific, width, label='Species-specific OGs', color='coral')
-    
-    ax1.set_xlabel('Species')
-    ax1.set_ylabel('Number of Orthogroups')
-    ax1.set_title('OrthoFinder: Orthogroup Statistics per Species')
-    ax1.set_xticks(x)
-    ax1.set_xticklabels(species_names, rotation=15)
-    ax1.legend(loc='upper right', fontsize=9)
-    ax1.grid(axis='y', linestyle=':', alpha=0.5)
-    
-    # Add genome count annotations
-    for i, n in enumerate(n_genomes_list):
-        ax1.annotate(f'n={n}', (i, total_ogs[i]), ha='center', va='bottom', fontsize=9)
-    
-    # 2. Gene assignment percentages
-    ax2 = fig.add_subplot(gs[0, 1])
-    ax2.bar(x - 0.2, genes_in_og, 0.4, label='Genes in OGs', color='forestgreen', alpha=0.8)
-    ax2.bar(x + 0.2, unassigned, 0.4, label='Unassigned genes', color='lightcoral', alpha=0.8)
-    
-    ax2.set_xlabel('Species')
-    ax2.set_ylabel('Number of Genes')
-    ax2.set_title('Gene Assignment to Orthogroups')
-    ax2.set_xticks(x)
-    ax2.set_xticklabels(species_names, rotation=15)
-    ax2.legend(loc='upper right', fontsize=9)
-    ax2.grid(axis='y', linestyle=':', alpha=0.5)
-    
-    # Add percentage annotations
-    for i, pct in enumerate(pct_in_og):
-        ax2.annotate(f'{pct:.1f}%', (i-0.2, genes_in_og[i]), ha='center', va='bottom', fontsize=9)
-    
-    # 3. Core genome size comparison (OGs present in all genomes)
-    ax3 = fig.add_subplot(gs[1, 0])
-    colors = sns.color_palette("Set2", len(species_names))
-    bars = ax3.bar(species_names, all_species_ogs, color=colors)
-    
-    for i, (bar, n, total) in enumerate(zip(bars, all_species_ogs, total_ogs)):
-        pct = 100 * n / total if total > 0 else 0
-        ax3.annotate(f'{pct:.1f}%\nof OGs', (bar.get_x() + bar.get_width()/2, bar.get_height()),
-                    ha='center', va='bottom', fontsize=9)
-    
-    ax3.set_ylabel('Number of Core Orthogroups')
-    ax3.set_title('Core Genome Size (OGs present in ALL genomes)')
-    ax3.set_xticklabels(species_names, rotation=15)
-    ax3.grid(axis='y', linestyle=':', alpha=0.5)
-    
-    # 4. Summary table
-    ax4 = fig.add_subplot(gs[1, 1])
-    ax4.axis('off')
-    
-    table_data = []
-    for i, sp in enumerate(species_names):
-        table_data.append([
-            sp,
-            f"{n_genomes_list[i]}",
-            f"{total_ogs[i]:,}",
-            f"{single_copy[i]:,}",
-            f"{all_species_ogs[i]:,}",
-            f"{pct_in_og[i]:.1f}%"
-        ])
-    
-    table = ax4.table(
-        cellText=table_data,
-        colLabels=['Species', 'Genomes', 'Total OGs', 'Single-copy', 'Core OGs', '% in OGs'],
-        cellLoc='center',
-        loc='center',
-        colColours=['lightsteelblue']*6
-    )
-    table.auto_set_font_size(False)
-    table.set_fontsize(10)
-    table.scale(1.2, 1.5)
-    ax4.set_title('OrthoFinder Summary Statistics', fontsize=12, fontweight='bold', pad=20)
-    
-    plt.suptitle('OrthoFinder Comparative Genomics Summary', fontsize=14, fontweight='bold', y=1.01)
-    plt.tight_layout()
-    
-
-
-def analyze_pangenome_classification(orthofinder_data, species_list):
-    """
-    Classify genes into Core/Accessory/Rare for each species using 
-    the determine_core_and_rare_thresholds function.
-    """
-    results = {}
-    
-    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    axes = axes.flatten()
-    
-    for idx, species in enumerate(species_list):
-        data = orthofinder_data.get(species, {})
-        pav = data.get("pav")
-        
-        if pav is None or pav.empty:
-            print(f"[warn] No PAV matrix for {species}")
-            continue
-        
-        # Determine thresholds using the heuristic function
-        core_rate, core_n, rare_rate, rare_n = determine_core_and_rare_thresholds(pav)
-        
-        # Count genes in each category
-        gene_freq = pav.sum(axis=1)
-        n_genomes = pav.shape[1]
-        
-        core_cnt = int((gene_freq >= core_n).sum())
-        rare_cnt = int((gene_freq <= rare_n).sum())
-        accessory_cnt = int(((gene_freq < core_n) & (gene_freq > rare_n)).sum())
-        total = len(gene_freq)
-        
-        results[species] = {
-            "n_genomes": n_genomes,
-            "core_n": core_n,
-            "rare_n": rare_n,
-            "core_rate": core_rate,
-            "rare_rate": rare_rate,
-            "core_count": core_cnt,
-            "accessory_count": accessory_cnt,
-            "rare_count": rare_cnt,
-            "total_ogs": total
-        }
-        
-        print(f"\n{species.upper()} (n={n_genomes} genomes):")
-        print(f"  Core threshold: >= {core_n} genomes ({core_rate:.1%})")
-        print(f"  Rare threshold: <= {rare_n} genomes ({rare_rate:.1%})")
-        print(f"  Core: {core_cnt} OGs ({100*core_cnt/total:.1f}%)")
-        print(f"  Accessory: {accessory_cnt} OGs ({100*accessory_cnt/total:.1f}%)")
-        print(f"  Rare: {rare_cnt} OGs ({100*rare_cnt/total:.1f}%)")
-        
-        # Plot using the plot_gene_freq_hist function
-        ax = axes[idx]
-        plot_gene_freq_hist(pav, core_n, rare_n, ax=ax, annotate=True)
-        ax.set_title(f"A. {species} (n={n_genomes})", fontsize=11, fontweight='bold')
-    
-    plt.suptitle('Gene Frequency Distribution and Pangenome Classification', 
-                 fontsize=14, fontweight='bold', y=1.01)
-    plt.tight_layout()
-    
-    return results, fig
-
-
 def heaps_law(pav, n_boot=200, max_n=None):
     """
     Compute pangenome rarefaction curves and Heap's law fit.
@@ -1814,7 +837,7 @@ def heaps_law(pav, n_boot=200, max_n=None):
     new_genes_mean /= max(1, n_boot)
     core_size_mean /= max(1, n_boot)
 
-    # Bootstrap confidence intervals (2.5th – 97.5th percentile)
+    # Bootstrap confidence intervals (2.5th - 97.5th percentile)
     pan_ci_lo = np.percentile(all_pan, 2.5, axis=0)
     pan_ci_hi = np.percentile(all_pan, 97.5, axis=0)
     core_ci_lo = np.percentile(all_core, 2.5, axis=0)
@@ -1957,822 +980,6 @@ def analyze_heaps_law(orthofinder_data, species_list, n_boot=200,
     plt.show()
 
     return results, fig
-
-
-def plot_pangenome_summary(pangenome_results, heaps_results, species_list):
-    """
-    Create a combined summary of pangenome analysis across all species.
-    """
-    fig = plt.figure(figsize=(16, 6))
-    gs = gridspec.GridSpec(1, 3, width_ratios=[1.2, 1, 1], wspace=0.3)
-    
-    species_names = [f"A. {sp}" for sp in species_list]
-    colors = sns.color_palette("Set2", len(species_list))
-    
-    # 1. Stacked bar chart: Core/Accessory/Rare proportions
-    ax1 = fig.add_subplot(gs[0])
-    
-    core_pcts = []
-    accessory_pcts = []
-    rare_pcts = []
-    
-    for sp in species_list:
-        r = pangenome_results.get(sp, {})
-        total = r.get("total_ogs", 1)
-        core_pcts.append(100 * r.get("core_count", 0) / total)
-        accessory_pcts.append(100 * r.get("accessory_count", 0) / total)
-        rare_pcts.append(100 * r.get("rare_count", 0) / total)
-    
-    x = np.arange(len(species_names))
-    width = 0.6
-    
-    ax1.bar(x, core_pcts, width, label='Core', color='forestgreen')
-    ax1.bar(x, accessory_pcts, width, bottom=core_pcts, label='Accessory', color='steelblue')
-    ax1.bar(x, rare_pcts, width, bottom=[c+a for c,a in zip(core_pcts, accessory_pcts)], label='Rare', color='coral')
-    
-    ax1.set_ylabel('Percentage of Orthogroups')
-    ax1.set_title('Pangenome Composition', fontsize=12, fontweight='bold')
-    ax1.set_xticks(x)
-    ax1.set_xticklabels(species_names, rotation=15)
-    ax1.legend(loc='upper right')
-    ax1.set_ylim(0, 105)
-    
-    for i in range(len(species_names)):
-        if core_pcts[i] > 5:
-            ax1.text(i, core_pcts[i]/2, f'{core_pcts[i]:.0f}%', ha='center', va='center', 
-                    fontsize=9, color='white', fontweight='bold')
-        if accessory_pcts[i] > 5:
-            ax1.text(i, core_pcts[i] + accessory_pcts[i]/2, f'{accessory_pcts[i]:.0f}%', 
-                    ha='center', va='center', fontsize=9, color='white', fontweight='bold')
-        if rare_pcts[i] > 5:
-            ax1.text(i, core_pcts[i] + accessory_pcts[i] + rare_pcts[i]/2, f'{rare_pcts[i]:.0f}%', 
-                    ha='center', va='center', fontsize=9, color='white', fontweight='bold')
-    
-    # 2. First genome contribution
-    ax2 = fig.add_subplot(gs[1])
-    
-    first_pcts = [heaps_results.get(sp, {}).get("first_genome_pct", 0) for sp in species_list]
-    bar_colors = ['coral' if p > 85 else 'orange' if p > 70 else 'forestgreen' for p in first_pcts]
-    
-    bars = ax2.bar(species_names, first_pcts, color=bar_colors, edgecolor='black', linewidth=1)
-    ax2.axhline(y=85, color='coral', linestyle='--', linewidth=1, alpha=0.7, label='Very closed (>85%)')
-    ax2.axhline(y=70, color='orange', linestyle=':', linewidth=1, alpha=0.7, label='Moderately closed')
-    
-    ax2.set_ylabel("% pangenome from 1st genome")
-    ax2.set_title("Pangenome Saturation", fontsize=12, fontweight='bold')
-    ax2.set_xticklabels(species_names, rotation=15)
-    ax2.set_ylim(0, 100)
-    ax2.legend(loc='lower right', fontsize=8)
-    
-    for bar, p in zip(bars, first_pcts):
-        ax2.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, f'{p:.0f}%', 
-                ha='center', va='bottom', fontsize=10, fontweight='bold')
-    
-    # 3. Summary table
-    ax3 = fig.add_subplot(gs[2])
-    ax3.axis('off')
-    
-    table_data = []
-    for sp in species_list:
-        pr = pangenome_results.get(sp, {})
-        hr = heaps_results.get(sp, {})
-        table_data.append([
-            f"A. {sp}",
-            f"{pr.get('n_genomes', '-')}",
-            f"{pr.get('total_ogs', '-'):,}",
-            f"{100*pr.get('core_count',0)/max(1,pr.get('total_ogs',1)):.0f}%",
-            f"{hr.get('first_genome_pct', 0):.0f}%",
-            hr.get('status', '-')
-        ])
-    
-    table = ax3.table(
-        cellText=table_data,
-        colLabels=['Species', 'Genomes', 'Total OGs', 'Core %', '1st Gen %', 'Status'],
-        cellLoc='center',
-        loc='center',
-        colColours=['lightsteelblue']*6
-    )
-    table.auto_set_font_size(False)
-    table.set_fontsize(9)
-    table.scale(1.1, 1.5)
-    ax3.set_title('Pangenome Summary', fontsize=12, fontweight='bold', pad=20)
-    
-    plt.suptitle('Comparative Pangenome Analysis Across Aspergillus Species', 
-                 fontsize=14, fontweight='bold', y=1.02)
-    plt.tight_layout()
-    
-
-
-def load_species_annotations(species, base_path, pangenome_results, orthofinder_data):
-    """Load and classify annotations for a species."""
-    species_dir = os.path.join(base_path, species)
-    cache_path = os.path.join(species_dir, f"{species}_ortho_annot_long.tsv")
-    
-    print(f"\n{'='*60}")
-    print(f"Loading annotations for A. {species}...")
-    print(f"{'='*60}")
-    
-    # Build or load the annotation table
-    try:
-        long_annot = build_ortho_annot_table(species_dir, species, cache_path)
-    except Exception as e:
-        print(f"  Error loading annotations: {e}")
-        return None
-    
-    # Get PAV matrix and classify
-    pav_data = orthofinder_data.get(species, {})
-    pav = pav_data.get("pav")
-    
-    if pav is not None:
-        pr = pangenome_results.get(species, {})
-        core_n = pr.get("core_n", int(0.95 * pav.shape[1]))
-        rare_n = pr.get("rare_n", max(1, int(0.05 * pav.shape[1])))
-        
-        # Add pangenome class
-        long_annot = classify_pangenome(long_annot, pav, core_n, rare_n)
-        print(f"  Pangenome classification applied (Core>={core_n}, Rare<={rare_n})")
-    
-    # Add species column
-    long_annot["Species"] = species
-    
-    # Stats
-    n_proteins = len(long_annot)
-    n_assemblies = long_annot["Assembly Accession"].nunique()
-    n_ogs = long_annot["Orthogroup"].nunique()
-    
-    print(f"  Proteins: {n_proteins:,}")
-    print(f"  Assemblies: {n_assemblies}")
-    print(f"  Orthogroups: {n_ogs:,}")
-    
-    if "Pangenome_Class" in long_annot.columns:
-        class_counts = long_annot["Pangenome_Class"].value_counts()
-        print(f"  Pangenome classes: {class_counts.to_dict()}")
-    
-    return long_annot
-
-
-def analyze_derived_categories(og_consensus_tables, species_list):
-    """
-    Analyze enrichment of derived categories (proteases, transporters, secretome)
-    in Core vs Accessory genome.
-    """
-    from scipy.stats import fisher_exact
-    
-    print("\n" + "="*80)
-    print("DERIVED CATEGORY ENRICHMENT BY PANGENOME CLASS")
-    print("="*80)
-    
-    categories = [
-        ("is_protease", "Proteases"),
-        ("is_transporter", "Transporters"),
-        ("is_secreted", "Secretome (SignalP + GO)"),
-        ("is_secreted_signalp", "Secretome (SignalP only)"),
-        ("has_secretion_GO", "Secretome (GO terms only)"),
-    ]
-    
-    for species in species_list:
-        if species not in og_consensus_tables:
-            continue
-        
-        og = og_consensus_tables[species]
-        print(f"\nA. {species}:")
-        
-        for col, name in categories:
-            if col not in og.columns:
-                continue
-            
-            # Count per class
-            results = {}
-            for cls in ["Core", "Accessory"]:
-                subset = og[og["Pangenome_Class"] == cls]
-                n_total = len(subset)
-                n_positive = subset[col].sum()
-                pct = 100 * n_positive / n_total if n_total > 0 else 0
-                results[cls] = {"n": n_positive, "total": n_total, "pct": pct}
-            
-            # Fisher test: Accessory vs Core
-            core_pos = results["Core"]["n"]
-            core_neg = results["Core"]["total"] - core_pos
-            acc_pos = results["Accessory"]["n"]
-            acc_neg = results["Accessory"]["total"] - acc_pos
-            
-            if core_pos + acc_pos > 0:
-                try:
-                    odds_ratio, p_value = fisher_exact([[acc_pos, acc_neg], [core_pos, core_neg]])
-                except:
-                    odds_ratio, p_value = 1.0, 1.0
-                
-                sig_marker = "***" if p_value < 0.001 else "**" if p_value < 0.01 else "*" if p_value < 0.05 else ""
-                direction = "up" if odds_ratio > 1 else "down" if odds_ratio < 1 else "="
-                
-                print(f"  {name}:")
-                print(f"    Core: {results['Core']['n']:,}/{results['Core']['total']:,} ({results['Core']['pct']:.1f}%)")
-                print(f"    Accessory: {results['Accessory']['n']:,}/{results['Accessory']['total']:,} ({results['Accessory']['pct']:.1f}%)")
-                print(f"    Accessory vs Core: OR={odds_ratio:.2f}, p={p_value:.2e} {direction} {sig_marker}")
-
-
-def debug_signalp_loading(species_annotations):
-    """Debug why SignalP data might not be loading correctly."""
-    print("\n" + "="*80)
-    print("SIGNALP DATA DIAGNOSTIC")
-    print("="*80)
-    
-    for species, annot_df in species_annotations.items():
-        print(f"\nA. {species}:")
-        
-        # Check if signalp column exists
-        signalp_cols = [c for c in annot_df.columns if 'signalp' in c.lower()]
-        print(f"  SignalP columns found: {signalp_cols}")
-        
-        if 'signalp_Prediction' in annot_df.columns:
-            col = annot_df['signalp_Prediction']
-            n_non_empty = (col.fillna("").astype(str) != "").sum()
-            unique_vals = col.fillna("").astype(str).unique()[:10]
-            print(f"  Non-empty values: {n_non_empty:,} / {len(annot_df):,}")
-            print(f"  Sample values: {list(unique_vals)}")
-            
-            # Check for SP predictions
-            has_sp = col.fillna("").str.upper().str.contains("SP")
-            print(f"  Proteins with 'SP' in prediction: {has_sp.sum():,}")
-        else:
-            print("  signalp_Prediction column NOT FOUND")
-            
-            # Try to find any signalp-related data
-            for col_name in signalp_cols:
-                col = annot_df[col_name]
-                n_non_empty = (col.fillna("").astype(str) != "").sum()
-                print(f"    {col_name}: {n_non_empty:,} non-empty values")
-
-
-def analyze_secretome_from_consensus(og_consensus_tables, species_list):
-    """
-    Detailed secretome analysis using pre-computed orthogroup consensus.
-    """
-    from scipy.stats import fisher_exact
-    
-    print("\n" + "="*80)
-    print("SECRETOME ANALYSIS BY PANGENOME CLASS")
-    print("="*80)
-    
-    all_results = []
-    
-    for species in species_list:
-        if species not in og_consensus_tables:
-            continue
-        
-        og = og_consensus_tables[species]
-        print(f"\n{'='*60}")
-        print(f"A. {species}")
-        print(f"{'='*60}")
-        
-        # Overall secretome statistics
-        n_total = len(og)
-        n_signalp = og["is_secreted_signalp"].sum()
-        n_go_sec = og["has_secretion_GO"].sum()
-        n_combined = og["is_secreted"].sum()
-        
-        print(f"\nSecretome Detection Summary:")
-        print(f"  Total orthogroups: {n_total:,}")
-        print(f"  SignalP-predicted secreted: {n_signalp:,} ({100*n_signalp/n_total:.1f}%)")
-        print(f"  Secretion GO terms: {n_go_sec:,} ({100*n_go_sec/n_total:.1f}%)")
-        print(f"  Combined secretome: {n_combined:,} ({100*n_combined/n_total:.1f}%)")
-        
-        # By pangenome class
-        print(f"\nSecretome by Pangenome Class:")
-        for cls in ["Core", "Accessory"]:
-            subset = og[og["Pangenome_Class"] == cls]
-            n_cls = len(subset)
-            n_sec = subset["is_secreted"].sum()
-            pct = 100 * n_sec / n_cls if n_cls > 0 else 0
-            print(f"  {cls}: {n_sec:,} / {n_cls:,} ({pct:.1f}%)")
-            
-            all_results.append({
-                "species": species,
-                "pangenome_class": cls,
-                "total_ogs": n_cls,
-                "secreted_ogs": n_sec,
-                "pct_secreted": pct
-            })
-        
-        # Fisher's exact tests
-        print(f"\nStatistical Tests:")
-        core = og[og["Pangenome_Class"] == "Core"]
-        acc = og[og["Pangenome_Class"] == "Accessory"]
-        
-        # Accessory vs Core
-        if len(acc) > 0 and len(core) > 0:
-            a = acc["is_secreted"].sum()
-            b = len(acc) - a
-            c = core["is_secreted"].sum()
-            d = len(core) - c
-            
-            try:
-                odds_ratio, p_value = fisher_exact([[a, b], [c, d]])
-                sig = "***" if p_value < 0.001 else "**" if p_value < 0.01 else "*" if p_value < 0.05 else ""
-                direction = "ENRICHED" if odds_ratio > 1 else "DEPLETED"
-                print(f"  Accessory vs Core: OR={odds_ratio:.2f}, p={p_value:.2e} {sig}")
-                if p_value < 0.05:
-                    print(f"    -> Secreted proteins {direction} in Accessory genome")
-            except:
-                pass
-    
-    return pd.DataFrame(all_results)
-
-
-def plot_secretome_by_pangenome(og_consensus_tables, species_list):
-    """
-    Visualize secretome distribution across species and pangenome classes.
-    """
-    from scipy.stats import fisher_exact
-    
-    fig, axes = plt.subplots(1, 3, figsize=(16, 5))
-    
-    # 1. Secretome % by pangenome class
-    ax1 = axes[0]
-    classes = ["Core", "Accessory"]
-    x = np.arange(len(species_list))
-    width = 0.35
-    colors_class = {"Core": "#2ca02c", "Accessory": "#ff7f0e"}
-    
-    for i, cls in enumerate(classes):
-        pcts = []
-        for species in species_list:
-            if species in og_consensus_tables:
-                og = og_consensus_tables[species]
-                subset = og[og["Pangenome_Class"] == cls]
-                pct = 100 * subset["is_secreted"].sum() / len(subset) if len(subset) > 0 else 0
-                pcts.append(pct)
-            else:
-                pcts.append(0)
-        
-        ax1.bar(x + i*width, pcts, width, label=cls, color=colors_class[cls])
-    
-    ax1.set_xlabel("Species")
-    ax1.set_ylabel("% Orthogroups Secreted")
-    ax1.set_title("Secretome by Pangenome Class", fontsize=12, fontweight="bold")
-    ax1.set_xticks(x + width/2)
-    ax1.set_xticklabels([f"A. {sp}" for sp in species_list], rotation=15)
-    ax1.legend()
-    ax1.grid(axis="y", alpha=0.3)
-    
-    # 2. SignalP vs GO-based detection
-    ax2 = axes[1]
-    detection_data = {"SignalP": [], "GO terms": [], "Combined": []}
-    
-    for species in species_list:
-        if species in og_consensus_tables:
-            og = og_consensus_tables[species]
-            n_total = len(og)
-            detection_data["SignalP"].append(100 * og["is_secreted_signalp"].sum() / n_total)
-            detection_data["GO terms"].append(100 * og["has_secretion_GO"].sum() / n_total)
-            detection_data["Combined"].append(100 * og["is_secreted"].sum() / n_total)
-        else:
-            for key in detection_data:
-                detection_data[key].append(0)
-    
-    x2 = np.arange(len(species_list))
-    width2 = 0.25
-    colors2 = ["#1f77b4", "#9467bd", "#17becf"]
-    
-    for i, (method, pcts) in enumerate(detection_data.items()):
-        ax2.bar(x2 + i*width2, pcts, width2, label=method, color=colors2[i])
-    
-    ax2.set_xlabel("Species")
-    ax2.set_ylabel("% Orthogroups")
-    ax2.set_title("Secretome Detection Methods", fontsize=12, fontweight="bold")
-    ax2.set_xticks(x2 + width2)
-    ax2.set_xticklabels([f"A. {sp}" for sp in species_list], rotation=15)
-    ax2.legend()
-    ax2.grid(axis="y", alpha=0.3)
-    
-    # 3. Accessory enrichment across species
-    ax3 = axes[2]
-    acc_enrichment = []
-    species_names = []
-    p_values = []
-    
-    for species in species_list:
-        if species in og_consensus_tables:
-            og = og_consensus_tables[species]
-            core = og[og["Pangenome_Class"] == "Core"]
-            acc = og[og["Pangenome_Class"] == "Accessory"]
-            
-            if len(acc) > 0 and len(core) > 0:
-                a = acc["is_secreted"].sum()
-                b = len(acc) - a
-                c = core["is_secreted"].sum()
-                d = len(core) - c
-                
-                try:
-                    odds_ratio, p_value = fisher_exact([[a, b], [c, d]])
-                    acc_enrichment.append(np.log2(odds_ratio) if odds_ratio > 0 else 0)
-                    p_values.append(p_value)
-                    species_names.append(f"A. {species}")
-                except:
-                    pass
-    
-    if acc_enrichment:
-        colors3 = ["#2ca02c" if x > 0 else "#d62728" for x in acc_enrichment]
-        bars = ax3.bar(species_names, acc_enrichment, color=colors3, alpha=0.7)
-        
-        # Add significance markers
-        for i, (bar, pval) in enumerate(zip(bars, p_values)):
-            if pval < 0.001:
-                marker = "***"
-            elif pval < 0.01:
-                marker = "**"
-            elif pval < 0.05:
-                marker = "*"
-            else:
-                marker = ""
-            
-            y_pos = bar.get_height() + 0.05 if bar.get_height() > 0 else bar.get_height() - 0.15
-            ax3.text(bar.get_x() + bar.get_width()/2, y_pos, marker, 
-                    ha="center", va="bottom", fontsize=12, fontweight="bold")
-        
-        ax3.axhline(0, color="black", linewidth=0.8)
-        ax3.set_ylabel("log2(OR) Accessory vs Core")
-        ax3.set_title("Secretome Enrichment in Accessory", fontsize=12, fontweight="bold")
-        ax3.set_xticklabels(species_names, rotation=15)
-        ax3.grid(axis="y", alpha=0.3)
-    
-    plt.suptitle("Secretome Analysis Across Aspergillus Species", fontsize=14, fontweight="bold", y=1.02)
-    plt.tight_layout()
-    
-
-
-def analyze_secreted_functions_consensus(og_consensus_tables, species_list):
-    """
-    What functional categories are enriched in secreted orthogroups?
-    """
-    from scipy.stats import fisher_exact
-    
-    print("\n" + "="*80)
-    print("FUNCTIONAL ENRICHMENT IN SECRETED ORTHOGROUPS")
-    print("="*80)
-    
-    for species in species_list:
-        if species not in og_consensus_tables:
-            continue
-        
-        og = og_consensus_tables[species]
-        secreted = og[og["is_secreted"] == True]
-        non_secreted = og[og["is_secreted"] == False]
-        
-        if len(secreted) < 10:
-            continue
-        
-        print(f"\nA. {species} (n={len(secreted)} secreted orthogroups):")
-        
-        # Check CAZyme enrichment in secreted
-        if "CAZy" in og.columns:
-            sec_cazy = (secreted["CAZy"].fillna("").astype(str) != "").sum()
-            nonsec_cazy = (non_secreted["CAZy"].fillna("").astype(str) != "").sum()
-            
-            pct_sec = 100 * sec_cazy / len(secreted)
-            pct_nonsec = 100 * nonsec_cazy / len(non_secreted) if len(non_secreted) > 0 else 0
-            
-            # Fisher's test
-            try:
-                a, b = sec_cazy, len(secreted) - sec_cazy
-                c, d = nonsec_cazy, len(non_secreted) - nonsec_cazy
-                odds_ratio, p_value = fisher_exact([[a, b], [c, d]])
-                sig = "***" if p_value < 0.001 else "**" if p_value < 0.01 else "*" if p_value < 0.05 else ""
-                print(f"  CAZymes: {pct_sec:.1f}% secreted vs {pct_nonsec:.1f}% non-secreted (OR={odds_ratio:.2f} {sig})")
-            except:
-                print(f"  CAZymes: {pct_sec:.1f}% secreted vs {pct_nonsec:.1f}% non-secreted")
-        
-        # Check protease enrichment in secreted
-        if "is_protease" in og.columns:
-            sec_prot = secreted["is_protease"].sum()
-            nonsec_prot = non_secreted["is_protease"].sum()
-            
-            pct_sec = 100 * sec_prot / len(secreted)
-            pct_nonsec = 100 * nonsec_prot / len(non_secreted) if len(non_secreted) > 0 else 0
-            
-            try:
-                a, b = sec_prot, len(secreted) - sec_prot
-                c, d = nonsec_prot, len(non_secreted) - nonsec_prot
-                odds_ratio, p_value = fisher_exact([[a, b], [c, d]])
-                sig = "***" if p_value < 0.001 else "**" if p_value < 0.01 else "*" if p_value < 0.05 else ""
-                print(f"  Proteases: {pct_sec:.1f}% secreted vs {pct_nonsec:.1f}% non-secreted (OR={odds_ratio:.2f} {sig})")
-            except:
-                print(f"  Proteases: {pct_sec:.1f}% secreted vs {pct_nonsec:.1f}% non-secreted")
-
-
-def analyze_bgc_for_species(species, species_root_map, bigscape_base, similarity_cutoff="c0.3", ani_excluded=None):
-    """
-    Analyze BGC (Biosynthetic Gene Cluster) distribution for a species.
-    Parses antiSMASH regions and links to BiG-SCAPE GCFs.
-    """
-    print(f"\n{'='*60}")
-    print(f"BGC Analysis for A. {species}")
-    print(f"{'='*60}")
-    
-    species_root = species_root_map.get(species)
-    if not species_root or not species_root.exists():
-        print(f"  Species root not found: {species_root}")
-        return None, None
-    
-    antismash_dir = species_root / "antismash_output"
-    bigscape_output = species_root / "bigscape_output"
-    
-    # Check for antiSMASH output
-    if not antismash_dir.exists():
-        print(f"  No antiSMASH output found at {antismash_dir}")
-        return None, None
-    
-    # Build set of ANI-excluded accession base patterns
-    import re as _re
-    _exc_bases = set()
-    if ani_excluded:
-        for exc_acc in ani_excluded:
-            _exc_bases.add(_re.match(r'(GC[AF]_\d+)', exc_acc).group(1))
-
-    # Find assemblies from antismash output
-    print("  Scanning antiSMASH output for assemblies...")
-    assemblies = []
-
-    # Try antismash_gbk_unique folder first
-    unique_dir = antismash_dir / "antismash_gbk_unique"
-    if unique_dir.exists():
-        for f in os.listdir(unique_dir):
-            if f.endswith(".gbk") and ".region" in f:
-                # Extract assembly accession from filename
-                acc = f.split(".")[0]
-                if acc.startswith("GC") and acc not in assemblies:
-                    if not any(exc in acc for exc in _exc_bases):
-                        assemblies.append(acc)
-
-    # Also check for assembly subdirectories
-    if not assemblies:
-        for item in os.listdir(antismash_dir):
-            item_path = antismash_dir / item
-            if os.path.isdir(item_path) and item.startswith("GC"):
-                if not any(exc in item for exc in _exc_bases):
-                    assemblies.append(item)
-    
-    if not assemblies:
-        print(f"  No assemblies found in {antismash_dir}")
-        return None, None
-    
-    print(f"  Found {len(assemblies)} assemblies")
-    
-    # Create a minimal samples dataframe for region parsing
-    samples_df = pd.DataFrame({
-        "Species": species,
-        "Assembly Accession": assemblies,
-        "UsageClass": "unknown"  # Placeholder, not used for analysis
-    })
-    
-    # Build regions from antiSMASH output
-    regions = build_regions_from_df(
-        samples_df, 
-        {species: species_root},
-        antismash_subdir="antismash_output"
-    )
-    
-    if regions.empty:
-        print(f"  No antiSMASH regions parsed")
-        return None, None
-    
-    print(f"  Parsed {len(regions)} BGC regions from {regions['strain'].nunique()} genomes")
-    
-    # Add antiSMASH labels
-    regions = add_antismash_direct_labels(regions)
-    
-    # Summarize BGC types
-    bgc_counts = regions["antismash_primary_collapsed"].value_counts()
-    print(f"\n  BGC Type Distribution:")
-    for bgc_type, count in bgc_counts.head(10).items():
-        print(f"    {bgc_type}: {count}")
-    
-    # Calculate BGCs per genome
-    bgcs_per_genome = regions.groupby("strain").size()
-    print(f"\n  BGCs per genome: mean={bgcs_per_genome.mean():.1f}, min={bgcs_per_genome.min()}, max={bgcs_per_genome.max()}")
-    
-    # Load BiG-SCAPE results if available
-    bigscape_df = None
-    if bigscape_output.exists():
-        print(f"\n  Loading BiG-SCAPE results...")
-        bigscape_df = load_bigscape_full(bigscape_base, [species], similarity_cutoff)
-        
-        if bigscape_df is not None and len(bigscape_df) > 0:
-            print(f"    BiG-SCAPE records: {len(bigscape_df)}")
-            n_gcfs = bigscape_df["Family_ID"].nunique()
-            print(f"    Gene Cluster Families (GCFs): {n_gcfs}")
-            
-            # Join regions with GCFs
-            regions = join_regions_with_bigscape_full(regions, bigscape_df)
-            n_with_gcf = regions["GCF"].notna().sum()
-            print(f"    Regions with GCF assignment: {n_with_gcf} / {len(regions)}")
-        else:
-            print(f"    No BiG-SCAPE clustering found for cutoff {similarity_cutoff}")
-    else:
-        print(f"  No BiG-SCAPE output at {bigscape_output}")
-    
-    return regions, bigscape_df
-
-
-def plot_bgc_summary(all_regions, species_list):
-    """
-    Summarize BGC distribution across species.
-    """
-    if not all_regions:
-        print("No regions data available")
-        return None
-
-    fig, axes = plt.subplots(2, 2, figsize=(16, 12))
-    species_colors = sns.color_palette("Set2", len(species_list))
-    species_labels = [f"A. {sp}" for sp in species_list]
-
-    # --- Collect BGC type data for both panels 1 & 2 ---
-    all_types = set()
-    type_data = {}
-    for sp in species_list:
-        if sp in all_regions:
-            counts = all_regions[sp]["antismash_primary_collapsed"].value_counts()
-            type_data[sp] = counts
-            all_types.update(counts.index)
-    type_totals = {t: sum(type_data.get(sp, pd.Series()).get(t, 0)
-                          for sp in species_list) for t in all_types}
-    top_types = sorted(type_totals.keys(), key=lambda x: type_totals[x], reverse=True)
-    type_colors = dict(zip(top_types, vivid_colors(len(top_types))))
-
-    # ---- 1. BGC composition – proportional stacked bar ----
-    ax1 = axes[0, 0]
-    for i, sp in enumerate(species_list):
-        if sp not in type_data:
-            continue
-        total = type_data[sp].sum()
-        bottom = 0.0
-        for bgc_type in top_types:
-            val = type_data[sp].get(bgc_type, 0)
-            pct = val / total if total else 0
-            ax1.bar(i, pct, bottom=bottom, color=type_colors[bgc_type], width=0.6,
-                    edgecolor='white', linewidth=0.3)
-            if pct >= 0.05:
-                ax1.text(i, bottom + pct / 2, f"{pct:.0%}", ha="center", va="center",
-                         fontsize=7, color="white", fontweight="bold")
-            bottom += pct
-        ax1.text(i, 1.01, f"n={total}", ha="center", va="bottom", fontsize=8)
-    ax1.set_xticks(range(len(species_list)))
-    ax1.set_xticklabels(species_labels, rotation=15, fontstyle='italic')
-    ax1.set_ylabel("Proportion of BGC Regions")
-    ax1.set_ylim(0, 1.10)
-    ax1.set_title("BGC Type Composition by Species", fontsize=12, fontweight="bold")
-    # legend
-    from matplotlib.patches import Patch
-    legend_patches = [Patch(facecolor=type_colors[t], label=t) for t in top_types if type_totals[t] > 0]
-    ax1.legend(handles=legend_patches, bbox_to_anchor=(1.02, 1), loc="upper left", fontsize=7)
-
-    # ---- 2. GCF composition – proportional stacked bar ----
-    ax2 = axes[0, 1]
-    gcf_type_data = {}
-    gcf_all_types = set()
-    for sp in species_list:
-        if sp in all_regions and "GCF" in all_regions[sp].columns and "antismash_primary_collapsed" in all_regions[sp].columns:
-            rdf = all_regions[sp].dropna(subset=["GCF"])
-            # Get one class per GCF (majority vote)
-            gcf_class = rdf.groupby("GCF")["antismash_primary_collapsed"].agg(lambda x: x.value_counts().index[0])
-            counts = gcf_class.value_counts()
-            gcf_type_data[sp] = counts
-            gcf_all_types.update(counts.index)
-    gcf_type_totals = {t: sum(gcf_type_data.get(sp, pd.Series()).get(t, 0)
-                              for sp in species_list) for t in gcf_all_types}
-    gcf_top_types = sorted(gcf_type_totals.keys(), key=lambda x: gcf_type_totals[x], reverse=True)
-    gcf_type_colors = dict(zip(gcf_top_types, vivid_colors(len(gcf_top_types))))
-
-    for i, sp in enumerate(species_list):
-        if sp not in gcf_type_data:
-            continue
-        total = gcf_type_data[sp].sum()
-        bottom = 0.0
-        for gcf_type in gcf_top_types:
-            val = gcf_type_data[sp].get(gcf_type, 0)
-            pct = val / total if total else 0
-            ax2.bar(i, pct, bottom=bottom, color=gcf_type_colors[gcf_type], width=0.6,
-                    edgecolor='white', linewidth=0.3)
-            if pct >= 0.05:
-                ax2.text(i, bottom + pct / 2, f"{pct:.0%}", ha="center", va="center",
-                         fontsize=7, color="white", fontweight="bold")
-            bottom += pct
-        ax2.text(i, 1.01, f"n={total}", ha="center", va="bottom", fontsize=8)
-    ax2.set_xticks(range(len(species_list)))
-    ax2.set_xticklabels(species_labels, rotation=15, fontstyle='italic')
-    ax2.set_ylabel("Proportion of GCFs")
-    ax2.set_ylim(0, 1.10)
-    ax2.set_title("GCF Type Composition by Species", fontsize=12, fontweight="bold")
-    gcf_legend_patches = [Patch(facecolor=gcf_type_colors[t], label=t) for t in gcf_top_types if gcf_type_totals[t] > 0]
-    ax2.legend(handles=gcf_legend_patches, bbox_to_anchor=(1.02, 1), loc="upper left", fontsize=7)
-
-    # ---- 3. BGC per genome distribution (boxplot with outlier annotations) ----
-    ax3 = axes[1, 0]
-    bgc_per_genome_data = []
-    bgc_per_genome_series = {}
-    for sp in species_list:
-        if sp in all_regions:
-            per_genome = all_regions[sp].groupby("strain").size()
-            bgc_per_genome_data.append(per_genome.values if len(per_genome) > 0 else np.array([0]))
-            bgc_per_genome_series[sp] = per_genome
-        else:
-            bgc_per_genome_data.append(np.array([0]))
-            bgc_per_genome_series[sp] = pd.Series(dtype=int)
-
-    bp = ax3.boxplot(bgc_per_genome_data, labels=species_labels, patch_artist=True,
-                     flierprops=dict(marker='o', markersize=5, alpha=0.7))
-    for patch, color in zip(bp['boxes'], species_colors):
-        patch.set_facecolor(color)
-
-    # Annotate outliers with strain accession
-    for idx, sp in enumerate(species_list):
-        per_genome = bgc_per_genome_series[sp]
-        if len(per_genome) == 0:
-            continue
-        q1 = np.percentile(per_genome.values, 25)
-        q3 = np.percentile(per_genome.values, 75)
-        iqr = q3 - q1
-        lo_fence = q1 - 1.5 * iqr
-        hi_fence = q3 + 1.5 * iqr
-        outliers = per_genome[(per_genome < lo_fence) | (per_genome > hi_fence)]
-        for strain, val in outliers.items():
-            # Shorten accession for label
-            short = strain.split("_")[-1] if "_" in str(strain) else str(strain)
-            ax3.annotate(short, (idx + 1, val), fontsize=5.5, color='red',
-                         ha='left', va='center', xytext=(5, 0),
-                         textcoords='offset points')
-
-    ax3.set_ylabel("BGCs per Genome")
-    ax3.set_title("BGC Count Distribution per Genome", fontsize=12, fontweight="bold")
-    ax3.set_xticklabels(species_labels, rotation=15, fontstyle='italic')
-    ax3.grid(axis="y", alpha=0.3)
-
-    # ---- 4. Total BGC and GCF counts side by side ----
-    ax4 = axes[1, 1]
-    bgc_totals = [len(all_regions[sp]) if sp in all_regions else 0 for sp in species_list]
-    gcf_totals = []
-    for sp in species_list:
-        if sp in all_regions and "GCF" in all_regions[sp].columns:
-            gcf_totals.append(all_regions[sp]["GCF"].nunique())
-        else:
-            gcf_totals.append(0)
-    x = np.arange(len(species_list))
-    w = 0.35
-    bars1 = ax4.bar(x - w/2, bgc_totals, w, label="BGC Regions", color='steelblue', edgecolor='white')
-    bars2 = ax4.bar(x + w/2, gcf_totals, w, label="GCFs", color='coral', edgecolor='white')
-    for bar, val in zip(bars1, bgc_totals):
-        ax4.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, str(val),
-                 ha="center", va="bottom", fontsize=9, fontweight="bold")
-    for bar, val in zip(bars2, gcf_totals):
-        ax4.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1, str(val),
-                 ha="center", va="bottom", fontsize=9, fontweight="bold")
-    ax4.set_xticks(x)
-    ax4.set_xticklabels(species_labels, rotation=15, fontstyle='italic')
-    ax4.set_ylabel("Count")
-    ax4.set_title("Total BGC Regions and GCFs by Species", fontsize=12, fontweight="bold")
-    ax4.legend()
-
-    plt.suptitle("Secondary Metabolite Gene Cluster Analysis", fontsize=14, fontweight="bold", y=1.02)
-    plt.tight_layout()
-
-
-
-def summarize_gcf_diversity(all_regions, all_bigscape, species_list):
-    """
-    Summarize GCF diversity and uniqueness across species.
-    """
-    print("\n" + "="*80)
-    print("GCF DIVERSITY SUMMARY")
-    print("="*80)
-    
-    for species in species_list:
-        if species not in all_regions:
-            continue
-            
-        regions = all_regions[species]
-        if "GCF" not in regions.columns or regions["GCF"].isna().all():
-            continue
-        
-        print(f"\nA. {species}:")
-        
-        # GCF statistics
-        gcf_counts = regions["GCF"].value_counts()
-        n_gcfs = len(gcf_counts)
-        n_singletons = (gcf_counts == 1).sum()
-        largest_gcf = gcf_counts.max()
-        
-        print(f"  Total GCFs: {n_gcfs}")
-        print(f"  Singleton GCFs (1 member): {n_singletons} ({100*n_singletons/n_gcfs:.1f}%)")
-        print(f"  Largest GCF size: {largest_gcf} members")
-        
-        # BGC type breakdown in GCFs
-        gcf_types = regions.groupby("GCF")["antismash_primary_collapsed"].agg(
-            lambda x: x.mode().iloc[0] if len(x.mode()) > 0 else "Unknown"
-        )
-        type_counts = gcf_types.value_counts()
-        print(f"  GCFs by BGC type:")
-        for bgc_type, count in type_counts.head(5).items():
-            print(f"    {bgc_type}: {count} GCFs")
 
 
 # =============================================================================
@@ -3452,157 +1659,6 @@ def plot_bgc_gcf_matrices(bgc_pav: pd.DataFrame, gcf_pav: pd.DataFrame,
     return fig
 
 
-def plot_gcf_pangenome_combined(bgc_gcf_results, species_list):
-    """
-    Combined species-comparing plot for GCF-based core/accessory/rare pangenome.
-
-    Parameters
-    ----------
-    bgc_gcf_results : dict
-        Keyed by species short name, values are dicts with 'gcf_pav' DataFrames.
-    species_list : list of str
-        Species short names in display order.
-    """
-    species_in = [sp for sp in species_list if sp in bgc_gcf_results
-                  and not bgc_gcf_results[sp]['gcf_pav'].empty]
-    if not species_in:
-        print("No GCF PAV data available for combined plot")
-        return None
-
-    fig, axes = plt.subplots(1, 3, figsize=(18, 5))
-    sp_labels = [f"A. {sp}" for sp in species_in]
-    cat_colors = {'Core': '#2ecc71', 'Accessory': '#f39c12', 'Rare': '#e74c3c'}
-    sp_colors = sns.color_palette("Set2", len(species_in))
-
-    # Collect pangenome stats
-    stats = {}
-    for sp in species_in:
-        gcf_pav = bgc_gcf_results[sp]['gcf_pav']
-        n_strains = gcf_pav.shape[0]
-        freq = gcf_pav.sum(axis=0)
-        freq = freq[freq > 0]  # drop GCFs absent from all strains
-        core = int((freq >= 0.95 * n_strains).sum())
-        acc = int(((freq >= 0.05 * n_strains) & (freq < 0.95 * n_strains)).sum())
-        rare = int((freq < 0.05 * n_strains).sum())
-        stats[sp] = {'Core': core, 'Accessory': acc, 'Rare': rare,
-                     'total': core + acc + rare, 'n_strains': n_strains, 'freq': freq}
-
-    # ---- Panel 1: Stacked bar (absolute counts) ----
-    ax1 = axes[0]
-    x = np.arange(len(species_in))
-    w = 0.5
-    bottoms = np.zeros(len(species_in))
-    for cat in ['Core', 'Accessory', 'Rare']:
-        vals = [stats[sp][cat] for sp in species_in]
-        ax1.bar(x, vals, w, bottom=bottoms, label=cat, color=cat_colors[cat], edgecolor='white')
-        for i, v in enumerate(vals):
-            if v > 0:
-                ax1.text(i, bottoms[i] + v / 2, str(v), ha='center', va='center',
-                         fontsize=9, fontweight='bold', color='white')
-        bottoms += vals
-    for i, sp in enumerate(species_in):
-        ax1.text(i, bottoms[i] + 1, f"n={stats[sp]['total']}", ha='center', va='bottom', fontsize=8)
-    ax1.set_xticks(x)
-    ax1.set_xticklabels(sp_labels, rotation=15, fontstyle='italic')
-    ax1.set_ylabel('Number of GCFs')
-    ax1.set_title('GCF Pangenome Classification', fontsize=12, fontweight='bold')
-    ax1.legend()
-
-    # ---- Panel 2: Proportional stacked bar ----
-    ax2 = axes[1]
-    bottoms = np.zeros(len(species_in))
-    for cat in ['Core', 'Accessory', 'Rare']:
-        vals = [stats[sp][cat] / stats[sp]['total'] if stats[sp]['total'] else 0 for sp in species_in]
-        ax2.bar(x, vals, w, bottom=bottoms, color=cat_colors[cat], edgecolor='white')
-        for i, v in enumerate(vals):
-            if v >= 0.04:
-                ax2.text(i, bottoms[i] + v / 2, f"{v:.0%}", ha='center', va='center',
-                         fontsize=9, fontweight='bold', color='white')
-        bottoms += vals
-    ax2.set_xticks(x)
-    ax2.set_xticklabels(sp_labels, rotation=15, fontstyle='italic')
-    ax2.set_ylabel('Proportion of GCFs')
-    ax2.set_ylim(0, 1.05)
-    ax2.set_title('GCF Pangenome Proportion', fontsize=12, fontweight='bold')
-
-    # ---- Panel 3: GCF frequency distribution (overlaid histograms) ----
-    ax3 = axes[2]
-    for i, sp in enumerate(species_in):
-        freq = stats[sp]['freq']
-        n_strains = stats[sp]['n_strains']
-        freq_pct = freq / n_strains * 100
-        ax3.hist(freq_pct, bins=20, alpha=0.5, label=f"A. {sp} (n={n_strains})",
-                 color=sp_colors[i], edgecolor='white')
-    ax3.axvline(x=95, color='#2ecc71', linestyle='--', linewidth=1, alpha=0.7)
-    ax3.axvline(x=5, color='#e74c3c', linestyle='--', linewidth=1, alpha=0.7)
-    ax3.text(96, ax3.get_ylim()[1] * 0.9, 'Core', fontsize=8, color='#2ecc71')
-    ax3.text(6, ax3.get_ylim()[1] * 0.9, 'Rare', fontsize=8, color='#e74c3c')
-    ax3.set_xlabel('GCF Prevalence (% of strains)')
-    ax3.set_ylabel('Number of GCFs')
-    ax3.set_title('GCF Frequency Distribution', fontsize=12, fontweight='bold')
-    ax3.legend(fontsize=8)
-
-    plt.suptitle('GCF-Based Core/Accessory/Rare Pangenome Across Species',
-                 fontsize=14, fontweight='bold', y=1.02)
-    plt.tight_layout()
-
-
-def run_bgc_gcf_matrix_analysis(bigscape_dir: str, species: str = None,
-                                 output_dir: str = None) -> dict:
-    """
-    Complete BGC/GCF matrix analysis pipeline.
-
-    Parameters
-    ----------
-    bigscape_dir : str
-        Path to BiG-SCAPE output directory
-    species : str
-        Species name
-    output_dir : str
-        Directory to save output matrices (optional)
-
-    Returns
-    -------
-    dict
-        Dictionary with keys: bigscape_df, bgc_pav, gcf_pav, gcf_cnv, fig
-    """
-    # Load clustering data
-    bigscape_df = load_bigscape_clustering(bigscape_dir)
-
-    if bigscape_df.empty:
-        return {
-            'bigscape_df': bigscape_df,
-            'bgc_pav': pd.DataFrame(),
-            'gcf_pav': pd.DataFrame(),
-            'gcf_cnv': pd.DataFrame(),
-            'fig': None
-        }
-
-    # Build matrices
-    bgc_pav = build_bgc_pav_matrix(bigscape_df)
-    gcf_pav = build_gcf_pav_matrix(bigscape_df)
-    gcf_cnv = build_gcf_cnv_matrix(bigscape_df)
-
-    # Save if output_dir specified
-    if output_dir:
-        os.makedirs(output_dir, exist_ok=True)
-        bgc_pav.to_csv(os.path.join(output_dir, f'{species}_bgc_pav.tsv'), sep='\t')
-        gcf_pav.to_csv(os.path.join(output_dir, f'{species}_gcf_pav.tsv'), sep='\t')
-        gcf_cnv.to_csv(os.path.join(output_dir, f'{species}_gcf_cnv.tsv'), sep='\t')
-        print(f"Matrices saved to: {output_dir}")
-
-    # Plot
-    fig = plot_bgc_gcf_matrices(bgc_pav, gcf_pav, gcf_cnv, species=species)
-
-    return {
-        'bigscape_df': bigscape_df,
-        'bgc_pav': bgc_pav,
-        'gcf_pav': gcf_pav,
-        'gcf_cnv': gcf_cnv,
-        'fig': fig
-    }
-
-
 # =============================================================================
 # NB1 PIPELINE FUNCTIONS (extracted from notebook cells)
 # =============================================================================
@@ -3682,10 +1738,13 @@ def load_all_orthofinder(species_list, species_root, results_base, force=False):
 
 
 def classify_all_pangenomes(species_list, ortho_data, pav_data, results_base=None,
-                            force=False):
+                            force=False, plot=False):
     """Classify orthogroups into Core/Accessory/Rare for all species.
 
     Cached to ``{results_base}/{sp}/{sp}_pangenome_class.tsv``.
+
+    ``plot=True`` draws one gene-frequency histogram per species with the core
+    and rare thresholds marked, and writes ``{sp}_gene_freq_hist.png``.
 
     Returns
     -------
@@ -3727,17 +1786,18 @@ def classify_all_pangenomes(species_list, ortho_data, pav_data, results_base=Non
                 classified.to_csv(cache_path, sep='\t', index=False)
                 print(f'  Saved classification to {cache_path}')
 
-        # --- Always show plot (recompute thresholds from PAV if needed) ---
-        pav = pav_data[sp]
-        core_rate, core_n, rare_rate, rare_n = determine_core_and_rare_thresholds(pav)
-        fig, ax = plt.subplots(figsize=(8, 4))
-        plot_gene_freq_hist(pav, core_n, rare_n, ax=ax)
-        ax.set_title(f'A. {sp} — Gene Frequency Distribution')
-        fig.tight_layout()
-        if cache_path:
-            fig.savefig(os.path.join(results_base, sp, f'{sp}_gene_freq_hist.png'),
-                        dpi=120, bbox_inches='tight')
-        plt.show()
+        # --- Optional gene-frequency histogram (recompute thresholds from PAV) ---
+        if plot:
+            pav = pav_data[sp]
+            core_rate, core_n, rare_rate, rare_n = determine_core_and_rare_thresholds(pav)
+            fig, ax = plt.subplots(figsize=(8, 4))
+            plot_gene_freq_hist(pav, core_n, rare_n, ax=ax)
+            ax.set_title(f'A. {sp} - Gene Frequency Distribution')
+            fig.tight_layout()
+            if cache_path:
+                fig.savefig(os.path.join(results_base, sp, f'{sp}_gene_freq_hist.png'),
+                            dpi=120, bbox_inches='tight')
+            plt.show()
 
     return pangenome_class
 
@@ -3808,11 +1868,14 @@ def load_all_annotations_and_consensus(species_list, species_root, ortho_data,
     return og_consensus
 
 
-def run_all_enrichment(species_list, og_consensus, results_base, force=False):
+def run_all_enrichment(species_list, og_consensus, results_base, force=False,
+                       plot=False):
     """Run functional enrichment analysis for all species.
 
     Cached per-species to ``{results_base}/{sp}/{sp}_enrichment_*.tsv``.
     Pass ``force=True`` to rerun.
+
+    ``plot=True`` renders the per-species enrichment heatmap inline.
 
     Returns
     -------
@@ -3836,7 +1899,7 @@ def run_all_enrichment(species_list, og_consensus, results_base, force=False):
                 enrich_dict[layer] = pd.read_csv(fp, sep='\t')
             enrichment_results[sp] = enrich_dict
             print(f'  Loaded {len(enrich_dict)} cached enrichment layers from {out_dir}')
-            if enrich_dict:
+            if plot and enrich_dict:
                 combined = pd.concat(enrich_dict.values(), ignore_index=True)
                 plot_enrichment_heatmap_single_species(combined, title=sp)
                 plt.tight_layout()
@@ -3849,7 +1912,7 @@ def run_all_enrichment(species_list, og_consensus, results_base, force=False):
         enrichment_results[sp] = enrich_dict
         print(f'  Enrichment: {len(enrich_dict)} annotation layers tested')
 
-        if enrich_dict:
+        if plot and enrich_dict:
             combined = pd.concat(enrich_dict.values(), ignore_index=True)
             plot_enrichment_heatmap_single_species(combined, title=sp)
             plt.tight_layout()
@@ -3868,10 +1931,15 @@ def run_all_enrichment(species_list, og_consensus, results_base, force=False):
     return enrichment_results
 
 
-def run_all_snp_pca_and_grm(species_list, species_root, results_base, force=False):
+def run_all_snp_pca_and_grm(species_list, species_root, results_base, force=False,
+                            plot=False):
     """Compute SNP PCA and GRM/kinship for all species.
 
     Cached to ``{results_base}/{sp}/{sp}_snp_pcs.tsv`` and ``{sp}_kinship.tsv``.
+    The kinship matrix is the random-effect covariance in the NB2 pan-GWAS.
+
+    ``plot=True`` writes the per-species ``{sp}_snp_pca.png`` and
+    ``{sp}_kinship_grm.png``.
 
     Returns
     -------
@@ -3918,7 +1986,10 @@ def run_all_snp_pca_and_grm(species_list, species_root, results_base, force=Fals
 
             snp_results[sp] = {'snp_pcs': pcs_df, 'grm': grm_df}
 
-        # --- Always plot PCA + GRM heatmap (uses original plot_grm style) ---
+        # --- Optional per-species PCA / GRM figures ---
+        if not plot:
+            continue
+
         pcs_df = snp_results[sp]['snp_pcs']
         grm_df = snp_results[sp]['grm']
 
@@ -3926,7 +1997,7 @@ def run_all_snp_pca_and_grm(species_list, species_root, results_base, force=Fals
             fig_pca, ax = plt.subplots(figsize=(6, 5))
             ax.scatter(pcs_df['PC1'], pcs_df['PC2'], alpha=0.7, s=30, color='steelblue')
             ax.set_xlabel('PC1'); ax.set_ylabel('PC2')
-            ax.set_title(f'A. {sp} — SNP PCA (n={len(pcs_df)})')
+            ax.set_title(f'A. {sp}, SNP PCA (n={len(pcs_df)})')
             ax.grid(True, linestyle=':', alpha=0.5)
             fig_pca.tight_layout()
             fig_pca.savefig(os.path.join(out_dir, f'{sp}_snp_pca.png'),
@@ -3943,10 +2014,14 @@ def run_all_snp_pca_and_grm(species_list, species_root, results_base, force=Fals
     return snp_results
 
 
-def run_all_bgc_gcf(species_list, species_root, results_base, force=False):
+def run_all_bgc_gcf(species_list, species_root, results_base, force=False,
+                    plot=False):
     """Load BiG-SCAPE clustering and build BGC/GCF matrices for all species.
 
-    Cached to ``{results_base}/{sp}/{sp}_{bgc_pav,gcf_pav,gcf_cnv}.tsv``.
+    Cached to ``{results_base}/{sp}/{sp}_{bgc_pav,gcf_pav,gcf_cnv}.tsv``. The
+    three matrices are feature layers in the NB2 pan-GWAS.
+
+    ``plot=True`` writes ``{sp}_bgc_gcf.png``.
 
     Returns
     -------
@@ -3968,7 +2043,7 @@ def run_all_bgc_gcf(species_list, species_root, results_base, force=False):
             bgc_pav = pd.read_csv(bgc_path, sep='\t', index_col=0)
             gcf_pav = pd.read_csv(gcf_pav_path, sep='\t', index_col=0)
             gcf_cnv = pd.read_csv(gcf_cnv_path, sep='\t', index_col=0)
-            # Runtime ANI exclusion — these matrices are genomes-as-rows,
+            # Runtime ANI exclusion -- these matrices are genomes-as-rows,
             # but BGC IDs (in columns) include the accession too, so filter both.
             bgc_pav = filter_ani_excluded(bgc_pav, sp, axis='auto')
             gcf_pav = filter_ani_excluded(gcf_pav, sp, axis='auto')
@@ -4001,10 +2076,808 @@ def run_all_bgc_gcf(species_list, species_root, results_base, force=False):
         gcf_pav = bgc_results[sp]['gcf_pav']
         gcf_cnv = bgc_results[sp]['gcf_cnv']
         if not bgc_pav.empty or not gcf_pav.empty:
-            fig = plot_bgc_gcf_matrices(bgc_pav, gcf_pav, gcf_cnv, species=sp)
-            if fig is not None:
-                fig.savefig(os.path.join(out_dir, f'{sp}_bgc_gcf.png'),
-                            dpi=120, bbox_inches='tight')
-            plt.show()
+            if plot:
+                fig = plot_bgc_gcf_matrices(bgc_pav, gcf_pav, gcf_cnv, species=sp)
+                if fig is not None:
+                    fig.savefig(os.path.join(out_dir, f'{sp}_bgc_gcf.png'),
+                                dpi=120, bbox_inches='tight')
+                plt.show()
 
     return bgc_results
+
+
+# =============================================================================
+# GCF ANNOTATION (CLASS + MIBiG)
+# =============================================================================
+
+_KCB_REGION_RE = re.compile(r'(scaffold_\d+)_c(\d+)$')
+
+
+def parse_knownclusterblast(filepath):
+    """Parse one antiSMASH knownclusterblast .txt into scored MIBiG hits.
+
+    Reads the ``Details`` blocks rather than the ``Significant hits`` list, so
+    each hit carries the evidence antiSMASH recorded for it.
+
+    Returns
+    -------
+    list of dict
+        ``{'mibig_id', 'compound', 'mibig_type', 'n_genes', 'score'}``.
+    """
+    try:
+        content = Path(filepath).read_text()
+    except (OSError, UnicodeDecodeError):
+        return []
+
+    hits = []
+    for block in content.split('>>')[1:]:
+        m_id = re.search(r'^\s*\d+\.\s*(BGC\d+)', block, re.MULTILINE)
+        if not m_id:
+            continue
+        m_src = re.search(r'^Source:\s*(.*)$', block, re.MULTILINE)
+        m_type = re.search(r'^Type:\s*(.*)$', block, re.MULTILINE)
+        m_n = re.search(r'^Number of proteins with BLAST hits to this cluster:\s*(\d+)',
+                        block, re.MULTILINE)
+        m_sc = re.search(r'^Cumulative BLAST score:\s*(\d+)', block, re.MULTILINE)
+        hits.append({
+            'mibig_id': m_id.group(1),
+            'compound': m_src.group(1).strip() if m_src else '',
+            'mibig_type': m_type.group(1).strip() if m_type else '',
+            'n_genes': int(m_n.group(1)) if m_n else 0,
+            'score': int(m_sc.group(1)) if m_sc else 0,
+        })
+    return hits
+
+
+def build_gcf_annotation(species, species_root, max_hits=3, min_support=0.5):
+    """Annotate every GCF of one species with its BGC class and MIBiG evidence.
+
+    Two independent kinds of MIBiG evidence are reported, because they answer
+    different questions and disagree often:
+
+    ``mibig_in_family``
+        MIBiG reference BGCs that BiG-SCAPE placed *inside* the family at the
+        c0.3 cutoff. This is the strict reading of "has a characterized
+        reference compound".
+    ``kcb_*``
+        antiSMASH knownclusterblast homology hits, ranked by how many member
+        regions recover the hit and, within that, by cumulative BLAST score.
+        ``kcb_support`` is the fraction of member regions carrying the top hit,
+        so a hit seen in 1 of 5 regions is not mistaken for a family-wide one.
+
+    ANI-excluded genomes are dropped so the counts match the NB1 GCF matrices.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per GCF, or an empty frame when BiG-SCAPE output is missing.
+    """
+    sp_dir = Path(species_root) / species
+    bigscape_dirs = sorted((sp_dir / 'bigscape_output' / 'output_files').glob('*_c0*'))
+    if not bigscape_dirs:
+        print(f'  No BiG-SCAPE output for {species}')
+        return pd.DataFrame()
+    run_dir = bigscape_dirs[-1]
+
+    ann_path = run_dir / 'record_annotations.tsv'
+    if not ann_path.exists():
+        print(f'  No record_annotations.tsv in {run_dir.name}')
+        return pd.DataFrame()
+    ann = pd.read_csv(ann_path, sep='\t')
+    rec_class = dict(zip(ann['Record'], ann['Class']))
+    rec_cat = dict(zip(ann['Record'], ann['Category']))
+
+    clus_files = sorted(run_dir.glob('*/*_clustering_*.tsv'))
+    if not clus_files:
+        print(f'  No clustering tables in {run_dir.name}')
+        return pd.DataFrame()
+    clus = pd.concat(
+        [pd.read_csv(f, sep='\t').assign(bin=f.parent.name) for f in clus_files],
+        ignore_index=True)
+
+    is_ref = clus['Record'].astype(str).str.startswith('BGC')
+    refs = clus[is_ref]
+    members = clus[~is_ref].copy()
+    members = members[~members['Record'].astype(str).map(
+        lambda r: is_ani_excluded(r, species))]
+    if members.empty:
+        print(f'  No strain records left for {species} after ANI exclusion')
+        return pd.DataFrame()
+
+    members['strain'] = members['GBK'].astype(str).str.split('_scaffold').str[0]
+    members['Class'] = members['Record'].map(rec_class)
+    members['Category'] = members['Record'].map(rec_cat)
+
+    # MIBiG references that clustered into each family
+    fam_refs = {}
+    for fam, g in refs.groupby('Family'):
+        ids = sorted({str(r).split('.gbk')[0] for r in g['Record']})
+        fam_refs[fam] = ids
+
+    # knownclusterblast hits, keyed by BiG-SCAPE Record
+    kcb_by_record = defaultdict(list)
+    antismash_dir = sp_dir / 'antismash_output'
+    record_index = defaultdict(list)
+    for rec in members['Record']:
+        record_index[str(rec).split('_scaffold')[0]].append(str(rec))
+    if antismash_dir.is_dir():
+        for strain_dir in antismash_dir.iterdir():
+            kcb_dir = strain_dir / 'knownclusterblast'
+            if not kcb_dir.is_dir():
+                continue
+            strain_records = record_index.get(strain_dir.name, [])
+            if not strain_records:
+                continue
+            for txt in kcb_dir.glob('*.txt'):
+                m = _KCB_REGION_RE.match(txt.stem)
+                if not m:
+                    continue
+                scaffold, region_num = m.group(1), int(m.group(2))
+                # antiSMASH zero-pads region numbers inconsistently across versions
+                patterns = [f'{strain_dir.name}_{scaffold}.region{region_num:03d}',
+                            f'{strain_dir.name}_{scaffold}.region{region_num:02d}',
+                            f'{strain_dir.name}_{scaffold}.region{region_num}']
+                matched = [r for r in strain_records if any(p in r for p in patterns)]
+                if not matched:
+                    continue
+                hits = parse_knownclusterblast(txt)
+                for rec in matched:
+                    kcb_by_record[rec].extend(hits)
+
+    rows = []
+    for fam, g in members.groupby('Family'):
+        n_regions = len(g)
+        classes = g['Class'].dropna()
+        cats = g['Category'].dropna()
+
+        # Rank knownclusterblast hits by how many member regions recover them
+        per_hit_regions = Counter()
+        per_hit_best = {}
+        for rec in g['Record']:
+            seen = set()
+            for h in kcb_by_record.get(str(rec), []):
+                key = h['mibig_id']
+                if key not in seen:
+                    per_hit_regions[key] += 1
+                    seen.add(key)
+                prev = per_hit_best.get(key)
+                if prev is None or h['score'] > prev['score']:
+                    per_hit_best[key] = h
+        ranked = sorted(per_hit_regions,
+                        key=lambda k: (per_hit_regions[k], per_hit_best[k]['score']),
+                        reverse=True)
+        top = ranked[:max_hits]
+        best = per_hit_best[ranked[0]] if ranked else None
+        support = per_hit_regions[ranked[0]] / n_regions if ranked else 0.0
+
+        rows.append({
+            'GCF': fam,
+            'n_regions': n_regions,
+            'n_strains': g['strain'].nunique(),
+            'bigscape_bin': '; '.join(sorted(set(g['bin']))),
+            'antismash_class': classes.value_counts().index[0] if len(classes) else '',
+            'class_purity': (classes.value_counts().iloc[0] / len(classes)) if len(classes) else float('nan'),
+            'all_classes': '; '.join(sorted(set(classes))),
+            'bigscape_category': cats.value_counts().index[0] if len(cats) else '',
+            'mibig_in_family': '; '.join(fam_refs.get(fam, [])),
+            'n_mibig_in_family': len(fam_refs.get(fam, [])),
+            'kcb_top_id': best['mibig_id'] if best else '',
+            'kcb_top_compound': best['compound'] if best else '',
+            'kcb_top_genes': best['n_genes'] if best else 0,
+            'kcb_top_score': best['score'] if best else 0,
+            'kcb_support': round(support, 3),
+            'kcb_confident': bool(best is not None and support >= min_support),
+            'kcb_top_hits': '; '.join(
+                f'{k}({per_hit_regions[k]}/{n_regions})' for k in top),
+        })
+
+    out = pd.DataFrame(rows).sort_values('GCF').reset_index(drop=True)
+    print(f'  {species}: {len(out)} GCFs from {run_dir.name}, '
+          f'{int((out["n_mibig_in_family"] > 0).sum())} with a MIBiG reference in-family, '
+          f'{int(out["kcb_confident"].sum())} with a confident knownclusterblast hit')
+    return out
+
+
+def run_all_gcf_annotation(species_list, species_root, results_base, force=False,
+                           max_hits=3, min_support=0.5):
+    """Build and cache the GCF annotation table for every species.
+
+    Cached to ``{results_base}/{sp}/{sp}_gcf_annotation.tsv``. The ``GCF``
+    column joins onto the GCF feature columns of ``{sp}_gcf_pav.tsv`` and onto
+    the ``feature`` column of the NB2 GCF association tables.
+
+    Returns
+    -------
+    dict
+        ``{species: DataFrame}``.
+    """
+    annotations = {}
+    for sp in species_list:
+        print(f'\n=== {sp} ===')
+        out_dir = os.path.join(results_base, sp)
+        os.makedirs(out_dir, exist_ok=True)
+        path = os.path.join(out_dir, f'{sp}_gcf_annotation.tsv')
+
+        if not force and os.path.exists(path):
+            df = pd.read_csv(path, sep='\t')
+            print(f'  Loaded cached GCF annotation: {df.shape}')
+        else:
+            df = build_gcf_annotation(sp, species_root, max_hits=max_hits,
+                                      min_support=min_support)
+            if df.empty:
+                annotations[sp] = df
+                continue
+            df.to_csv(path, sep='\t', index=False)
+            print(f'  Wrote {path}')
+        annotations[sp] = df
+
+    return annotations
+
+
+def annotate_gcf_associations(assoc_df, annotation_df,
+                              cols=('antismash_class', 'bigscape_category',
+                                    'n_regions', 'n_strains', 'mibig_in_family',
+                                    'kcb_top_id', 'kcb_top_compound',
+                                    'kcb_support', 'kcb_confident')):
+    """Left-join GCF annotations onto an association table on ``feature``.
+
+    Returns the association table unchanged when either input is empty or the
+    ``feature`` column is missing, so it is safe to map over every contrast.
+    """
+    if assoc_df is None or annotation_df is None:
+        return assoc_df
+    if assoc_df.empty or annotation_df.empty or 'feature' not in assoc_df.columns:
+        return assoc_df
+    keep = ['GCF'] + [c for c in cols if c in annotation_df.columns]
+    return assoc_df.merge(annotation_df[keep], how='left',
+                          left_on='feature', right_on='GCF').drop(columns='GCF')
+
+
+def summarise_gcf_annotation(gcf_annotation):
+    """Per-species MIBiG evidence counts and BiG-SCAPE category composition.
+
+    Returns
+    -------
+    (pandas.DataFrame, pandas.DataFrame)
+        Evidence counts per species, and GCF counts per category.
+    """
+    evidence = pd.DataFrame({
+        sp: {'GCFs': len(a),
+             'regions': int(a['n_regions'].sum()),
+             'MIBiG ref in family': int((a['n_mibig_in_family'] > 0).sum()),
+             'confident KCB hit': int(a['kcb_confident'].sum()),
+             'no MIBiG evidence': int((~a['kcb_confident'] & (a['n_mibig_in_family'] == 0)).sum())}
+        for sp, a in gcf_annotation.items() if a is not None and not a.empty}).T
+    composition = pd.DataFrame(
+        {sp: a['bigscape_category'].value_counts()
+         for sp, a in gcf_annotation.items() if a is not None and not a.empty}
+    ).fillna(0).astype(int)
+    return evidence, composition
+
+
+def collect_significant_gcf_associations(species_list, nb2_results):
+    """Gather FDR-significant rows from every annotated GCF association table.
+
+    Reads ``{nb2_results}/{sp}/pangwas_results/gcf_*_assoc_*_annotated.tsv``.
+
+    Returns
+    -------
+    pandas.DataFrame
+        One row per significant species x contrast x layer x GCF.
+    """
+    rows = []
+    for sp in species_list:
+        sp_dir = Path(nb2_results) / sp / 'pangwas_results'
+        if not sp_dir.is_dir():
+            continue
+        for f in sorted(sp_dir.glob('gcf_*_assoc_*_annotated.tsv')):
+            layer, contrast = f.stem.replace('_annotated', '').split('_assoc_')
+            df = pd.read_csv(f, sep='\t')
+            if 'significant' not in df.columns:
+                continue
+            for _, r in df[df['significant']].iterrows():
+                rows.append({
+                    'species': sp, 'contrast': contrast, 'layer': layer,
+                    'GCF': r['feature'],
+                    'class': r.get('antismash_class'),
+                    'direction': 'gained' if r['beta'] > 0 else 'lost',
+                    'beta': round(r['beta'], 3),
+                    'qvalue': r['qvalue'],
+                    'n_strains': r.get('n_strains'),
+                    'mibig_in_family': r.get('mibig_in_family'),
+                    'kcb_compound': r.get('kcb_top_compound'),
+                    'kcb_support': r.get('kcb_support'),
+                })
+    if not rows:
+        return pd.DataFrame()
+    return (pd.DataFrame(rows)
+            .sort_values(['species', 'contrast', 'layer', 'qvalue'])
+            .reset_index(drop=True))
+
+
+# =============================================================================
+# COMBINED KINSHIP / GRM FIGURE
+# =============================================================================
+
+KINSHIP_PHENO_COLORS = {
+    'Human-pathogenic':  '#e4211c',
+    'Environmental':     '#2ca02c',
+    'Industrial-trait':  '#1f9ede',
+    'Plant-pathogenic':  '#ff7f0e',
+    'Animal-pathogenic': '#8b5cb8',
+    'Unknown':           '#bdbdbd',
+}
+
+
+def plot_kinship_grid(species_list, results_base, pheno_csv, out_path=None,
+                      pheno_colors=None, figsize=(15, 14), dpi=150,
+                      fontsize=13, clip_pct=(2, 98), method='average',
+                      cmap_name='RdBu_r', show_left_strip=True,
+                      drop_unlabelled=True):
+    """Clustered kinship (GRM) heatmap per species, annotated by phenotype.
+
+    Reads ``{results_base}/{sp}/{sp}_kinship.tsv`` for each species, orders the
+    strains by hierarchical clustering of the relatedness matrix, and draws the
+    phenotype of each strain as a colour strip along the matrix edges. The file
+    is the one the NB2 pan-GWAS reads as random-effect covariance.
+
+    With ``drop_unlabelled=True``, ANI-excluded genomes and strains without a
+    phenotype label are removed, leaving the strains used in the pan-GWAS.
+    With ``drop_unlabelled=False`` every QC-passed genome is shown.
+
+    Parameters
+    ----------
+    species_list : list of str
+    results_base : str
+        NB1 results directory holding ``{sp}/{sp}_kinship.tsv``.
+    pheno_csv : str
+        CSV with ``Assembly Accession`` and ``Phenotype`` columns (NB0 output).
+    out_path : str, optional
+        Path of the PNG to write.
+    clip_pct : (low, high)
+        Percentiles of the off-diagonal values used as colour limits. The
+        diagonal (self-relatedness) is masked and shown in grey.
+    method : str
+        scipy linkage method.
+
+    Returns
+    -------
+    fig, info : matplotlib Figure and ``{species: {'order', 'labels', 'n'}}``
+    """
+    from matplotlib.colors import TwoSlopeNorm, to_rgb
+    from matplotlib.patches import Patch
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+    from scipy.cluster.hierarchy import linkage, leaves_list
+    from scipy.spatial.distance import squareform
+
+    if pheno_colors is None:
+        pheno_colors = KINSHIP_PHENO_COLORS
+
+    pheno = pd.read_csv(pheno_csv)
+    pheno_map = dict(zip(pheno['Assembly Accession'].astype(str), pheno['Phenotype']))
+
+    fig = plt.figure(figsize=figsize)
+    outer = gridspec.GridSpec(2, 2, figure=fig, hspace=0.28, wspace=0.24)
+    info = {}
+    seen_labels = set()
+
+    for idx, sp in enumerate(species_list):
+        path = os.path.join(results_base, sp, f'{sp}_kinship.tsv')
+        if not os.path.exists(path):
+            print(f'  {sp}: no kinship matrix at {path} -- skipping')
+            continue
+
+        K = pd.read_csv(path, sep='\t', index_col=0).astype(float)
+
+        # Mirror the pan-GWAS load path (funpan_gwas.run_all_gwas)
+        K = filter_ani_excluded(K, sp, axis='both')
+
+        accs = []
+        for i in K.index:
+            m = ACC_RE.search(str(i))
+            accs.append(m.group(1) if m else str(i))
+
+        if drop_unlabelled:
+            keep = [j for j, a in enumerate(accs) if a in pheno_map]
+            n_drop = len(accs) - len(keep)
+            if n_drop:
+                print(f'  {sp}: dropped {n_drop} strain(s) with no phenotype label')
+            K = K.iloc[keep, keep]
+            accs = [accs[j] for j in keep]
+
+        labels = [pheno_map.get(a, 'Unknown') for a in accs]
+
+        M = K.values.copy()
+        M = (M + M.T) / 2.0                       # linkage needs exact symmetry
+
+        dist = M.max() - M
+        np.fill_diagonal(dist, 0.0)
+        dist[dist < 0] = 0.0
+        order = leaves_list(linkage(squareform(dist, checks=False), method=method))
+
+        Mo = M[np.ix_(order, order)]
+        lab_o = [labels[i] for i in order]
+        acc_o = [accs[i] for i in order]
+        seen_labels.update(lab_o)
+        # Per-strain diagnostics: diagonal and mean off-diagonal relatedness
+        diag = np.diag(Mo)
+        offd = Mo.copy(); np.fill_diagonal(offd, np.nan)
+        info[sp] = {
+            'order': acc_o, 'labels': lab_o, 'n': len(Mo),
+            'diag': pd.Series(diag, index=acc_o),
+            'mean_offdiag': pd.Series(np.nanmean(offd, axis=1), index=acc_o),
+            'n_high_diag': int((diag > 3 * np.median(diag)).sum()),
+        }
+
+        off = Mo[~np.eye(len(Mo), dtype=bool)]
+        lo, hi = np.percentile(off, clip_pct)
+        norm = TwoSlopeNorm(vmin=min(lo, -0.05), vcenter=0.0, vmax=max(hi, 0.05))
+
+        Mplot = Mo.copy()
+        np.fill_diagonal(Mplot, np.nan)
+
+        n = len(lab_o)
+        cmap = plt.get_cmap(cmap_name).copy()
+        cmap.set_bad('#f0f0f0')
+
+        # aspect='equal' shrinks the heatmap axes inside its gridspec cell, so the
+        # strips and colourbar attach to the heatmap axes and share its coordinates
+        ax = fig.add_subplot(outer[idx])
+        im = ax.imshow(Mplot, cmap=cmap, norm=norm, aspect='equal',
+                       interpolation='nearest')
+        ax.set_xticks([]); ax.set_yticks([])
+        ax.set_xlabel('Strains (hierarchically clustered)', fontsize=fontsize - 3)
+
+        div = make_axes_locatable(ax)
+        ax_top = div.append_axes('top', size='3.2%', pad=0.05, sharex=ax)
+        ax_left = (div.append_axes('left', size='3.2%', pad=0.05, sharey=ax)
+                   if show_left_strip else None)
+        cax = div.append_axes('right', size='3.5%', pad=0.10)
+
+        rgb = np.array([[to_rgb(pheno_colors.get(l, '#bdbdbd')) for l in lab_o]])
+        ax_top.imshow(rgb, aspect='auto', interpolation='nearest',
+                      extent=(-0.5, n - 0.5, 0.0, 1.0))
+        ax_top.set_xticks([]); ax_top.set_yticks([])
+        for side in ax_top.spines.values():
+            side.set_visible(False)
+        ax_top.set_title(f'A. {sp}  (n = {n})', fontsize=fontsize + 1,
+                         fontweight='bold', pad=8)
+
+        if ax_left is not None:
+            ax_left.imshow(rgb.transpose(1, 0, 2), aspect='auto',
+                           interpolation='nearest',
+                           extent=(0.0, 1.0, n - 0.5, -0.5))
+            ax_left.set_xticks([]); ax_left.set_yticks([])
+            for side in ax_left.spines.values():
+                side.set_visible(False)
+
+        cb = fig.colorbar(im, cax=cax)
+        cb.set_label('Relatedness', fontsize=fontsize - 3)
+        cb.ax.tick_params(labelsize=fontsize - 4)
+
+    handles = [Patch(facecolor=c, label=l) for l, c in pheno_colors.items()
+               if l in seen_labels]
+    fig.legend(handles=handles, loc='lower center', ncol=min(6, len(handles)),
+               frameon=False, fontsize=fontsize - 1, bbox_to_anchor=(0.5, 0.04))
+    fig.suptitle('SNP-derived genetic relatedness (kinship) per species',
+                 fontsize=fontsize + 4, fontweight='bold', y=0.955)
+
+    if out_path:
+        fig.savefig(out_path, dpi=dpi, bbox_inches='tight')
+        print(f'Saved: {out_path}')
+
+    return fig, info
+
+
+# =============================================================================
+# NB1 FIGURES AND FIRST-RUN SUPPORT
+# =============================================================================
+
+def pangenome_composition_counts(pangenome_class, pav_data, species_list,
+                                 verbose=True):
+    """Core / accessory / rare orthogroup counts per species.
+
+    ``pangenome_class[sp]`` is the long per-protein table, so it is deduplicated
+    by Orthogroup. Orthogroups present in zero analysed genomes are dropped:
+    load_all_orthofinder removes ANI-excluded genomes from the PAV columns but
+    leaves their orthogroup rows in place.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns ``species``, ``n_genomes``, ``core``, ``accessory``, ``rare``,
+        ``total``.
+    """
+    rows = []
+    for sp in species_list:
+        per_og = pangenome_class[sp].drop_duplicates('Orthogroup')
+        present = pav_data[sp].sum(axis=1)
+        keep = set(present[present > 0].index.astype(str))
+        n_drop = (~per_og['Orthogroup'].astype(str).isin(keep)).sum()
+        if n_drop and verbose:
+            print(f'  {sp}: dropped {n_drop} orthogroup(s) absent from all '
+                  f'{pav_data[sp].shape[1]} analysed genomes')
+        per_og = per_og[per_og['Orthogroup'].astype(str).isin(keep)]
+        counts = per_og['Pangenome_Class'].value_counts()
+        core = int(counts.get('Core', 0))
+        acc = int(counts.get('Accessory', 0))
+        rare = int(counts.get('Rare', 0))
+        rows.append({'species': sp, 'n_genomes': pav_data[sp].shape[1],
+                     'core': core, 'accessory': acc, 'rare': rare,
+                     'total': core + acc + rare})
+    return pd.DataFrame(rows)
+
+
+def plot_pangenome_composition(pangenome_class, pav_data, species_list,
+                               out_path=None, fontsize=20, figsize=(14, 10),
+                               dpi=800, colors=("#0B8B08C5", "#ef990f", "#ec5e4f"),
+                               xlim_factor=1.20, label_pad=0.07):
+    """Stacked bar of core / accessory / rare orthogroup counts per species.
+
+    ``pangenome_class[sp]`` is the long per-protein table, so it is deduplicated
+    by Orthogroup to give per-OG counts. Orthogroups present in zero analysed
+    genomes are dropped first: load_all_orthofinder removes ANI-excluded genomes
+    from the PAV columns but leaves their orthogroup rows in place, and those
+    rows would otherwise be counted as Rare.
+
+    Returns
+    -------
+    fig, counts : Figure and a DataFrame of the per-species counts plotted.
+    """
+    core_c, acc_c, rare_c = colors
+    tab = pangenome_composition_counts(pangenome_class, pav_data, species_list)
+    core_n = tab['core'].tolist()
+    acc_n = tab['accessory'].tolist()
+    rare_n = tab['rare'].tolist()
+    n_genomes_list = tab['n_genomes'].tolist()
+
+    totals = [c + a + r for c, a, r in zip(core_n, acc_n, rare_n)]
+    core_pcts = [100 * c / t for c, t in zip(core_n, totals)]
+    acc_pcts = [100 * a / t for a, t in zip(acc_n, totals)]
+    rare_pcts = [100 * r / t for r, t in zip(rare_n, totals)]
+
+    labels = [f"A. {sp}\n(n={n})\ntotal = {t:,} OGs"
+              for sp, n, t in zip(species_list, n_genomes_list, totals)]
+    y = np.arange(len(species_list))
+    FS = fontsize
+
+    fig, ax = plt.subplots(figsize=figsize)
+    ax.barh(y, core_n, color=core_c, edgecolor='white', label='Core')
+    ax.barh(y, acc_n, left=core_n, color=acc_c, edgecolor='white', label='Accessory')
+    ax.barh(y, rare_n, left=[c + a for c, a in zip(core_n, acc_n)],
+            color=rare_c, edgecolor='white', label='Rare')
+
+    xmax = max(totals)
+    for i, (c, a, r, t, cp, ap, rp) in enumerate(zip(core_n, acc_n, rare_n, totals,
+                                                     core_pcts, acc_pcts, rare_pcts)):
+        ax.text(c / 2, i, f'{c:,}\n({cp:.1f}%)', ha='center', va='center',
+                fontsize=FS, color='white', fontweight='bold')
+        ax.text(c + a / 2, i, f'{a:,}\n({ap:.1f}%)', ha='center', va='center',
+                fontsize=FS, color='white', fontweight='bold')
+        # Rare segment is too narrow for inside text, so annotate past the bar end
+        ax.text(t + xmax * label_pad, i, f'{r:,}\n({rp:.1f}%)',
+                ha='center', va='center', fontsize=FS, color=rare_c, fontweight='bold')
+
+    ax.set_yticks(y); ax.set_yticklabels(labels, fontsize=FS)
+    ax.tick_params(axis='x', labelsize=FS)
+    ax.set_xlabel('Number of orthogroups', fontsize=FS)
+    ax.set_xlim(0, xmax * xlim_factor); ax.invert_yaxis()
+    ax.set_title('Pangenome composition across Aspergillus species',
+                 fontweight='bold', fontsize=FS + 2)
+    ax.legend(loc='upper right', fontsize=FS, frameon=True, framealpha=0.95)
+    ax.grid(True, axis='x', linestyle=':', alpha=0.5)
+    plt.tight_layout()
+
+    if out_path:
+        fig.savefig(out_path, dpi=dpi, bbox_inches='tight')
+        print(f'Saved: {out_path}')
+
+    counts = pd.DataFrame({'species': species_list, 'n_genomes': n_genomes_list,
+                           'core': core_n, 'accessory': acc_n, 'rare': rare_n,
+                           'total': totals})
+    return fig, counts
+
+
+def plot_heaps_law_curves(species_list, results_base, out_path=None,
+                          fontsize=20, figsize=(12, 10), dpi=800,
+                          species_colors=None):
+    """Normalised pangenome accumulation and core decay curves per species.
+
+    Reads the cached bootstrap results from
+    ``{results_base}/{sp}/{sp}_heaps.pkl``, so analyze_heaps_law must have run.
+    Curves are expressed as a percentage of each species' final pangenome size
+    so that species of different sizes share one axis.
+    """
+    import pickle
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
+
+    if species_colors is None:
+        species_colors = {sp: SPECIES_COLORS.get(sp, '#333333') for sp in species_list}
+
+    FS = fontsize
+    fig, ax = plt.subplots(figsize=figsize)
+    species_handles = []
+
+    for sp in species_list:
+        pkl = os.path.join(results_base, sp, f'{sp}_heaps.pkl')
+        if not os.path.exists(pkl):
+            print(f'  {sp}: no cached Heap\'s law result at {pkl} -- skipping')
+            continue
+        with open(pkl, 'rb') as fh:
+            h = pickle.load(fh)
+
+        n = h['n_genomes']
+        Ns_pct = 100 * np.arange(1, n + 1) / n
+        c = species_colors[sp]
+        gamma = h['gamma']
+
+        pan = np.asarray(h['pangenome_size']); core = np.asarray(h['core_size'])
+        pan_lo, pan_hi = np.asarray(h['pan_ci_lo']), np.asarray(h['pan_ci_hi'])
+        core_lo, core_hi = np.asarray(h['core_ci_lo']), np.asarray(h['core_ci_hi'])
+        pan_final = pan[-1]
+
+        ax.fill_between(Ns_pct, 100 * pan_lo / pan_final, 100 * pan_hi / pan_final,
+                        color=c, alpha=0.15, linewidth=0)
+        ax.fill_between(Ns_pct, 100 * core_lo / pan_final, 100 * core_hi / pan_final,
+                        color=c, alpha=0.15, linewidth=0)
+        ax.plot(Ns_pct, 100 * pan / pan_final, '-', color=c, linewidth=2.5)
+        ax.plot(Ns_pct, 100 * core / pan_final, '--', color=c, linewidth=2.5)
+
+        species_handles.append(Line2D([0], [0], color=c, lw=2.5,
+                                      label=f"A. {sp}  (n={n}, $\\gamma$={gamma:.3f})"))
+
+    ax.set_xlabel('% of genomes sampled', fontsize=FS)
+    ax.set_ylabel('% of final pangenome size', fontsize=FS)
+    ax.set_title("Pangenome accumulation & core decay\n(Heap's law, normalized)",
+                 fontweight='bold', fontsize=FS + 2)
+    ax.set_xlim(0, 100); ax.set_ylim(0, 105)
+    ax.tick_params(axis='both', labelsize=FS)
+    ax.grid(True, linestyle=':', alpha=0.5)
+
+    style_handles = [
+        Line2D([0], [0], color='gray', lw=2.5, linestyle='-', label='Pangenome'),
+        Line2D([0], [0], color='gray', lw=2.5, linestyle='--', label='Core genome'),
+        Patch(facecolor='gray', alpha=0.25, edgecolor='none', label='95% bootstrap CI'),
+    ]
+    leg1 = ax.legend(handles=species_handles, loc='lower left',
+                     bbox_to_anchor=(0.02, 0.02), fontsize=FS - 1,
+                     title='Species', title_fontsize=FS,
+                     frameon=True, framealpha=0.95)
+    ax.add_artist(leg1)
+    ax.legend(handles=style_handles, loc='lower right',
+              bbox_to_anchor=(0.98, 0.02), fontsize=FS - 1,
+              title='Curve / band', title_fontsize=FS,
+              frameon=True, framealpha=0.95)
+    plt.tight_layout()
+
+    if out_path:
+        fig.savefig(out_path, dpi=dpi, bbox_inches='tight')
+        print(f'Saved: {out_path}')
+
+    return fig
+
+
+def nb1_preflight(species_list, species_root, results_base, nb0_results,
+                  verbose=True):
+    """Check that NB1's inputs exist before anything is computed.
+
+    Reports, per species, whether the OrthoFinder, Gubbins and BiG-SCAPE outputs
+    the notebook needs are present, and whether NB0's phenotype table is there.
+    Creates the per-species output directories. Nothing is computed or written
+    beyond those directories.
+
+    Returns
+    -------
+    status : pd.DataFrame
+        One row per species with a boolean per required input.
+    """
+    os.makedirs(results_base, exist_ok=True)
+
+    needed = {
+        'orthofinder': 'orthofinder_output',
+        'gubbins':     'gubbins_output',
+        'bigscape':    'bigscape_output',
+        'proteins':    'filtered_protein',
+        'genomes':     'filtered_genome',
+    }
+
+    rows = []
+    for sp in species_list:
+        os.makedirs(os.path.join(results_base, sp), exist_ok=True)
+        sp_dir = os.path.join(species_root, sp)
+        row = {'species': sp, 'species_dir': os.path.isdir(sp_dir)}
+        for key, sub in needed.items():
+            row[key] = os.path.isdir(os.path.join(sp_dir, sub))
+        rows.append(row)
+
+    status = pd.DataFrame(rows).set_index('species')
+    pheno = os.path.join(nb0_results, 'phenotype_classified_for_gwas.csv')
+    pheno_ok = os.path.exists(pheno)
+
+    if verbose:
+        print('NB1 preflight')
+        print('=' * 60)
+        print(f'  species root : {species_root}')
+        print(f'  results base : {results_base}')
+        print(f'  NB0 phenotype table: {"found" if pheno_ok else "MISSING -- run NB0 first"}')
+        print(f'  -> {pheno}')
+        print()
+        print(status.replace({True: 'ok', False: 'MISSING'}).to_string())
+        missing = status.replace({True: None}).notna().sum().sum()
+        print()
+        if missing or not pheno_ok:
+            print(f'{missing} missing input(s). Sections depending on them will fail;')
+            print('see the per-section notes for which inputs each one needs.')
+        else:
+            print('All inputs present.')
+    return status
+
+
+def print_nb1_summary(pangenome_class, pav_data, species_list, results_base):
+    """Print the final NB1 pangenome counts and the files written, with paths.
+
+    Returns
+    -------
+    counts : pd.DataFrame
+        Core / accessory / rare / total orthogroups and Heap's law gamma per species.
+    files : pd.DataFrame
+        Every expected output with its full path and whether it exists.
+    """
+    import glob
+    import pickle
+
+    counts = pangenome_composition_counts(pangenome_class, pav_data, species_list,
+                                          verbose=False)
+    gammas = []
+    for sp in species_list:
+        pkl = os.path.join(results_base, sp, f'{sp}_heaps.pkl')
+        gamma = None
+        if os.path.exists(pkl):
+            with open(pkl, 'rb') as fh:
+                gamma = pickle.load(fh).get('gamma')
+        gammas.append(round(gamma, 4) if gamma is not None else None)
+    counts['heaps_gamma'] = gammas
+    counts = counts.set_index('species')
+
+    top_level = ['pangenome_composition_combined.png',
+                 'heaps_law_combined.png',
+                 'kinship_grm_combined.png']
+    per_species = ['{sp}_pav.tsv', '{sp}_cnv.tsv', '{sp}_pangenome_class.tsv',
+                   '{sp}_gene_freq_hist.png', '{sp}_heaps.pkl',
+                   '{sp}_og_consensus.tsv', '{sp}_enrichment_*.tsv',
+                   '{sp}_snp_pcs.tsv', '{sp}_kinship.tsv',
+                   '{sp}_bgc_pav.tsv', '{sp}_gcf_pav.tsv', '{sp}_gcf_cnv.tsv']
+
+    rows = []
+    for name in top_level:
+        path = os.path.join(results_base, name)
+        rows.append({'species': 'all', 'file': name, 'path': path,
+                     'exists': os.path.exists(path)})
+    for sp in species_list:
+        for pattern in per_species:
+            name = pattern.format(sp=sp)
+            path = os.path.join(results_base, sp, name)
+            if '*' in name:
+                n = len(glob.glob(path))
+                rows.append({'species': sp, 'file': f'{name} ({n} files)',
+                             'path': path, 'exists': n > 0})
+            else:
+                rows.append({'species': sp, 'file': name, 'path': path,
+                             'exists': os.path.exists(path)})
+    files = pd.DataFrame(rows)
+
+    print(f'\n{"=" * 70}')
+    print('NB1 Pangenome Architecture complete.')
+    print(f'All outputs saved to: {results_base}')
+    for _, r in files.iterrows():
+        mark = ' ' if r['exists'] else '!'
+        label = r['path'] if '*' not in r['file'] else f"{r['path']}  ({r['file'].split('(')[1]}"
+        print(f"  {mark} {label}")
+    n_missing = int((~files['exists']).sum())
+    if n_missing:
+        print(f'\n  ! = missing ({n_missing} file(s))')
+    print('=' * 70)
+    print('\nOrthogroup counts per species:')
+
+    return counts, files

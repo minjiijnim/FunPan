@@ -22,739 +22,15 @@ warnings.filterwarnings('ignore')
 # PHENOTYPE AND CONTRAST SETUP
 # =============================================================================
 
-def create_phenotype_from_isolation_class(
-    pav: pd.DataFrame,
-    metadata: pd.DataFrame,
-    isolation_class_col: str = 'IsolationClass',
-    accession_col: str = 'Assembly_Accession',
-    species_col: str = 'Species'
-) -> pd.DataFrame:
-    """
-    Create phenotype DataFrame from metadata matching PAV matrix samples.
-
-    Parameters
-    ----------
-    pav : pd.DataFrame
-        PAV matrix with genome columns
-    metadata : pd.DataFrame
-        Metadata with isolation class
-    isolation_class_col : str
-        Column name for isolation class
-    accession_col : str
-        Column name for accession
-    species_col : str
-        Column name for species
-
-    Returns
-    -------
-    pd.DataFrame
-        Phenotype DataFrame with columns: sample_id, species, isolation_class
-    """
-    # Handle different column name formats
-    if accession_col not in metadata.columns:
-        for col in metadata.columns:
-            if 'assembly' in col.lower() and 'accession' in col.lower():
-                accession_col = col
-                break
-
-    # Try to find the isolation class column - prefer Phenotype from NB2
-    if isolation_class_col not in metadata.columns:
-        # Priority order: Phenotype > IsolationClass > other variants
-        for col_name in ['Phenotype', 'IsolationClass', 'isolation_class']:
-            if col_name in metadata.columns:
-                isolation_class_col = col_name
-                break
-        else:
-            # Fallback: search for any column with isolation/class
-            for col in metadata.columns:
-                if 'isolation' in col.lower() and 'class' in col.lower():
-                    isolation_class_col = col
-                    break
-
-    # Build lookup - extract just the GCA/GCF accession from metadata
-    acc_to_class = {}
-    acc_to_species_meta = {}
-
-    # Valid classes from NB2 Phenotype categories AND legacy IsolationClass
-    valid_phenotype_classes = {
-        'Human-pathogenic', 'Animal-pathogenic', 'Plant-pathogenic',
-        'Industrial-trait', 'Environmental', 'Lab'
-    }
-    valid_legacy_classes = {
-        'Human', 'Animal', 'Plant', 'Industrial', 'Environmental', 'Lab'
-    }
-    valid_classes = valid_phenotype_classes | valid_legacy_classes
-
-    for _, row in metadata.iterrows():
-        acc_raw = str(row.get(accession_col, ''))
-        # Extract GCA/GCF accession
-        match = ACC_RE.search(acc_raw)
-        if match:
-            acc = match.group(1)
-        else:
-            acc = acc_raw
-
-        iso_class = row.get(isolation_class_col, 'Unknown')
-        # Only use valid isolation classes
-        if iso_class not in valid_classes:
-            iso_class = 'Unknown'
-
-        acc_to_class[acc] = iso_class
-
-        if species_col in metadata.columns:
-            acc_to_species_meta[acc] = row.get(species_col, 'unknown')
-
-    records = []
-    for col in pav.columns:
-        if col == 'Orthogroup':
-            continue
-
-        # Parse species and accession from column name
-        # Format: species__GCA_xxx.x_assembly.proteins or species__GCA_xxx.x
-        if '__' in col:
-            parts = col.split('__')
-            species = parts[0]
-            rest = parts[1]
-            # Extract just the GCA/GCF accession using regex
-            match = ACC_RE.search(rest)
-            if match:
-                accession = match.group(1)
-            else:
-                accession = rest
-        else:
-            # Try to extract accession directly
-            match = ACC_RE.search(col)
-            if match:
-                accession = match.group(1)
-            else:
-                accession = col
-            species = acc_to_species_meta.get(accession, 'unknown')
-
-        iso_class = acc_to_class.get(accession, 'Unknown')
-
-        records.append({
-            'sample_id': col,
-            'species': species,
-            'accession': accession,
-            'isolation_class': iso_class
-        })
-
-    phenotype_df = pd.DataFrame(records)
-
-    # Report matching stats
-    n_matched = (phenotype_df['isolation_class'] != 'Unknown').sum()
-    n_total = len(phenotype_df)
-    print(f"Matched {n_matched}/{n_total} samples to isolation class")
-
-    return phenotype_df
-
-
-def define_isolation_contrasts() -> List[Dict[str, Any]]:
-    """
-    Define contrasts for isolation class comparisons.
-
-    Returns
-    -------
-    List[Dict]
-        List of contrast definitions
-    """
-    # Using NB2 Phenotype categories
-    # Pathogenic classes: Human-pathogenic, Animal-pathogenic, Plant-pathogenic
-    # Trait classes: Industrial-trait, Environmental, Lab
-    contrasts = [
-        {
-            'name': 'Industrial_vs_Others',
-            'case_class': 'Industrial-trait',
-            'control_classes': ['Human-pathogenic', 'Animal-pathogenic',
-                               'Plant-pathogenic', 'Environmental'],
-            'description': 'Industrial-trait strains vs pathogenic/environmental'
-        },
-        {
-            'name': 'Human_Pathogenic_vs_Others',
-            'case_class': 'Human-pathogenic',
-            'control_classes': ['Industrial-trait', 'Plant-pathogenic',
-                               'Environmental', 'Animal-pathogenic'],
-            'description': 'Human-pathogenic strains vs others'
-        },
-        {
-            'name': 'Industrial_vs_Human_Pathogenic',
-            'case_class': 'Industrial-trait',
-            'control_classes': ['Human-pathogenic'],
-            'description': 'Industrial-trait vs human-pathogenic (direct comparison)'
-        },
-        {
-            'name': 'Plant_Pathogenic_vs_Others',
-            'case_class': 'Plant-pathogenic',
-            'control_classes': ['Human-pathogenic', 'Animal-pathogenic',
-                               'Industrial-trait', 'Environmental'],
-            'description': 'Plant-pathogenic strains vs others'
-        },
-        {
-            'name': 'Environmental_vs_Adapted',
-            'case_class': 'Environmental',
-            'control_classes': ['Human-pathogenic', 'Animal-pathogenic',
-                               'Industrial-trait', 'Plant-pathogenic'],
-            'description': 'Environmental vs host/trait-adapted strains'
-        },
-        {
-            'name': 'Pathogenic_vs_NonPathogenic',
-            'case_class': ['Human-pathogenic', 'Animal-pathogenic', 'Plant-pathogenic'],
-            'control_classes': ['Industrial-trait', 'Environmental', 'Lab'],
-            'description': 'All pathogenic vs non-pathogenic strains'
-        }
-    ]
-
-    return contrasts
-
 
 # =============================================================================
 # ASSOCIATION TESTING (PER-SPECIES)
 # =============================================================================
 
-def run_fisher_test_orthogroup(
-    pav_row: pd.Series,
-    case_samples: List[str],
-    control_samples: List[str]
-) -> Tuple[float, float, str]:
-    """
-    Run Fisher's exact test for a single orthogroup.
-
-    Parameters
-    ----------
-    pav_row : pd.Series
-        Presence/absence row for one orthogroup
-    case_samples : List[str]
-        Sample IDs in case group
-    control_samples : List[str]
-        Sample IDs in control group
-
-    Returns
-    -------
-    Tuple[float, float, str]
-        (odds_ratio, p_value, direction)
-    """
-    # Count presence in case and control
-    case_present = sum(pav_row.get(s, 0) > 0 for s in case_samples if s in pav_row.index)
-    case_absent = len([s for s in case_samples if s in pav_row.index]) - case_present
-
-    ctrl_present = sum(pav_row.get(s, 0) > 0 for s in control_samples if s in pav_row.index)
-    ctrl_absent = len([s for s in control_samples if s in pav_row.index]) - ctrl_present
-
-    # Build contingency table
-    # [[case_present, case_absent], [ctrl_present, ctrl_absent]]
-    table = [[case_present, case_absent], [ctrl_present, ctrl_absent]]
-
-    try:
-        odds_ratio, p_value = fisher_exact(table, alternative='two-sided')
-    except Exception:
-        return np.nan, 1.0, 'none'
-
-    # Determine direction
-    if odds_ratio > 1:
-        direction = 'enriched_in_case'
-    elif odds_ratio < 1:
-        direction = 'depleted_in_case'
-    else:
-        direction = 'none'
-
-    return odds_ratio, p_value, direction
-
-
-def run_species_association_test(
-    pav: pd.DataFrame,
-    phenotype_df: pd.DataFrame,
-    contrast: Dict[str, Any],
-    min_samples_per_group: int = 3
-) -> Optional[pd.DataFrame]:
-    """
-    Run association test for all orthogroups within a single species.
-
-    Parameters
-    ----------
-    pav : pd.DataFrame
-        PAV matrix for one species (rows=orthogroups, cols=accessions)
-    phenotype_df : pd.DataFrame
-        Phenotype data with sample_id, isolation_class columns
-    contrast : Dict
-        Contrast definition with case_class and control_classes
-    min_samples_per_group : int
-        Minimum samples required per group
-
-    Returns
-    -------
-    pd.DataFrame or None
-        Results with columns: Orthogroup, odds_ratio, p_value, direction, q_value
-    """
-    case_class = contrast['case_class']
-    control_classes = contrast['control_classes']
-
-    # Handle case_class as list or string
-    if isinstance(case_class, str):
-        case_classes = [case_class]
-    else:
-        case_classes = list(case_class)
-
-    # Map accession to isolation classes (use 'accession' column, not 'sample_id')
-    # This handles the case where PAV columns are just accessions (after split_pav_by_species)
-    if 'accession' in phenotype_df.columns:
-        sample_class = dict(zip(phenotype_df['accession'], phenotype_df['isolation_class']))
-    else:
-        # Fallback: extract accession from sample_id
-        sample_class = {}
-        for _, row in phenotype_df.iterrows():
-            sid = row['sample_id']
-            iso = row['isolation_class']
-            # Add both full sample_id and extracted accession
-            sample_class[sid] = iso
-            match = ACC_RE.search(sid)
-            if match:
-                sample_class[match.group(1)] = iso
-
-    # Find case and control samples that exist in PAV
-    case_samples = []
-    control_samples = []
-
-    for col in pav.columns:
-        # Try direct lookup first
-        iso = sample_class.get(col)
-
-        # If not found, try extracting accession from column name
-        if iso is None:
-            match = ACC_RE.search(col)
-            if match:
-                iso = sample_class.get(match.group(1))
-
-        if iso in case_classes:
-            case_samples.append(col)
-        elif iso in control_classes:
-            control_samples.append(col)
-
-    if len(case_samples) < min_samples_per_group or len(control_samples) < min_samples_per_group:
-        print(f"  Insufficient samples: {len(case_samples)} cases, {len(control_samples)} controls")
-        return None
-
-    results = []
-    for orthogroup in pav.index:
-        pav_row = pav.loc[orthogroup]
-        odds_ratio, p_value, direction = run_fisher_test_orthogroup(
-            pav_row, case_samples, control_samples
-        )
-
-        # Calculate frequencies
-        case_freq = sum(pav_row.get(s, 0) > 0 for s in case_samples) / len(case_samples) if case_samples else 0
-        ctrl_freq = sum(pav_row.get(s, 0) > 0 for s in control_samples) / len(control_samples) if control_samples else 0
-
-        results.append({
-            'Orthogroup': orthogroup,
-            'odds_ratio': odds_ratio,
-            'p_value': p_value,
-            'direction': direction,
-            'case_freq': case_freq,
-            'control_freq': ctrl_freq,
-            'n_case': len(case_samples),
-            'n_control': len(control_samples)
-        })
-
-    results_df = pd.DataFrame(results)
-
-    # Calculate FDR
-    valid_mask = ~results_df['p_value'].isna()
-    results_df['q_value'] = 1.0
-    if valid_mask.sum() > 0:
-        _, q_values, _, _ = multipletests(
-            results_df.loc[valid_mask, 'p_value'].values,
-            method='fdr_bh'
-        )
-        results_df.loc[valid_mask, 'q_value'] = q_values
-
-    return results_df
-
-
-def run_all_species_association(
-    species_pav: Dict[str, pd.DataFrame],
-    species_phenotypes: Dict[str, pd.DataFrame],
-    contrast: Dict[str, Any]
-) -> Dict[str, pd.DataFrame]:
-    """
-    Run association tests for all species.
-
-    Parameters
-    ----------
-    species_pav : Dict[str, pd.DataFrame]
-        Per-species PAV matrices
-    species_phenotypes : Dict[str, pd.DataFrame]
-        Per-species phenotype data
-    contrast : Dict
-        Contrast definition
-
-    Returns
-    -------
-    Dict[str, pd.DataFrame]
-        Per-species association results
-    """
-    results = {}
-
-    print(f"\nRunning contrast: {contrast['name']}")
-    print(f"  {contrast['description']}")
-
-    for species in species_pav.keys():
-        if species not in species_phenotypes:
-            print(f"  {species}: No phenotype data")
-            continue
-
-        print(f"  Testing {species}...")
-        pav = species_pav[species]
-        pheno = species_phenotypes[species]
-
-        res = run_species_association_test(pav, pheno, contrast)
-        if res is not None:
-            res['species'] = species
-            results[species] = res
-
-            n_sig = (res['q_value'] < 0.1).sum()
-            print(f"    {len(res)} orthogroups tested, {n_sig} significant (FDR < 0.1)")
-
-    return results
-
 
 # =============================================================================
 # VISUALIZATION FUNCTIONS
 # =============================================================================
-
-def plot_species_results_comparison(
-    species_results: Dict[str, pd.DataFrame],
-    contrast_name: str,
-    fdr_threshold: float = 0.1,
-    figsize: Tuple[int, int] = (14, 10)
-) -> plt.Figure:
-    """
-    Plot comparison of association results across species.
-
-    Parameters
-    ----------
-    species_results : Dict[str, pd.DataFrame]
-        Per-species association results
-    contrast_name : str
-        Name of the contrast for plot title
-    fdr_threshold : float
-        FDR threshold for significance
-    figsize : Tuple
-        Figure size
-
-    Returns
-    -------
-    plt.Figure
-        The figure object
-    """
-    n_species = len(species_results)
-    if n_species == 0:
-        return None
-
-    fig, axes = plt.subplots(2, 2, figsize=figsize)
-    axes = axes.flatten()
-
-    # Plot 1: Number of significant hits per species
-    ax = axes[0]
-    species_names = list(species_results.keys())
-    n_sig = [sum(res['q_value'] < fdr_threshold) for res in species_results.values()]
-    colors = [SPECIES_COLORS.get(s, 'gray') for s in species_names]
-
-    ax.bar(species_names, n_sig, color=colors, alpha=0.8)
-    ax.set_ylabel('Number of significant orthogroups')
-    ax.set_title(f'Significant hits per species (FDR < {fdr_threshold})')
-    ax.tick_params(axis='x', rotation=45)
-
-    # Plot 2: P-value distributions
-    ax = axes[1]
-    for species, res in species_results.items():
-        p_vals = res['p_value'].dropna()
-        ax.hist(p_vals, bins=50, alpha=0.5, label=SPECIES_DISPLAY.get(species, species),
-               color=SPECIES_COLORS.get(species, 'gray'))
-    ax.set_xlabel('P-value')
-    ax.set_ylabel('Count')
-    ax.set_title('P-value distributions')
-    ax.legend()
-
-    # Plot 3: Effect sizes (odds ratios)
-    ax = axes[2]
-    for species, res in species_results.items():
-        sig = res[res['q_value'] < fdr_threshold]
-        if len(sig) > 0:
-            log_or = np.log2(sig['odds_ratio'].replace([np.inf, -np.inf], np.nan).dropna())
-            ax.boxplot([log_or], positions=[list(species_results.keys()).index(species)],
-                      widths=0.6, patch_artist=True,
-                      boxprops=dict(facecolor=SPECIES_COLORS.get(species, 'gray'), alpha=0.7))
-
-    ax.set_xticks(range(len(species_names)))
-    ax.set_xticklabels(species_names, rotation=45)
-    ax.axhline(0, color='black', linestyle='--', alpha=0.5)
-    ax.set_ylabel('log2(Odds Ratio)')
-    ax.set_title('Effect sizes (significant hits)')
-
-    # Plot 4: Overlap of significant hits
-    ax = axes[3]
-    sig_sets = {}
-    for species, res in species_results.items():
-        sig_sets[species] = set(res[res['q_value'] < fdr_threshold]['Orthogroup'])
-
-    # Count shared hits
-    if len(sig_sets) >= 2:
-        shared_counts = {}
-        for i, s1 in enumerate(species_names):
-            for s2 in species_names[i+1:]:
-                overlap = len(sig_sets.get(s1, set()) & sig_sets.get(s2, set()))
-                shared_counts[f"{s1[:3]}-{s2[:3]}"] = overlap
-
-        ax.bar(shared_counts.keys(), shared_counts.values(), color='steelblue', alpha=0.7)
-        ax.set_ylabel('Shared significant orthogroups')
-        ax.set_title('Overlap between species')
-        ax.tick_params(axis='x', rotation=45)
-
-    fig.suptitle(f'Cross-species comparison: {contrast_name}', fontsize=14, fontweight='bold')
-    plt.tight_layout()
-
-
-
-def plot_convergent_hits_summary(
-    convergent_hits: pd.DataFrame,
-    contrast_name: str,
-    figsize: Tuple[int, int] = (12, 8)
-) -> plt.Figure:
-    """
-    Plot summary of convergent hits.
-
-    Parameters
-    ----------
-    convergent_hits : pd.DataFrame
-        Convergent hit results
-    contrast_name : str
-        Name of the contrast
-    figsize : Tuple
-        Figure size
-
-    Returns
-    -------
-    plt.Figure
-        The figure object
-    """
-    if convergent_hits.empty:
-        print("No convergent hits to plot")
-        return None
-
-    fig, axes = plt.subplots(2, 2, figsize=figsize)
-
-    # Plot 1: Convergence type distribution
-    ax = axes[0, 0]
-    type_counts = convergent_hits['convergence_type'].value_counts()
-    ax.pie(type_counts.values, labels=type_counts.index, autopct='%1.1f%%',
-          colors=['#3498db', '#e74c3c', '#27ae60'])
-    ax.set_title('Convergence type distribution')
-
-    # Plot 2: Direction distribution
-    ax = axes[0, 1]
-    dir_counts = convergent_hits['convergent_direction'].value_counts()
-    colors_dir = {'enriched_in_case': '#27ae60', 'depleted_in_case': '#e74c3c', 'none': 'gray'}
-    ax.bar(dir_counts.index, dir_counts.values,
-          color=[colors_dir.get(d, 'gray') for d in dir_counts.index], alpha=0.8)
-    ax.set_ylabel('Number of orthogroups')
-    ax.set_title('Direction of effect')
-    ax.tick_params(axis='x', rotation=45)
-
-    # Plot 3: Number of species contributing
-    ax = axes[1, 0]
-    n_species = convergent_hits['n_species_tested'].value_counts().sort_index()
-    ax.bar(n_species.index, n_species.values, color='steelblue', alpha=0.8)
-    ax.set_xlabel('Number of species tested')
-    ax.set_ylabel('Number of orthogroups')
-    ax.set_title('Species coverage of convergent hits')
-
-    # Plot 4: P-value distribution
-    ax = axes[1, 1]
-    ax.hist(convergent_hits['min_p_value'].dropna(), bins=30, color='purple', alpha=0.7)
-    ax.set_xlabel('Minimum p-value across species')
-    ax.set_ylabel('Count')
-    ax.set_title('P-value distribution of convergent hits')
-    ax.set_yscale('log')
-
-    fig.suptitle(f'Convergent hits summary: {contrast_name}\n({len(convergent_hits)} total hits)',
-                fontsize=14, fontweight='bold')
-    plt.tight_layout()
-
-
-
-def plot_meta_analysis_results(
-    meta_df: pd.DataFrame,
-    contrast_name: str,
-    fdr_threshold: float = 0.1,
-    top_n: int = 30,
-    figsize: Tuple[int, int] = (14, 10)
-) -> plt.Figure:
-    """
-    Plot meta-analysis results.
-
-    Parameters
-    ----------
-    meta_df : pd.DataFrame
-        Meta-analysis results
-    contrast_name : str
-        Name of the contrast
-    fdr_threshold : float
-        FDR threshold for significance
-    top_n : int
-        Number of top hits to show
-    figsize : Tuple
-        Figure size
-
-    Returns
-    -------
-    plt.Figure
-        The figure object
-    """
-    if meta_df.empty:
-        print("No meta-analysis results to plot")
-        return None
-
-    fig, axes = plt.subplots(2, 2, figsize=figsize)
-
-    # Plot 1: Q-Q plot
-    ax = axes[0, 0]
-    observed = -np.log10(meta_df['meta_p_value'].dropna().sort_values())
-    n = len(observed)
-    expected = -np.log10(np.arange(1, n + 1) / (n + 1))
-
-    ax.scatter(expected, observed, alpha=0.5, s=20)
-    max_val = max(max(expected), max(observed))
-    ax.plot([0, max_val], [0, max_val], 'r--', label='Expected')
-    ax.set_xlabel('Expected -log10(p)')
-    ax.set_ylabel('Observed -log10(p)')
-    ax.set_title('Q-Q Plot')
-    ax.legend()
-
-    # Plot 2: Volcano-style plot
-    ax = axes[0, 1]
-    x = meta_df['mean_log_odds_ratio'].replace([np.inf, -np.inf], np.nan)
-    y = -np.log10(meta_df['meta_p_value'])
-
-    colors = ['#e74c3c' if q < fdr_threshold else '#bdc3c7'
-             for q in meta_df['meta_q_value']]
-
-    ax.scatter(x, y, c=colors, alpha=0.6, s=30)
-    ax.axhline(-np.log10(fdr_threshold), color='black', linestyle='--', alpha=0.5)
-    ax.set_xlabel('Mean log(Odds Ratio)')
-    ax.set_ylabel('-log10(Meta p-value)')
-    ax.set_title('Volcano plot')
-
-    # Plot 3: Top hits by p-value
-    ax = axes[1, 0]
-    top_hits = meta_df.nsmallest(min(top_n, len(meta_df)), 'meta_p_value')
-
-    y_pos = range(len(top_hits))
-    colors_bar = ['#27ae60' if d == 'enriched' else '#e74c3c' if d == 'depleted' else 'gray'
-                 for d in top_hits['consensus_direction']]
-
-    ax.barh(y_pos, -np.log10(top_hits['meta_p_value']), color=colors_bar, alpha=0.8)
-    ax.set_yticks(y_pos)
-    ax.set_yticklabels(top_hits['Orthogroup'], fontsize=8)
-    ax.set_xlabel('-log10(Meta p-value)')
-    ax.set_title(f'Top {min(top_n, len(top_hits))} hits by meta p-value')
-    ax.invert_yaxis()
-
-    # Plot 4: Direction consistency
-    ax = axes[1, 1]
-    consistent = meta_df['direction_consistent'].value_counts()
-    ax.pie(consistent.values, labels=['Consistent', 'Mixed'] if True in consistent.index else ['Mixed', 'Consistent'],
-          autopct='%1.1f%%', colors=['#27ae60', '#e74c3c'])
-    ax.set_title('Direction consistency across species')
-
-    n_sig = (meta_df['meta_q_value'] < fdr_threshold).sum()
-    fig.suptitle(f'Meta-analysis results: {contrast_name}\n({n_sig} significant at FDR < {fdr_threshold})',
-                fontsize=14, fontweight='bold')
-    plt.tight_layout()
-
-
-
-def plot_robustness_analysis(
-    robustness_df: pd.DataFrame,
-    contrast_name: str,
-    figsize: Tuple[int, int] = (12, 8)
-) -> plt.Figure:
-    """
-    Plot leave-one-out robustness analysis results.
-
-    Parameters
-    ----------
-    robustness_df : pd.DataFrame
-        Robustness analysis results
-    contrast_name : str
-        Name of the contrast
-    figsize : Tuple
-        Figure size
-
-    Returns
-    -------
-    plt.Figure
-        The figure object
-    """
-    if robustness_df.empty:
-        print("No robustness results to plot")
-        return None
-
-    fig, axes = plt.subplots(2, 2, figsize=figsize)
-
-    # Plot 1: Tier distribution
-    ax = axes[0, 0]
-    if 'tier' in robustness_df.columns:
-        tier_counts = robustness_df['tier'].value_counts()
-        colors_tier = {
-            'Tier1_Robust': '#27ae60',
-            'Tier2_PartiallyRobust': '#f39c12',
-            'Tier3_SpeciesDependent': '#e74c3c'
-        }
-        ax.bar(tier_counts.index, tier_counts.values,
-              color=[colors_tier.get(t, 'gray') for t in tier_counts.index], alpha=0.8)
-        ax.set_ylabel('Number of orthogroups')
-        ax.set_title('Robustness tier distribution')
-        ax.tick_params(axis='x', rotation=45)
-
-    # Plot 2: Driving species
-    ax = axes[0, 1]
-    driver_counts = robustness_df['driving_species'].value_counts()
-    colors_sp = [SPECIES_COLORS.get(s, 'gray') for s in driver_counts.index]
-    ax.bar(driver_counts.index, driver_counts.values, color=colors_sp, alpha=0.8)
-    ax.set_ylabel('Number of orthogroups')
-    ax.set_title('Signal-driving species')
-    ax.tick_params(axis='x', rotation=45)
-
-    # Plot 3: Original vs max LOO p-value
-    ax = axes[1, 0]
-    x = -np.log10(robustness_df['original_meta_p'].replace(0, 1e-300))
-    y = -np.log10(robustness_df['max_loo_p'].replace(0, 1e-300))
-
-    colors_robust = ['#27ae60' if r else '#e74c3c' for r in robustness_df['robust']]
-    ax.scatter(x, y, c=colors_robust, alpha=0.6, s=40)
-
-    max_val = max(max(x.dropna()), max(y.dropna()))
-    ax.plot([0, max_val], [0, max_val], 'k--', alpha=0.5)
-    ax.set_xlabel('-log10(Original meta p-value)')
-    ax.set_ylabel('-log10(Max LOO p-value)')
-    ax.set_title('Robustness: Original vs LOO')
-
-    # Plot 4: LOO significance retention
-    ax = axes[1, 1]
-    retention = robustness_df['n_still_significant'] / robustness_df['n_loo_tests']
-    ax.hist(retention.dropna(), bins=20, color='steelblue', alpha=0.7)
-    ax.axvline(1.0, color='green', linestyle='--', label='Fully robust')
-    ax.set_xlabel('Fraction of LOO tests still significant')
-    ax.set_ylabel('Count')
-    ax.set_title('LOO significance retention')
-    ax.legend()
-
-    n_robust = robustness_df['robust'].sum() if 'robust' in robustness_df.columns else 0
-    fig.suptitle(f'Leave-one-out robustness: {contrast_name}\n({n_robust} robust hits)',
-                fontsize=14, fontweight='bold')
-    plt.tight_layout()
-
-
 
 
 # =============================================================================
@@ -771,12 +47,6 @@ warnings.filterwarnings('ignore')
 
 np.random.seed(42)
 
-# ============================================================================
-# PART 1: Analytical minimum detectable effect sizes
-# ============================================================================
-# print("=" * 80)
-# print("PART 1: ANALYTICAL POWER CALCULATIONS (Fisher's exact test framework)")
-# print("=" * 80)
 
 def power_fisher(n_case, n_control, gene_freq, odds_ratio, alpha=0.05, n_sim=50000):
     """
@@ -826,64 +96,6 @@ def find_min_detectable_or(n_case, n_control, gene_freq, target_power=0.80, alph
             hi = mid
     return (lo + hi) / 2
 
-# Designs
-# designs = {
-#     'A. niger (13 vs 15)': (13, 15),
-#     'A. oryzae (31 vs 1)': (31, 1),
-# }
-# gene_freqs = [0.10, 0.20, 0.50]
-
-# print("\nMinimum detectable Odds Ratio at 80% power, alpha=0.05:")
-# print("-" * 70)
-# print(f"{'Design':<25} {'Gene Freq':>10} {'Min OR':>15}")
-# print("-" * 70)
-
-# mde_results = []
-# for design_name, (nc, nctrl) in designs.items():
-#     for gf in gene_freqs:
-#         min_or = find_min_detectable_or(nc, nctrl, gf)
-#         or_str = f"{min_or:.1f}" if min_or < 999 else "INF (>1000)"
-#         print(f"{design_name:<25} {gf:>10.0%} {or_str:>15}")
-#         mde_results.append({
-#             'analysis': 'minimum_detectable_OR',
-#             'design': design_name,
-#             'n_case': nc,
-#             'n_control': nctrl,
-#             'gene_freq': gf,
-#             'min_detectable_OR': min_or if min_or < 999 else np.inf,
-#             'target_power': 0.80,
-#             'alpha': 0.05
-#         })
-
-# print("\nInterpretation:")
-# print("  With only 1 control, no effect size is detectable — Fisher's exact test")
-# print("  cannot distinguish signal from noise with a single observation in one group.")
-
-# ============================================================================
-# PART 2: Simulation-based power analysis
-# ============================================================================
-# print("\n" + "=" * 80)
-# print("PART 2: SIMULATION-BASED POWER ANALYSIS (10,000 simulations each)")
-# print("=" * 80)
-
-def simulate_power(n_case, n_control, gene_freq, odds_ratio, n_sim=10000, alpha=0.05):
-    """Simulate datasets and compute power as fraction with p < alpha."""
-    p0 = gene_freq
-    p1 = (odds_ratio * p0) / (1 - p0 + odds_ratio * p0)
-    p1 = min(p1, 1.0)
-
-    sig = 0
-    for _ in range(n_sim):
-        case_present = np.random.binomial(n_case, p1)
-        control_present = np.random.binomial(n_control, p0)
-        table = np.array([
-            [case_present, n_case - case_present],
-            [control_present, n_control - control_present]
-        ])
-        _, pval = stats.fisher_exact(table)
-        if pval < alpha:
-            sig += 1
-    return sig / n_sim
 
 # Three designs to compare
 
@@ -944,22 +156,6 @@ def create_phenotype_files(samples, contrasts, output_dir):
     
     return phenotype_files
 
-# Create output directory
-# pheno_dir = f"{RESULTS_DIR}/phenotypes"
-# os.makedirs(pheno_dir, exist_ok=True)
-
-# Create phenotype files
-# print("Creating phenotype files...")
-# print("  strict = high confidence only")
-# print("  broad = high + medium confidence")
-# print("  lenient = all confidence levels (recommended for small sample sizes)")
-# print()
-# phenotype_files = create_phenotype_files(gwas_samples, contrasts, pheno_dir)
-# print(f"\nCreated {len(phenotype_files)} phenotype files in {pheno_dir}")
-
-# =============================================================================
-# SECTION 2.2: SAMPLE ID NORMALIZATION (Handle format mismatches)
-# =============================================================================
 
 import re
 
@@ -1021,50 +217,6 @@ def create_sample_id_mappings(phenotype_ids, pca_ids, feature_ids):
         'common_samples': common_samples
     }
 
-# Test the normalization function
-# test_ids = [
-#     'GCA_000002855.2',
-#     'GCF_000002855.4_ASM285v2',
-#     'GCA_000230395.2_ASPNI_v3.0.proteins',
-#     'GCA_001741905.1_ASM174190v1.proteins'
-# ]
-# print("Sample ID normalization test:")
-# for s in test_ids:
-#     print(f"  {s} -> {normalize_sample_id(s)}")
-
-# Show PCA sample IDs for reference
-# if pcs_df is not None:
-#     pc_col = 'sample_id' if 'sample_id' in pcs_df.columns else pcs_df.columns[0]
-#     pca_sample_ids = pcs_df[pc_col].tolist()
-#     print(f"\nPCA samples: {len(pca_sample_ids)}")
-#     print(f"  Example: {pca_sample_ids[0]} -> {normalize_sample_id(pca_sample_ids[0])}")
-
-# Show phenotype sample IDs
-# pheno_sample_ids = gwas_samples['sample_id'].tolist()
-# print(f"\nPhenotype samples: {len(pheno_sample_ids)}")
-# print(f"  Example: {pheno_sample_ids[0]} -> {normalize_sample_id(pheno_sample_ids[0])}")
-
-# print("\nSample ID normalization functions loaded."
-#       "\nFull mapping will be created after feature matrices are loaded.")
-
-# =============================================================================
-# SECTION 4: LINEAR MIXED MODEL (LMM) ASSOCIATION TESTING FRAMEWORK
-# =============================================================================
-# 
-# Uses EMMA/EMMAX-style LMM when kinship matrix is available:
-#   y = Xβ + u + ε,  where u ~ N(0, σ²_g K) and ε ~ N(0, σ²_e I)
-#
-# The kinship matrix K directly models genetic relatedness, making post-hoc
-# genomic control (GC) correction redundant. This is the standard approach
-# in microbial pan-GWAS (cf. pyseer, GEMMA, FaST-LMM).
-#
-# For binary phenotypes (case/control), using LMM is an approximation that
-# is well-validated in GWAS literature — under the null, the score test from
-# LMM is equivalent to that from a logistic mixed model.
-#
-# Falls back to logistic regression + PCs (or Fisher's exact) when kinship
-# is not available.
-# =============================================================================
 
 from scipy import stats
 from scipy.optimize import minimize_scalar
@@ -1219,7 +371,7 @@ def run_association_test(feature_matrix, phenotype_df, pcs_df=None, grm_df=None,
     Run association testing for each feature against a binary phenotype.
     
     When grm_df (kinship matrix) is provided and use_kinship=True:
-        Uses LMM with EMMA/EMMAX approach — eigendecomposes the kinship matrix,
+        Uses LMM with EMMA/EMMAX approach, eigendecomposes the kinship matrix,
         estimates variance components via REML under the null, then runs a Wald
         test for each feature. This directly models population structure from
         genetic relatedness, making post-hoc GC correction unnecessary.
@@ -1355,10 +507,10 @@ def run_association_test(feature_matrix, phenotype_df, pcs_df=None, grm_df=None,
         print(f"    Tested: {n_tested} features ({n_tested/max(elapsed,1):.0f}/s)")
     
     # =========================================================================
-    # FALLBACK PATH (no kinship — logistic regression or Fisher's exact)
+    # FALLBACK PATH (no kinship, logistic regression or Fisher's exact)
     # =========================================================================
     else:
-        print(f"\n  No kinship matrix — falling back to logistic/Fisher")
+        print(f"\n  No kinship matrix, falling back to logistic/Fisher")
         
         pca_dict = {}
         for i in range(1, n_pcs + 1):
@@ -1462,120 +614,6 @@ def calculate_genomic_inflation(pvalues):
     lambda_gc = np.median(chi2_observed) / stats.chi2.ppf(0.5, df=1)
     return lambda_gc
 
-def plot_qq(pvalues, title="QQ Plot", ax=None):
-    """Create QQ plot of p-values."""
-    pvalues = np.array(pvalues)
-    pvalues = pvalues[~np.isnan(pvalues)]
-    pvalues = pvalues[pvalues > 0]
-    pvalues = np.sort(pvalues)
-    
-    n = len(pvalues)
-    expected = -np.log10(np.arange(1, n + 1) / (n + 1))
-    observed = -np.log10(pvalues)
-    
-    lambda_gc = calculate_genomic_inflation(pvalues)
-    
-    if ax is None:
-        fig, ax = plt.subplots(figsize=(6, 6))
-    
-    # Plot diagonal line
-    max_val = max(max(expected), max(observed))
-    ax.plot([0, max_val], [0, max_val], 'r--', lw=1, label='Expected')
-    
-    # Plot observed vs expected
-    ax.scatter(expected, observed, s=10, alpha=0.5, c='blue')
-    
-    ax.set_xlabel('Expected -log10(p)')
-    ax.set_ylabel('Observed -log10(p)')
-    ax.set_title(f'{title}\nλ = {lambda_gc:.3f}')
-    ax.legend()
-    
-    return lambda_gc
-
-def plot_pvalue_histogram(pvalues, title="P-value Distribution", ax=None):
-    """Create histogram of p-values."""
-    pvalues = np.array(pvalues)
-    pvalues = pvalues[~np.isnan(pvalues)]
-    
-    if ax is None:
-        fig, ax = plt.subplots(figsize=(6, 4))
-    
-    ax.hist(pvalues, bins=50, edgecolor='black', alpha=0.7)
-    ax.axhline(y=len(pvalues)/50, color='r', linestyle='--', label='Uniform expectation')
-    ax.set_xlabel('P-value')
-    ax.set_ylabel('Count')
-    ax.set_title(title)
-    ax.legend()
-
-def plot_manhattan(results_df, title="Manhattan Plot", fdr_threshold=0.05, ax=None):
-    """Create Manhattan-style plot for association results."""
-    if ax is None:
-        fig, ax = plt.subplots(figsize=(12, 4))
-    
-    results = results_df.copy()
-    results['neg_log_p'] = -np.log10(results['pvalue'])
-    results['idx'] = range(len(results))
-
-    # Color by significance — accept either 'qvalue' (current schema) or
-    # legacy 'fdr' for backwards compatibility.
-    fdr_col = 'qvalue' if 'qvalue' in results.columns else 'fdr'
-    sig_mask = results[fdr_col] < fdr_threshold
-    
-    ax.scatter(results.loc[~sig_mask, 'idx'], results.loc[~sig_mask, 'neg_log_p'], 
-               s=10, alpha=0.5, c='gray', label='Not significant')
-    ax.scatter(results.loc[sig_mask, 'idx'], results.loc[sig_mask, 'neg_log_p'], 
-               s=20, alpha=0.8, c='red', label=f'FDR < {fdr_threshold}')
-    
-    # Add significance threshold line
-    if sig_mask.any():
-        min_sig_p = results.loc[sig_mask, 'pvalue'].max()
-        ax.axhline(y=-np.log10(min_sig_p), color='red', linestyle='--', alpha=0.5)
-    
-    ax.set_xlabel('Feature index')
-    ax.set_ylabel('-log10(p-value)')
-    ax.set_title(title)
-    ax.legend()
-
-def create_diagnostic_plots(pvals_or_df, title=None, contrast_name=None, output_dir=None):
-    """Create diagnostic plots (QQ + p-value histogram + optional Manhattan).
-
-    Flexible input:
-      - ``pvals_or_df`` can be a pandas Series/array of p-values OR a
-        DataFrame with a ``pvalue`` column (and optional ``feature`` index
-        for the Manhattan plot).
-      - ``title`` (or legacy ``contrast_name``) is used in the figure titles.
-      - If ``output_dir`` is given, saves ``{contrast_name}_diagnostics.png``.
-
-    Returns
-    -------
-    matplotlib.Figure
-    """
-    import numpy as _np
-    if title is None:
-        title = contrast_name or ''
-
-    if isinstance(pvals_or_df, pd.DataFrame):
-        results_df = pvals_or_df
-        pvals = _np.asarray(results_df['pvalue'].dropna().values)
-    else:
-        results_df = None
-        pvals = _np.asarray(pd.Series(pvals_or_df).dropna().values)
-
-    if results_df is not None and len(results_df) > 0:
-        fig, axes = plt.subplots(1, 3, figsize=(15, 4))
-    else:
-        fig, axes = plt.subplots(1, 2, figsize=(10, 4))
-
-    plot_qq(pvals, title=f'QQ Plot: {title}', ax=axes[0])
-    plot_pvalue_histogram(pvals, title=f'P-values: {title}', ax=axes[1])
-    if results_df is not None and len(axes) > 2:
-        plot_manhattan(results_df, title=f'Manhattan: {title}', ax=axes[2])
-
-    plt.tight_layout()
-    if output_dir is not None and contrast_name is not None:
-        fig.savefig(f'{output_dir}/{contrast_name}_diagnostics.png',
-                    dpi=150, bbox_inches='tight')
-    return fig
 
 # print("Diagnostic plotting functions loaded.")
 
@@ -1585,7 +623,7 @@ def create_diagnostic_plots(pvals_or_df, title=None, contrast_name=None, output_
 # Test if phenotype groups differ in CAZyme repertoire SIZE (not individual families)
 # Hypothesis: Industrial/pathogenic strains may have expanded specific enzyme classes
 #
-# This tests AGGREGATE counts - biologically meaningful genome-level traits:
+# Aggregate per-genome counts:
 #   - Total CAZymes per genome
 #   - Count per CAZy class (GH, GT, PL, CE, AA, CBM)
 
@@ -1593,895 +631,10 @@ import re
 from scipy.stats import mannwhitneyu
 from collections import defaultdict
 
-# print("="*70)
-# print("SECTION 6.4: CAZy FAMILY EXPANSION PAN-GWAS")
-# print("="*70)
-
-# Load dbCAN data and compute aggregate counts per genome
-# dbcan_dir = f"{SPECIES_DIR}/dbcan_output"
-# cazy_counts = {}
-
-# if os.path.exists(dbcan_dir):
-#     print(f"\nLoading CAZy annotations from dbCAN...")
-#     
-#     for acc_dir in os.listdir(dbcan_dir):
-#         overview_path = f"{dbcan_dir}/{acc_dir}/overview.tsv"
-#         if os.path.exists(overview_path):
-#             try:
-#                 df = pd.read_csv(overview_path, sep='\t', dtype=str, na_filter=False)
-#                 acc_match = re.search(r'(GCA_\d+)', acc_dir)
-#                 if acc_match:
-#                     acc = acc_match.group(1)
-#                     
-                    # Initialize counts
-#                     counts = {'total': 0, 'GH': 0, 'GT': 0, 'PL': 0, 'CE': 0, 'AA': 0, 'CBM': 0, 'other': 0}
-#                     
-                    # Get CAZy families from "Recommend Results" column
-#                     rec_col = [c for c in df.columns if 'Recommend' in c]
-#                     if rec_col:
-#                         for val in df[rec_col[0]]:
-#                             if val and val != '-':
-                                # Count each CAZy annotation
-#                                 families = re.findall(r'([A-Z]+)\d+', str(val))
-#                                 for fam_class in families:
-#                                     counts['total'] += 1
-#                                     if fam_class in counts:
-#                                         counts[fam_class] += 1
-#                                     else:
-#                                         counts['other'] += 1
-#                     
-#                     cazy_counts[acc] = counts
-#             except Exception as e:
-#                 pass
-# 
-#     print(f"  Loaded CAZy data for {len(cazy_counts)} genomes")
-#     
-#     if cazy_counts:
-        # Build dataframe
-#         cazy_df = pd.DataFrame.from_dict(cazy_counts, orient='index')
-#         cazy_df.index.name = 'accession'
-#         
-#         print(f"\n  CAZy class summary (mean ± std per genome):")
-#         for col in ['total', 'GH', 'GT', 'PL', 'CE', 'AA', 'CBM']:
-#             if col in cazy_df.columns:
-#                 print(f"    {col}: {cazy_df[col].mean():.1f} ± {cazy_df[col].std():.1f}")
-#         
-        # Normalize sample IDs for matching
-#         cazy_df_norm = cazy_df.copy()
-#         cazy_df_norm.index = [normalize_sample_id(str(idx)) for idx in cazy_df_norm.index]
-#         
-        # Run association tests
-#         print("\n" + "-"*70)
-#         print("CAZy Expansion Association Testing (Mann-Whitney U)")
-#         print("-"*70)
-#         
-#         cazy_expansion_results = {}
-#         
-#         for contrast_key, contrast_info in phenotype_files.items():
-#             n_case = contrast_info['n_case']
-#             n_control = contrast_info['n_control']
-#             
-#             if n_case < 3 or n_control < 3:
-#                 continue
-#             
-#             print(f"\n  {contrast_key} ({n_case} cases, {n_control} controls)")
-#             
-#             pheno_df = pd.read_csv(contrast_info['path'], sep='\t')
-#             pheno_df['sample_id_norm'] = pheno_df['sample_id'].apply(lambda x: normalize_sample_id(str(x)))
-#             
-#             cases = pheno_df[pheno_df['phenotype'] == 1]['sample_id_norm'].tolist()
-#             controls = pheno_df[pheno_df['phenotype'] == 0]['sample_id_norm'].tolist()
-#             
-#             cases_matched = [s for s in cases if s in cazy_df_norm.index]
-#             controls_matched = [s for s in controls if s in cazy_df_norm.index]
-#             
-#             if len(cases_matched) < 3 or len(controls_matched) < 3:
-#                 print(f"    [SKIP] Insufficient matched samples")
-#                 continue
-#             
-#             results_list = []
-#             
-#             for feature in ['total', 'GH', 'GT', 'PL', 'CE', 'AA', 'CBM']:
-#                 if feature not in cazy_df_norm.columns:
-#                     continue
-#                     
-#                 case_vals = cazy_df_norm.loc[cases_matched, feature].values
-#                 control_vals = cazy_df_norm.loc[controls_matched, feature].values
-#                 
-#                 try:
-#                     stat, pval = mannwhitneyu(case_vals, control_vals, alternative='two-sided')
-#                 except:
-#                     pval = 1.0
-#                 
-#                 case_mean = np.mean(case_vals)
-#                 control_mean = np.mean(control_vals)
-#                 
-#                 results_list.append({
-#                     'feature': f'CAZy_{feature}',
-#                     'case_mean': case_mean,
-#                     'control_mean': control_mean,
-#                     'diff': case_mean - control_mean,
-#                     'fold_change': case_mean / control_mean if control_mean > 0 else np.nan,
-#                     'pvalue': pval,
-#                     'direction': 'expanded_in_case' if case_mean > control_mean else 'reduced_in_case'
-#                 })
-#             
-#             results = pd.DataFrame(results_list)
-#             
-            # FDR correction
-#             if len(results) > 0:
-#                 from statsmodels.stats.multitest import multipletests
-#                 _, fdr, _, _ = multipletests(results['pvalue'], method='fdr_bh')
-#                 results['fdr'] = fdr
-#             
-#             output_file = f"{results_dir}/cazy_expansion_assoc_{contrast_key}.tsv"
-#             results.to_csv(output_file, sep='\t', index=False)
-#             cazy_expansion_results[contrast_key] = results
-#             
-            # Print significant results
-#             for _, row in results.iterrows():
-#                 sig = "*" if row['pvalue'] < 0.05 else ""
-#                 sig2 = "**" if row['fdr'] < 0.1 else ""
-#                 print(f"    {row['feature']}: case={row['case_mean']:.1f}, ctrl={row['control_mean']:.1f}, "
-#                       f"p={row['pvalue']:.4f}{sig}{sig2}")
-# else:
-#     print("\n[SKIP] dbCAN output directory not found")
-#     cazy_expansion_results = {}
-
-# print("\n" + "="*70)
-# print("CAZy Expansion Pan-GWAS complete!")
-# =============================================================================
-# AUTOMATIC INTERPRETATION: CAZy EXPANSION RESULTS
-# =============================================================================
-
-# print("\n" + "="*70)
-# print("INTERPRETATION: CAZy FAMILY EXPANSION ANALYSIS")
-# print("="*70)
-
-def interpret_cazy(feature):
-    interp = {
-        'GH': 'Glycoside hydrolases → polysaccharide degradation',
-        'AA': 'Auxiliary activities → lignin/cellulose oxidation',
-        'GT': 'Glycosyl transferases → cell wall biosynthesis', 
-        'CBM': 'Carbohydrate-binding modules → substrate targeting',
-        'CE': 'Carbohydrate esterases → hemicellulose processing',
-        'PL': 'Polysaccharide lyases → pectin degradation',
-        'total': 'Overall CAZyme repertoire size'
-    }
-    for key, val in interp.items():
-        if key in feature:
-            return val
-    return ''
-
-# if cazy_expansion_results:
-#     for contrast_key, results in cazy_expansion_results.items():
-#         print(f"\n{'='*60}")
-#         print(f"Contrast: {contrast_key}")
-#         print(f"{'='*60}")
-#         
-        # Sort by p-value
-#         results_sorted = results.sort_values('pvalue')
-#         
-        # Significant at p < 0.05
-#         sig_05 = results_sorted[results_sorted['pvalue'] < 0.05]
-        # Trending at p < 0.1
-#         trending = results_sorted[(results_sorted['pvalue'] >= 0.05) & (results_sorted['pvalue'] < 0.1)]
-#         
-#         if len(sig_05) > 0:
-#             print(f"\n  ★ SIGNIFICANT FINDINGS (p < 0.05):")
-#             for _, row in sig_05.iterrows():
-#                 direction = "EXPANDED" if row['case_mean'] > row['control_mean'] else "REDUCED"
-#                 fold = row['case_mean'] / row['control_mean'] if row['control_mean'] > 0 else 0
-#                 print(f"\n    {row['feature']}: {direction} in case phenotype")
-#                 print(f"      Case mean: {row['case_mean']:.1f}")
-#                 print(f"      Control mean: {row['control_mean']:.1f}")
-#                 print(f"      Fold change: {fold:.2f}x")
-#                 print(f"      P-value: {row['pvalue']:.4f}")
-#                 bio = interpret_cazy(row['feature'])
-#                 if bio:
-#                     print(f"      Biology: {bio}")
-#         
-#         if len(trending) > 0:
-#             print(f"\n  ○ TRENDING (0.05 ≤ p < 0.10):")
-#             for _, row in trending.iterrows():
-#                 direction = "expanded" if row['case_mean'] > row['control_mean'] else "reduced"
-#                 print(f"    • {row['feature']}: {direction} (p={row['pvalue']:.4f})")
-#         
-#         if len(sig_05) == 0 and len(trending) == 0:
-#             print(f"\n  No significant or trending associations (p < 0.1)")
-#         
-        # Overall pattern
-#         print(f"\n  SUMMARY:")
-#         n_expanded = (results['case_mean'] > results['control_mean']).sum()
-#         n_reduced = (results['case_mean'] < results['control_mean']).sum()
-#         print(f"    {n_expanded} CAZy features higher in cases, {n_reduced} higher in controls")
-# else:
-#     print("\nNo CAZy results available")
-
-
-# =============================================================================
-# SECTION 6.5: PROTEASE FAMILY EXPANSION PAN-GWAS
-# =============================================================================
-# Test if phenotype groups differ in protease repertoire SIZE
-# Hypothesis: Pathogenic strains may have expanded protease arsenals for host invasion
-#
-# This tests AGGREGATE counts - biologically meaningful genome-level traits:
-#   - Total proteases per genome
-#   - Count per MEROPS class (Serine, Aspartic, Metallo, Cysteine, Threonine)
-
-# print("="*70)
-# print("SECTION 6.5: PROTEASE FAMILY EXPANSION PAN-GWAS")
-# print("="*70)
-
-# Load InterProScan data and count proteases by class
-# interpro_dir = f"{SPECIES_DIR}/interproscan_output"
-# protease_counts = {}
-
-# MEROPS protease class patterns
-# PROTEASE_PATTERNS = {
-#     'S': [r'[Ss]erine[- ]?(?:protease|peptidase|endopeptidase)', r'[Pp]eptidase[_ ]S\d+', r'[Ss]ubtilis'],
-#     'A': [r'[Aa]spartic[- ]?(?:protease|peptidase)', r'[Pp]eptidase[_ ]A\d+', r'[Pp]epsin'],
-#     'M': [r'[Mm]etallo[- ]?(?:protease|peptidase)', r'[Pp]eptidase[_ ]M\d+', r'[Zz]inc[- ]?peptidase'],
-#     'C': [r'[Cc]ysteine[- ]?(?:protease|peptidase)', r'[Pp]eptidase[_ ]C\d+', r'[Pp]apain'],
-#     'T': [r'[Tt]hreonine[- ]?(?:protease|peptidase)', r'[Pp]eptidase[_ ]T\d+', r'[Pp]roteasome'],
-# }
-
-# if os.path.exists(interpro_dir):
-#     print(f"\nLoading protease annotations from InterProScan...")
-#     
-#     for acc_dir in os.listdir(interpro_dir):
-#         tsv_files = [f for f in os.listdir(f"{interpro_dir}/{acc_dir}") if f.endswith('.tsv')]
-#         if tsv_files:
-#             tsv_path = f"{interpro_dir}/{acc_dir}/{tsv_files[0]}"
-#             try:
-#                 df = pd.read_csv(tsv_path, sep='\t', header=None, dtype=str, na_filter=False)
-#                 
-#                 acc_match = re.search(r'(GCA_\d+)', acc_dir)
-#                 if acc_match:
-#                     acc = acc_match.group(1)
-#                     
-                    # Initialize counts
-#                     counts = {'total': 0, 'Serine': 0, 'Aspartic': 0, 'Metallo': 0, 'Cysteine': 0, 'Threonine': 0, 'Other': 0}
-#                     counted_proteins = set()  # Avoid double-counting same protein
-#                     
-#                     for _, row in df.iterrows():
-#                         protein_id = str(row[0]) if len(row) > 0 else ""
-#                         desc = str(row[5]) if len(row) > 5 else ""
-#                         ipr_desc = str(row[12]) if len(row) > 12 else ""
-#                         combined = f"{desc} {ipr_desc}"
-#                         
-                        # Check if this is a protease
-#                         is_protease = False
-#                         protease_class = None
-#                         
-#                         for pclass, patterns in PROTEASE_PATTERNS.items():
-#                             for pattern in patterns:
-#                                 if re.search(pattern, combined, re.IGNORECASE):
-#                                     is_protease = True
-#                                     protease_class = pclass
-#                                     break
-#                             if is_protease:
-#                                 break
-#                         
-                        # Also check for generic peptidase mentions
-#                         if not is_protease and re.search(r'[Pp]eptidase|[Pp]rotease|[Pp]roteinase', combined):
-#                             is_protease = True
-#                             protease_class = 'Other'
-#                         
-#                         if is_protease and protein_id not in counted_proteins:
-#                             counted_proteins.add(protein_id)
-#                             counts['total'] += 1
-#                             
-#                             class_names = {'S': 'Serine', 'A': 'Aspartic', 'M': 'Metallo', 
-#                                           'C': 'Cysteine', 'T': 'Threonine'}
-#                             if protease_class in class_names:
-#                                 counts[class_names[protease_class]] += 1
-#                             else:
-#                                 counts['Other'] += 1
-#                     
-#                     if counts['total'] > 0:
-#                         protease_counts[acc] = counts
-#             except Exception as e:
-#                 pass
-# 
-#     print(f"  Loaded protease data for {len(protease_counts)} genomes")
-#     
-#     if protease_counts:
-        # Build dataframe
-#         protease_df = pd.DataFrame.from_dict(protease_counts, orient='index')
-#         protease_df.index.name = 'accession'
-#         
-#         print(f"\n  Protease class summary (mean ± std per genome):")
-#         for col in ['total', 'Serine', 'Aspartic', 'Metallo', 'Cysteine', 'Threonine']:
-#             if col in protease_df.columns:
-#                 print(f"    {col}: {protease_df[col].mean():.1f} ± {protease_df[col].std():.1f}")
-#         
-        # Normalize sample IDs
-#         protease_df_norm = protease_df.copy()
-#         protease_df_norm.index = [normalize_sample_id(str(idx)) for idx in protease_df_norm.index]
-#         
-        # Run association tests
-#         print("\n" + "-"*70)
-#         print("Protease Expansion Association Testing (Mann-Whitney U)")
-#         print("-"*70)
-#         
-#         protease_expansion_results = {}
-#         
-#         for contrast_key, contrast_info in phenotype_files.items():
-#             n_case = contrast_info['n_case']
-#             n_control = contrast_info['n_control']
-#             
-#             if n_case < 3 or n_control < 3:
-#                 continue
-#             
-#             print(f"\n  {contrast_key} ({n_case} cases, {n_control} controls)")
-#             
-#             pheno_df = pd.read_csv(contrast_info['path'], sep='\t')
-#             pheno_df['sample_id_norm'] = pheno_df['sample_id'].apply(lambda x: normalize_sample_id(str(x)))
-#             
-#             cases = pheno_df[pheno_df['phenotype'] == 1]['sample_id_norm'].tolist()
-#             controls = pheno_df[pheno_df['phenotype'] == 0]['sample_id_norm'].tolist()
-#             
-#             cases_matched = [s for s in cases if s in protease_df_norm.index]
-#             controls_matched = [s for s in controls if s in protease_df_norm.index]
-#             
-#             if len(cases_matched) < 3 or len(controls_matched) < 3:
-#                 print(f"    [SKIP] Insufficient matched samples")
-#                 continue
-#             
-#             results_list = []
-#             
-#             for feature in ['total', 'Serine', 'Aspartic', 'Metallo', 'Cysteine', 'Threonine']:
-#                 if feature not in protease_df_norm.columns:
-#                     continue
-#                     
-#                 case_vals = protease_df_norm.loc[cases_matched, feature].values
-#                 control_vals = protease_df_norm.loc[controls_matched, feature].values
-#                 
-#                 try:
-#                     stat, pval = mannwhitneyu(case_vals, control_vals, alternative='two-sided')
-#                 except:
-#                     pval = 1.0
-#                 
-#                 case_mean = np.mean(case_vals)
-#                 control_mean = np.mean(control_vals)
-#                 
-#                 results_list.append({
-#                     'feature': f'Protease_{feature}',
-#                     'case_mean': case_mean,
-#                     'control_mean': control_mean,
-#                     'diff': case_mean - control_mean,
-#                     'fold_change': case_mean / control_mean if control_mean > 0 else np.nan,
-#                     'pvalue': pval,
-#                     'direction': 'expanded_in_case' if case_mean > control_mean else 'reduced_in_case'
-#                 })
-#             
-#             results = pd.DataFrame(results_list)
-#             
-            # FDR correction
-#             if len(results) > 0:
-#                 from statsmodels.stats.multitest import multipletests
-#                 _, fdr, _, _ = multipletests(results['pvalue'], method='fdr_bh')
-#                 results['fdr'] = fdr
-#             
-#             output_file = f"{results_dir}/protease_expansion_assoc_{contrast_key}.tsv"
-#             results.to_csv(output_file, sep='\t', index=False)
-#             protease_expansion_results[contrast_key] = results
-#             
-            # Print results
-#             for _, row in results.iterrows():
-#                 sig = "*" if row['pvalue'] < 0.05 else ""
-#                 sig2 = "**" if row['fdr'] < 0.1 else ""
-#                 print(f"    {row['feature']}: case={row['case_mean']:.1f}, ctrl={row['control_mean']:.1f}, "
-#                       f"p={row['pvalue']:.4f}{sig}{sig2}")
-# else:
-#     print("\n[SKIP] InterProScan output directory not found")
-#     protease_expansion_results = {}
-
-# print("\n" + "="*70)
-# print("Protease Expansion Pan-GWAS complete!")
-# =============================================================================
-# AUTOMATIC INTERPRETATION: PROTEASE EXPANSION RESULTS
-# =============================================================================
-
-# print("\n" + "="*70)
-# print("INTERPRETATION: PROTEASE FAMILY EXPANSION ANALYSIS")
-# print("="*70)
-
-def interpret_protease(feature):
-    interp = {
-        'Serine': 'Serine proteases → secreted enzymes, extracellular degradation',
-        'Metallo': 'Metalloproteases → collagen degradation, virulence',
-        'Aspartic': 'Aspartic proteases → food processing, host proteins',
-        'Cysteine': 'Cysteine proteases → intracellular turnover',
-        'Threonine': 'Threonine proteases → proteasome activity',
-        'total': 'Overall protease repertoire size'
-    }
-    for key, val in interp.items():
-        if key in feature:
-            return val
-    return ''
-
-# if protease_expansion_results:
-#     for contrast_key, results in protease_expansion_results.items():
-#         print(f"\n{'='*60}")
-#         print(f"Contrast: {contrast_key}")
-#         print(f"{'='*60}")
-#         
-#         results_sorted = results.sort_values('pvalue')
-#         sig_05 = results_sorted[results_sorted['pvalue'] < 0.05]
-#         trending = results_sorted[(results_sorted['pvalue'] >= 0.05) & (results_sorted['pvalue'] < 0.1)]
-#         
-#         if len(sig_05) > 0:
-#             print(f"\n  ★ SIGNIFICANT FINDINGS (p < 0.05):")
-#             for _, row in sig_05.iterrows():
-#                 direction = "EXPANDED" if row['case_mean'] > row['control_mean'] else "REDUCED"
-#                 fold = row['case_mean'] / row['control_mean'] if row['control_mean'] > 0 else 0
-#                 print(f"\n    {row['feature']}: {direction} in case phenotype")
-#                 print(f"      Case: {row['case_mean']:.1f}, Control: {row['control_mean']:.1f}")
-#                 print(f"      Fold: {fold:.2f}x, P={row['pvalue']:.4f}")
-#                 bio = interpret_protease(row['feature'])
-#                 if bio:
-#                     print(f"      → {bio}")
-#         
-#         if len(trending) > 0:
-#             print(f"\n  ○ TRENDING (0.05 ≤ p < 0.10):")
-#             for _, row in trending.iterrows():
-#                 direction = "expanded" if row['case_mean'] > row['control_mean'] else "reduced"
-#                 print(f"    • {row['feature']}: {direction} (p={row['pvalue']:.4f})")
-#         
-#         if len(sig_05) == 0 and len(trending) == 0:
-#             print(f"\n  No significant associations (p < 0.1)")
-#         
-#         print(f"\n  BIOLOGICAL CONTEXT:")
-#         print(f"    • Protease expansion is a hallmark of pathogenic fungi")
-#         print(f"    • Secreted proteases enable host tissue invasion")
-#         print(f"    • Industrial strains may expand proteases for protein hydrolysis")
-# else:
-#     print("\nNo protease results available")
-
-
-# =============================================================================
-# SECTION 6.7: BIOLOGICAL INTERPRETATION OF BGC/GCF RESULTS
-# =============================================================================
-# Annotate significant BGC/GCF hits with detailed biosynthetic pathway information
 
 from pathlib import Path
 from collections import Counter, defaultdict
 
-def load_bgc_annotations(species_dir):
-    """Load BGC annotations from BiG-SCAPE output."""
-    bigscape_dir = Path(species_dir) / "bigscape_output" / "output_files"
-    
-    output_dirs = list(bigscape_dir.glob("*_c0*"))
-    if not output_dirs:
-        print("No BiG-SCAPE output found")
-        return None, None
-    
-    output_dir = output_dirs[0]
-    
-    # Load record annotations (BGC details)
-    annot_path = output_dir / "record_annotations.tsv"
-    if annot_path.exists():
-        annot_df = pd.read_csv(annot_path, sep='\t')
-        n_total = len(annot_df)
-        
-        # Filter out MIBiG reference BGCs (their Record starts with "BGC")
-        is_actual = annot_df['Record'].str.startswith(('GCA', 'GCF'), na=False)
-        n_mibig = (~is_actual).sum()
-        annot_df = annot_df[is_actual].copy()
-        
-        if n_mibig > 0:
-            print(f"Filtered out {n_mibig} MIBiG reference BGCs")
-        print(f"Loaded {len(annot_df)} BGC annotations from actual strains")
-    else:
-        print(f"Annotation file not found: {annot_path}")
-        return None, None
-    
-    # Load all clustering files to map BGCs to GCFs
-    gcf_mapping = {}
-    for cluster_file in output_dir.glob("*/*_clustering_*.tsv"):
-        df = pd.read_csv(cluster_file, sep='\t')
-        for _, row in df.iterrows():
-            record = row['Record']
-            # Skip MIBiG references
-            if not str(record).startswith(('GCA', 'GCF')):
-                continue
-            family = row['Family']
-            gcf_mapping[record] = family
-    
-    print(f"Mapped {len(gcf_mapping)} BGCs to GCFs")
-    
-    return annot_df, gcf_mapping
-
-def parse_knownclusterblast_file(filepath):
-    """Parse a knownclusterblast txt file and extract MIBiG hits."""
-    import re
-    hits = []
-    with open(filepath, 'r') as f:
-        content = f.read()
-    
-    sig_match = re.search(r'Significant hits:\s*\n(.*?)(?:\n\n|Details:)', content, re.DOTALL)
-    if not sig_match:
-        return hits
-    
-    sig_section = sig_match.group(1)
-    for line in sig_section.strip().split('\n'):
-        match = re.match(r'\d+\.\s+(BGC\d+)(?:\.\d+)?\s+(.+)', line.strip())
-        if match:
-            bgc_id = match.group(1)
-            compound = match.group(2).strip()
-            hits.append((bgc_id, compound))
-    return hits
-
-def build_mibig_annotation_table(species_dir):
-    """
-    Build MIBiG annotation table by parsing antiSMASH knownclusterblast results.
-    Links antiSMASH regions to BiG-SCAPE GCFs via compound predictions.
-    
-    Returns:
-    - gcf_mibig: dict mapping GCF -> list of (mibig_id, compound_name)
-    """
-    import re
-    antismash_dir = Path(species_dir) / "antismash_output"
-    bigscape_dir = Path(species_dir) / "bigscape_output" / "output_files"
-    
-    output_dirs = list(bigscape_dir.glob("*_c0*"))
-    if not output_dirs:
-        print("No BiG-SCAPE output found for MIBiG annotation")
-        return {}
-    
-    output_dir = output_dirs[0]
-    
-    # Build GCF mapping from BiG-SCAPE clustering
-    gcf_mapping = {}
-    for cluster_file in output_dir.glob("*/*_clustering_*.tsv"):
-        df = pd.read_csv(cluster_file, sep='\t')
-        for _, row in df.iterrows():
-            if str(row['Record']).startswith(('GCA', 'GCF')):
-                gcf_mapping[row['Record']] = row['Family']
-    
-    # Parse all knownclusterblast results
-    bgc_mibig = defaultdict(list)
-    
-    for strain_dir in antismash_dir.iterdir():
-        if not strain_dir.is_dir():
-            continue
-        
-        strain_id = strain_dir.name
-        kcb_dir = strain_dir / 'knownclusterblast'
-        
-        if not kcb_dir.exists():
-            continue
-        
-        for txt_file in kcb_dir.glob('*.txt'):
-            match = re.match(r'(scaffold_\d+)_c(\d+)', txt_file.stem)
-            if not match:
-                continue
-            
-            scaffold = match.group(1)
-            region_num = int(match.group(2))
-            
-            # Match to BiG-SCAPE records
-            patterns = [
-                f"{strain_id}_{scaffold}.region{region_num:03d}",
-                f"{strain_id}_{scaffold}.region{region_num:02d}",
-                f"{strain_id}_{scaffold}.region{region_num}"
-            ]
-            
-            matching_records = []
-            for pattern in patterns:
-                matching_records.extend([r for r in gcf_mapping.keys() if pattern in r])
-            
-            if matching_records:
-                hits = parse_knownclusterblast_file(txt_file)
-                for record in set(matching_records):
-                    bgc_mibig[record].extend(hits)
-    
-    # Aggregate at GCF level
-    gcf_mibig = defaultdict(list)
-    for bgc_record, hits in bgc_mibig.items():
-        if bgc_record in gcf_mapping:
-            gcf = gcf_mapping[bgc_record]
-            gcf_mibig[gcf].extend(hits)
-    
-    # Deduplicate - keep unique MIBiG IDs with their compound names
-    for gcf in gcf_mibig:
-        seen = {}
-        for bgc_id, compound in gcf_mibig[gcf]:
-            if bgc_id not in seen:
-                seen[bgc_id] = compound
-        gcf_mibig[gcf] = [(k, v) for k, v in seen.items()]
-    
-    print(f"Loaded MIBiG annotations: {len([g for g in gcf_mibig if gcf_mibig[g]])} GCFs with known compound hits")
-    
-    return dict(gcf_mibig)
-
-def build_gcf_annotation_table(bgc_annot_df, gcf_mapping, phenotype_df=None, gcf_mibig=None):
-    """
-    Build detailed GCF annotation table with:
-    - GCF family ID
-    - Number of BGCs in family
-    - Number of strains with the family
-    - BGC types (Class, Category)
-    - Strain list
-    - Phenotype distribution (if provided)
-    """
-    if bgc_annot_df is None:
-        return pd.DataFrame()
-    
-    # Build reverse mapping: GCF -> list of BGC records
-    gcf_to_bgcs = defaultdict(list)
-    for record, family in gcf_mapping.items():
-        gcf_to_bgcs[family].append(record)
-    
-    # Create annotation lookup
-    bgc_info = {}
-    for _, row in bgc_annot_df.iterrows():
-        record = row['Record']
-        # Extract strain from record name (e.g., GCA_023625355.1_ASM2362535v1_scaffold...)
-        strain = '_'.join(record.split('_')[:3]) if '_' in record else record.split('.')[0]
-        bgc_info[record] = {
-            'class': row.get('Class', ''),
-            'category': row.get('Category', ''),
-            'strain': strain,
-        }
-    
-    # Build phenotype lookup if provided
-    pheno_lookup = {}
-    if phenotype_df is not None:
-        for _, row in phenotype_df.iterrows():
-            # Normalize sample ID
-            sample = row['sample_id']
-            norm_sample = normalize_sample_id(sample) if 'normalize_sample_id' in dir() else sample
-            pheno_lookup[norm_sample] = row['phenotype']
-    
-    # Build GCF table
-    gcf_rows = []
-    for gcf, bgc_list in gcf_to_bgcs.items():
-        # Get BGC info
-        classes = []
-        categories = []
-        strains = set()
-        
-        for bgc in bgc_list:
-            info = bgc_info.get(bgc, {})
-            if info.get('class'):
-                classes.append(info['class'])
-            if info.get('category'):
-                categories.append(info['category'])
-            if info.get('strain'):
-                strains.add(info['strain'])
-        
-        # Get most common type
-        main_class = Counter(classes).most_common(1)[0][0] if classes else 'Unknown'
-        main_category = Counter(categories).most_common(1)[0][0] if categories else 'Unknown'
-        
-        # Count phenotypes if available
-        n_case = 0
-        n_control = 0
-        if pheno_lookup:
-            for strain in strains:
-                norm_strain = normalize_sample_id(strain) if 'normalize_sample_id' in dir() else strain
-                if norm_strain in pheno_lookup:
-                    if pheno_lookup[norm_strain] == 1:
-                        n_case += 1
-                    else:
-                        n_control += 1
-        
-        # Get MIBiG annotations if available
-        mibig_ids = ''
-        mibig_compounds = ''
-        if gcf_mibig and gcf in gcf_mibig:
-            mibig_hits = gcf_mibig[gcf]
-            mibig_ids = '; '.join([h[0] for h in mibig_hits[:3]])
-            mibig_compounds = '; '.join([h[1][:40] for h in mibig_hits[:2]])
-            if len(mibig_hits) > 3:
-                mibig_ids += '...'
-        
-        gcf_rows.append({
-            'GCF': gcf,
-            'n_BGCs': len(bgc_list),
-            'n_strains': len(strains),
-            'main_class': main_class,
-            'main_category': main_category,
-            'all_classes': '; '.join(sorted(set(classes))),
-            'strains': ', '.join(sorted(strains)[:5]) + ('...' if len(strains) > 5 else ''),
-            'n_case': n_case,
-            'n_control': n_control,
-            'mibig_ids': mibig_ids,
-            'mibig_compounds': mibig_compounds,
-        })
-    
-    gcf_table = pd.DataFrame(gcf_rows)
-    gcf_table = gcf_table.sort_values('n_strains', ascending=False)
-    
-    return gcf_table
-
-def annotate_gcf_results_detailed(results_df, gcf_table, feature_col='feature'):
-    """Add detailed GCF annotations to results."""
-    if gcf_table.empty or results_df.empty:
-        return results_df
-    
-    # Create lookup
-    gcf_lookup = gcf_table.set_index('GCF').to_dict('index')
-    
-    results_df = results_df.copy()
-    results_df['gcf_category'] = results_df[feature_col].map(
-        lambda x: gcf_lookup.get(x, {}).get('main_category', 'Unknown'))
-    results_df['gcf_class'] = results_df[feature_col].map(
-        lambda x: gcf_lookup.get(x, {}).get('main_class', 'Unknown'))
-    results_df['gcf_n_strains'] = results_df[feature_col].map(
-        lambda x: gcf_lookup.get(x, {}).get('n_strains', 0))
-    results_df['gcf_n_bgcs'] = results_df[feature_col].map(
-        lambda x: gcf_lookup.get(x, {}).get('n_BGCs', 0))
-    results_df['mibig_ids'] = results_df[feature_col].map(
-        lambda x: gcf_lookup.get(x, {}).get('mibig_ids', ''))
-    results_df['mibig_compounds'] = results_df[feature_col].map(
-        lambda x: gcf_lookup.get(x, {}).get('mibig_compounds', ''))
-    
-    return results_df
-
-def display_significant_gcfs(results_df, gcf_table, contrast_name, fdr_threshold=0.1):
-    """Display detailed info for significant GCFs."""
-
-    # Accept either 'qvalue' (current schema) or legacy 'fdr'.
-    fdr_col = 'qvalue' if 'qvalue' in results_df.columns else 'fdr'
-    sig = results_df[results_df[fdr_col] < fdr_threshold].copy()
-    if len(sig) == 0:
-        print(f"\n{contrast_name}: No significant GCFs (FDR < {fdr_threshold})")
-        return
-    
-    print(f"\n{'='*80}")
-    print(f"SIGNIFICANT GCFs: {contrast_name}")
-    print(f"{'='*80}")
-    print(f"Total significant: {len(sig)} GCFs")
-    
-    # Annotate with full details
-    sig = annotate_gcf_results_detailed(sig, gcf_table)
-    
-    # Separate by direction
-    enriched_case = sig[sig['beta'] > 0].sort_values('pvalue')
-    enriched_ctrl = sig[sig['beta'] < 0].sort_values('pvalue')
-    
-    case_label = contrast_name.split('_')[0].upper()
-    ctrl_label = contrast_name.split('_')[-2].upper() if '_vs_' in contrast_name else 'CONTROL'
-    
-    if len(enriched_case) > 0:
-        print(f"\n--- Enriched in {case_label} (n={len(enriched_case)}) ---")
-        display_cols = ['feature', 'beta', 'pvalue', 'fdr', 'gcf_category', 'gcf_class', 
-                        'gcf_n_strains', 'mibig_ids', 'mibig_compounds']
-        display_cols = [c for c in display_cols if c in enriched_case.columns]
-        print(enriched_case[display_cols].head(10).to_string())
-        
-        # Summary by category
-        cat_counts = enriched_case['gcf_category'].value_counts()
-        print(f"\n  Category summary:")
-        for cat, count in cat_counts.items():
-            print(f"    {cat}: {count}")
-    
-    if len(enriched_ctrl) > 0:
-        print(f"\n--- Enriched in {ctrl_label} (n={len(enriched_ctrl)}) ---")
-        display_cols = ['feature', 'beta', 'pvalue', 'fdr', 'gcf_category', 'gcf_class',
-                        'gcf_n_strains', 'gcf_n_bgcs']
-        display_cols = [c for c in display_cols if c in enriched_ctrl.columns]
-        print(enriched_ctrl[display_cols].head(10).to_string())
-        
-        cat_counts = enriched_ctrl['gcf_category'].value_counts()
-        print(f"\n  Category summary:")
-        for cat, count in cat_counts.items():
-            print(f"    {cat}: {count}")
-
-# =============================================================================
-# LOAD AND BUILD GCF ANNOTATIONS
-# =============================================================================
-
-# print("Loading BGC/GCF annotations...")
-# bgc_annot_df, gcf_mapping = load_bgc_annotations(SPECIES_DIR)
-
-# if bgc_annot_df is not None:
-#     print("\nBuilding MIBiG compound annotations...")
-#     gcf_mibig = build_mibig_annotation_table(SPECIES_DIR)
-#     
-#     print("\nBuilding GCF annotation table...")
-#     gcf_annotation_table = build_gcf_annotation_table(bgc_annot_df, gcf_mapping, gcf_mibig=gcf_mibig)
-#     
-#     print(f"\nGCF Summary for {SPECIES_DISPLAY}:")
-#     print(f"  Total GCF families: {len(gcf_annotation_table)}")
-#     print(f"  Total BGCs: {gcf_annotation_table['n_BGCs'].sum()}")
-#     
-    # Show category distribution
-#     print(f"\n  GCFs by category:")
-#     cat_dist = gcf_annotation_table['main_category'].value_counts()
-#     for cat, count in cat_dist.items():
-#         print(f"    {cat}: {count}")
-#     
-    # Show top GCFs by strain count
-#     print(f"\n  Top 10 most common GCFs:")
-#     top_gcfs = gcf_annotation_table.head(10)
-#     print(top_gcfs[['GCF', 'n_strains', 'n_BGCs', 'main_category', 'main_class']].to_string())
-#     
-    # Save full table
-#     gcf_table_path = f"{results_dir}/gcf_annotation_table.tsv"
-#     gcf_annotation_table.to_csv(gcf_table_path, sep='\t', index=False)
-#     print(f"\n  Saved GCF annotation table: {gcf_table_path}")
-# else:
-#     gcf_annotation_table = pd.DataFrame()
-
-# =============================================================================
-# INTERPRET GCF RESULTS
-# =============================================================================
-
-# if gcf_pav_results and not gcf_annotation_table.empty:
-#     print("\n" + "="*80)
-#     print("GCF PAV ASSOCIATION RESULTS - DETAILED")
-#     print("="*80)
-#     for contrast, results in gcf_pav_results.items():
-#         display_significant_gcfs(results, gcf_annotation_table, contrast)
-
-# if gcf_cnv_results and not gcf_annotation_table.empty:
-#     print("\n" + "="*80)
-#     print("GCF CNV ASSOCIATION RESULTS - DETAILED")
-#     print("="*80)
-#     for contrast, results in gcf_cnv_results.items():
-#         display_significant_gcfs(results, gcf_annotation_table, contrast)
-
-# =============================================================================
-# BGC TYPE INTERPRETATION GUIDE
-# =============================================================================
-
-# print("\n" + "="*80)
-# print("BGC TYPE INTERPRETATION GUIDE")
-# print("="*80)
-# print("""
-# BGC Categories and their biological significance:
-# 
-# NRPS (Non-Ribosomal Peptide Synthetase):
-#   - Peptide-based secondary metabolites
-#   - Examples: siderophores (iron acquisition), antibiotics, toxins
-#   - A. niger: includes production of malformins, tensyuic acid
-# 
-# PKS (Polyketide Synthase):
-#   - Polyketide secondary metabolites  
-#   - Examples: pigments (melanin), mycotoxins (ochratoxin, fumonisin)
-#   - A. niger: funalenone, azanigerone, carbonarin
-# 
-# Terpene:
-#   - Terpenoid compounds
-#   - Examples: volatile compounds, hormones
-#   - A. niger: includes kotanin production
-# 
-# NRPS-PKS hybrids:
-#   - Complex bioactive compounds with both pathways
-#   - Often highly bioactive molecules
-#   - Examples: pseurotin, cytochalasin
-# 
-# RiPP (Ribosomally synthesized Post-translationally modified Peptides):
-#   - Small modified peptides
-# 
-# Interpretation for isolation source associations:
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# • Clinical-enriched GCFs: 
-#   - May encode virulence factors or toxins
-#   - Siderophores for iron scavenging in host
-#   - Immune evasion compounds
-# 
-# • Environmental-enriched GCFs:
-#   - Soil competition factors
-#   - Antimicrobials against other microbes
-#   - UV/oxidative stress protection (melanins)
-# 
-# • Industrial-enriched GCFs:
-#   - May have been selected during domestication
-#   - Or lost due to reduced selection pressure
-# """)
-
-# =============================================================================
-# SECTION 7: FUNCTIONAL CHARACTERISATION OF SIGNIFICANT HITS
-# =============================================================================
-# Per-species functional enrichment + BGC co-localisation.
-# Results saved to NB0_Results/{species}/ for NB3 cross-species comparison.
-# =============================================================================
 
 import json as _json
 import re
@@ -2495,484 +648,6 @@ from statsmodels.stats.multitest import multipletests
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
-# print("=" * 70)
-# print(f"SECTION 7: FUNCTIONAL CHARACTERISATION — A. {SPECIES_SHORT}")
-# print("=" * 70)
-
-# ── 7.0 Load data ────────────────────────────────────────────────────
-
-# og_consensus_path = f"{MAIN_RESULTS}/{SPECIES_SHORT}_og_consensus.tsv"
-# og_consensus = pd.read_csv(og_consensus_path, sep='\t')
-
-# Find the pan-GWAS results for the primary contrast
-# gwas_dir = f"{RESULTS_DIR}/pangwas_results"
-# gwas_files = sorted(glob.glob(f"{gwas_dir}/pav_assoc_*.tsv"))
-
-# if not gwas_files:
-#     print("No pan-GWAS result files found. Skipping Section 7.")
-# else:
-#     print(f"Found {len(gwas_files)} PAV GWAS result files:")
-#     for f in gwas_files:
-#         print(f"  {os.path.basename(f)}")
-
-# ── 7.1 Functional enrichment ────────────────────────────────────────
-
-def run_enrichment(sig_df, bg_df, col, parse_mode='multi', min_count=3):
-    """Fisher's exact enrichment test for each term in col."""
-    def _get_terms(series, mode):
-        terms = {}
-        for idx, val in series.items():
-            if pd.isna(val) or str(val).strip() == '':
-                continue
-            if mode == 'bool':
-                if val:
-                    terms.setdefault('True', set()).add(idx)
-            elif mode == 'single':
-                for ch in str(val).strip():
-                    if ch.strip():
-                        terms.setdefault(ch.strip(), set()).add(idx)
-            else:
-                for t in str(val).replace(';', ',').split(','):
-                    t = t.strip()
-                    if t:
-                        terms.setdefault(t, set()).add(idx)
-        return terms
-    sig_terms = _get_terms(sig_df[col], parse_mode)
-    bg_terms = _get_terms(bg_df[col], parse_mode)
-    n_sig, n_bg = len(sig_df), len(bg_df)
-    rows = []
-    for term in sorted(set(list(sig_terms.keys()) + list(bg_terms.keys()))):
-        a = len(sig_terms.get(term, set()))
-        if a < min_count:
-            continue
-        c = len(bg_terms.get(term, set())) - a
-        b = n_sig - a
-        d = n_bg - n_sig - c
-        if c < 0: c = 0
-        if d < 0: d = 0
-        odds, pval = fisher_exact([[a, b], [c, d]], alternative='two-sided')
-        rows.append({'term': term, 'n_sig': a, 'n_bg': a + c,
-                     'OR': odds, 'pvalue': pval})
-    if not rows:
-        return pd.DataFrame()
-    df = pd.DataFrame(rows)
-    _, df['fdr'], _, _ = multipletests(df['pvalue'], method='fdr_bh')
-    df['log2OR'] = np.log2(df['OR'].replace(0, np.nan).replace(np.inf, np.nan))
-    return df.sort_values('fdr')
-
-# LAYERS = [
-#     ('COG',          'COG_category',  'single'),
-#     ('Pfam',         'PFAMs',         'multi'),
-#     ('CAZy',         'CAZy',          'multi'),
-#     ('KEGG_Pathway', 'KEGG_Pathway',  'multi'),
-#     ('KEGG_KO',      'KEGG_ko',       'multi'),
-#     ('GO',           'GOs',           'multi'),
-#     ('InterPro',     'interpro_IPR',  'multi'),
-#     ('Protease',     'is_protease',   'bool'),
-#     ('Transporter',  'is_transporter','bool'),
-#     ('Secreted',     'is_secreted',   'bool'),
-# ]
-
-# FDR_THRESH = 0.1
-
-# all_enrichment_by_contrast = {}
-
-# for gwas_file in gwas_files:
-#     contrast = os.path.basename(gwas_file).replace('pav_assoc_', '').replace('.tsv', '')
-#     gwas = pd.read_csv(gwas_file, sep='\t')
-#     sig_ogs = set(gwas.loc[gwas['fdr'] < FDR_THRESH, 'feature'])
-#     all_ogs = set(gwas['feature'])
-# 
-#     if len(sig_ogs) < 3:
-#         print(f"\n{contrast}: {len(sig_ogs)} sig OGs — too few, skipping")
-#         continue
-# 
-#     sig_df = og_consensus[og_consensus['Orthogroup'].isin(sig_ogs)].copy()
-#     bg_df = og_consensus[og_consensus['Orthogroup'].isin(all_ogs)].copy()
-#     beta_map = gwas.set_index('feature')['beta']
-#     sig_df['beta'] = sig_df['Orthogroup'].map(beta_map)
-# 
-#     min_count = 2 if len(sig_ogs) < 30 else 3
-# 
-#     print(f"\n{'='*60}")
-#     print(f"Contrast: {contrast} ({len(sig_ogs)} sig / {len(all_ogs)} tested)")
-#     print(f"{'='*60}")
-# 
-#     contrast_results = {}
-#     for layer_name, col, mode in LAYERS:
-#         if col not in sig_df.columns:
-#             continue
-#         enr = run_enrichment(sig_df, bg_df, col, parse_mode=mode, min_count=min_count)
-#         contrast_results[layer_name] = enr
-#         n_sig_terms = (enr['fdr'] < 0.1).sum() if len(enr) > 0 else 0
-#         if n_sig_terms > 0:
-#             print(f"  {layer_name}: {n_sig_terms} significant")
-#             for _, row in enr[enr['fdr'] < 0.1].iterrows():
-#                 d = 'ENRICHED' if row['OR'] > 1 else 'DEPLETED'
-#                 print(f"    {row['term']:45s} OR={row['OR']:.2f} FDR={row['fdr']:.4f} "
-#                       f"({row['n_sig']}/{row['n_bg']}) {d}")
-# 
-#     all_enrichment_by_contrast[contrast] = contrast_results
-# 
-    # Save per-contrast enrichment
-#     all_enr_rows = []
-#     for layer, enr in contrast_results.items():
-#         if len(enr) > 0:
-#             e = enr.copy()
-#             e['layer'] = layer
-#             all_enr_rows.append(e)
-#     if all_enr_rows:
-#         out = pd.concat(all_enr_rows)
-#         out_path = f"{RESULTS_DIR}/{SPECIES_SHORT}_{contrast}_functional_enrichment.csv"
-#         out.to_csv(out_path, index=False)
-#         print(f"  Saved: {out_path}")
-
-
-# ── 7.2 BGC co-localisation ──────────────────────────────────────────
-
-# print(f"\n{'='*70}")
-# print(f"SECTION 7.2: BGC CO-LOCALISATION — A. {SPECIES_SHORT}")
-# print(f"{'='*70}")
-
-def parse_antismash_bgc_genes(as_json_path):
-    """Parse antiSMASH JSON → gene_id → {products, mibig, region_id}."""
-    with open(as_json_path) as f:
-        data = _json.load(f)
-    bgc_genes = {}
-    for rec in data['records']:
-        areas = rec.get('areas', [])
-        if not areas:
-            continue
-        scaffold = rec['id']
-        features = rec.get('features', [])
-        modules = rec.get('modules', {})
-        kcb = modules.get('antismash.modules.clusterblast', {})
-        kcb_results = kcb.get('knowncluster', {}).get('results', [])
-        for area_idx, area in enumerate(areas):
-            a_start, a_end = area['start'], area['end']
-            products = ','.join(sorted(area.get('products', [])))
-            mibig_top = 'none'
-            if kcb_results:
-                for kcb_r in kcb_results:
-                    if kcb_r.get('region_number', -1) == area_idx + 1:
-                        ranking = kcb_r.get('ranking', [])
-                        if ranking and len(ranking[0]) > 0:
-                            mibig_top = f"{ranking[0][0].get('accession','')}: {ranking[0][0].get('description','')}"
-                        break
-            for feat in features:
-                if feat.get('type') != 'CDS':
-                    continue
-                loc = feat.get('location', '')
-                nums = re.findall(r'\d+', loc)
-                if not nums:
-                    continue
-                cds_start, cds_end = int(nums[0]), int(nums[-1])
-                if cds_start < a_end and cds_end > a_start:
-                    quals = feat.get('qualifiers', {})
-                    locus = quals.get('locus_tag', ['?'])
-                    locus = locus[0] if isinstance(locus, list) else locus
-                    bgc_genes[locus] = {'products': products, 'mibig': mibig_top}
-    return bgc_genes
-
-def simplify_bgc_class(products_str):
-    ps = set(products_str.split(','))
-    if 'NRPS' in ps or 'NRPS-like' in ps:
-        return 'NRPS-PKS hybrid' if any('PKS' in p for p in ps) else 'NRPS'
-    if any('PKS' in p for p in ps): return 'PKS'
-    if 'terpene' in ps or 'terpene-precursor' in ps: return 'Terpene'
-    if 'isocyanide' in ps or 'isocyanide-nrp' in ps: return 'Isocyanide'
-    if any('siderophore' in p.lower() for p in ps): return 'Siderophore'
-    if any('RiPP' in p for p in ps): return 'RiPP'
-    if 'betalactone' in ps: return 'Betalactone'
-    if 'indole' in ps: return 'Indole'
-    return 'Other'
-
-# Load OrthoFinder OG table
-# og_tsv = glob.glob(f'{SPECIES_DIR}/orthofinder_output/Results_*/Orthogroups/Orthogroups.tsv')
-# as_dir = f'{SPECIES_DIR}/antismash_output'
-
-# if og_tsv and os.path.exists(as_dir):
-#     og = pd.read_csv(og_tsv[0], sep='\t')
-#     genome_cols = [c for c in og.columns if c != 'Orthogroup']
-# 
-    # Aggregate OG → BGC across all genomes
-#     og_bgc_votes = defaultdict(Counter)
-#     og_mibig_votes = defaultdict(Counter)
-#     og_in_bgc = set()
-#     og_genome_in_bgc = defaultdict(int)
-#     og_genome_total = defaultdict(int)
-#     n_processed = 0
-# 
-#     for col in genome_cols:
-#         strain = col.replace('.proteins', '')
-#         as_json = os.path.join(as_dir, strain, f'{strain}.json')
-#         if not os.path.exists(as_json):
-#             continue
-#         g2o = {}
-#         ogs_present = set()
-#         for _, row in og.iterrows():
-#             genes = str(row[col])
-#             if genes == 'nan':
-#                 continue
-#             ogs_present.add(row['Orthogroup'])
-#             for g in genes.split(', '):
-#                 g2o[g.replace('-T1', '')] = row['Orthogroup']
-#         bgc_genes = parse_antismash_bgc_genes(as_json)
-#         n_processed += 1
-#         ogs_in_bgc_this = set()
-#         for gene, info in bgc_genes.items():
-#             og_id = g2o.get(gene)
-#             if og_id:
-#                 og_bgc_votes[og_id][info['products']] += 1
-#                 og_mibig_votes[og_id][info['mibig']] += 1
-#                 og_in_bgc.add(og_id)
-#                 ogs_in_bgc_this.add(og_id)
-        # Track per primary contrast
-#         primary_gwas = gwas_files[0] if gwas_files else None
-#         if primary_gwas:
-#             primary = pd.read_csv(primary_gwas, sep='\t')
-#             primary_sig = set(primary.loc[primary['fdr'] < 0.1, 'feature'])
-#             for og_id in ogs_present & primary_sig:
-#                 og_genome_total[og_id] += 1
-#                 if og_id in ogs_in_bgc_this:
-#                     og_genome_in_bgc[og_id] += 1
-# 
-#     print(f"  Processed {n_processed} genomes")
-#     print(f"  OGs in BGC regions: {len(og_in_bgc)}")
-# 
-    # For primary contrast: build detail table
-#     if gwas_files:
-#         primary = pd.read_csv(gwas_files[0], sep='\t')
-#         primary_sig = set(primary.loc[primary['fdr'] < 0.1, 'feature'])
-#         primary_tested = set(primary['feature'])
-#         primary_beta = primary.set_index('feature')['beta'].to_dict()
-#         contrast_name = os.path.basename(gwas_files[0]).replace('pav_assoc_','').replace('.tsv','')
-# 
-#         sig_in_bgc = {og for og in primary_sig if og in og_in_bgc}
-#         bg_in_bgc = {og for og in primary_tested if og in og_in_bgc}
-# 
-#         a = len(sig_in_bgc)
-#         b = len(primary_sig) - a
-#         c = len(bg_in_bgc) - a
-#         d = len(primary_tested) - len(primary_sig) - c
-#         overall_or, overall_p = fisher_exact([[a, b], [c, d]])
-#         print(f"\n  {contrast_name}: {a}/{len(primary_sig)} sig OGs in BGCs "
-#               f"({a/len(primary_sig)*100:.1f}%) vs {len(bg_in_bgc)}/{len(primary_tested)} bg "
-#               f"({len(bg_in_bgc)/len(primary_tested)*100:.1f}%)")
-#         print(f"  Overall BGC enrichment: OR={overall_or:.2f}, p={overall_p:.4f}")
-# 
-        # Build detail table
-#         detail_rows = []
-#         for og_id in sorted(sig_in_bgc):
-#             beta = primary_beta.get(og_id, 0)
-#             n_in = og_genome_in_bgc.get(og_id, 0)
-#             n_tot = og_genome_total.get(og_id, 0)
-#             consistency = n_in / n_tot * 100 if n_tot > 0 else 0
-#             top_product = og_bgc_votes[og_id].most_common(1)[0] if og_id in og_bgc_votes else ('?', 0)
-#             top_mibig = og_mibig_votes[og_id].most_common(1)[0] if og_id in og_mibig_votes else ('none', 0)
-#             mibig_str = top_mibig[0]
-#             if mibig_str == 'none' and len(og_mibig_votes.get(og_id, {})) > 1:
-#                 second = og_mibig_votes[og_id].most_common(2)
-#                 if len(second) > 1:
-#                     mibig_str = second[1][0]
-#             desc = og_consensus.loc[og_consensus['Orthogroup'] == og_id, 'Description'].iloc[0] \
-#                    if og_id in og_consensus['Orthogroup'].values else ''
-#             pfam = og_consensus.loc[og_consensus['Orthogroup'] == og_id, 'PFAMs'].iloc[0] \
-#                    if og_id in og_consensus['Orthogroup'].values else ''
-#             detail_rows.append({
-#                 'OG': og_id, 'beta': beta,
-#                 'direction': 'enriched' if beta > 0 else 'depleted',
-#                 'BGC_class': simplify_bgc_class(top_product[0]),
-#                 'BGC_raw': top_product[0],
-#                 'MIBiG': mibig_str,
-#                 'n_genomes_in_bgc': n_in, 'n_genomes_total': n_tot,
-#                 'consistency_pct': consistency,
-#                 'Description': desc, 'PFAMs': pfam,
-#             })
-#         detail_df = pd.DataFrame(detail_rows)
-# 
-#         if len(detail_df) > 0:
-#             print(f"\n  Significant OGs in BGC regions:")
-#             for _, row in detail_df.sort_values('consistency_pct', ascending=False).iterrows():
-#                 arrow = '\u2191' if row['direction'] == 'enriched' else '\u2193'
-#                 print(f"    {arrow} {row['OG']} ({row['BGC_class']}): "
-#                       f"{str(row['MIBiG'])[:60]} — {row['consistency_pct']:.0f}% consistency")
-# 
-#             detail_df.to_csv(f"{RESULTS_DIR}/{SPECIES_SHORT}_sig_ogs_in_bgc_detail.csv", index=False)
-#             print(f"\n  Saved: {RESULTS_DIR}/{SPECIES_SHORT}_sig_ogs_in_bgc_detail.csv")
-# 
-        # Per-class enrichment
-#         og_to_class = {}
-#         for og_id, votes in og_bgc_votes.items():
-#             og_to_class[og_id] = simplify_bgc_class(votes.most_common(1)[0][0])
-# 
-#         class_rows = []
-#         for bgc_class in sorted(set(og_to_class.values())):
-#             n_sig_cls = sum(1 for og in primary_sig if og_to_class.get(og) == bgc_class)
-#             n_bg_cls = sum(1 for og in primary_tested if og_to_class.get(og) == bgc_class)
-#             if n_sig_cls < 1: continue
-#             a2, b2 = n_sig_cls, len(primary_sig) - n_sig_cls
-#             c2 = n_bg_cls - n_sig_cls
-#             d2 = len(primary_tested) - len(primary_sig) - c2
-#             if c2 < 0: c2 = 0
-#             if d2 < 0: d2 = 0
-#             or_val, pval = fisher_exact([[a2, b2], [c2, d2]])
-#             class_rows.append({'class': bgc_class, 'n_sig': a2, 'n_bg': n_bg_cls,
-#                                'OR': or_val, 'pvalue': pval})
-#         class_df = pd.DataFrame(class_rows)
-#         if len(class_df) > 0:
-#             _, class_df['fdr'], _, _ = multipletests(class_df['pvalue'], method='fdr_bh')
-#             class_df.to_csv(f"{RESULTS_DIR}/{SPECIES_SHORT}_bgc_class_enrichment.csv", index=False)
-# 
-        # Save MIBiG mapping for cross-species comparison
-#         mibig_rows = []
-#         for og_id in primary_sig:
-#             votes = og_mibig_votes.get(og_id, {})
-#             non_none = {k: v for k, v in votes.items() if k != 'none'}
-#             if non_none:
-#                 top = max(non_none, key=non_none.get)
-#                 mibig_rows.append({
-#                     'OG': og_id, 'MIBiG': top,
-#                     'beta': primary_beta.get(og_id, 0),
-#                     'species': SPECIES_SHORT
-#                 })
-#         if mibig_rows:
-#             pd.DataFrame(mibig_rows).to_csv(
-#                 f"{RESULTS_DIR}/{SPECIES_SHORT}_sig_og_mibig.csv", index=False)
-# 
-        # Save GCF mapping
-#         bs_dir = f'{SPECIES_DIR}/bigscape_output'
-#         gcf_map_files = glob.glob(f'{bs_dir}/output_files/*_c0.*/*/*.tsv')
-#         if gcf_map_files:
-#             gcf_dfs = []
-#             for f in gcf_map_files:
-#                 d = pd.read_csv(f, sep='\t')
-#                 if 'Family' in d.columns:
-#                     gcf_dfs.append(d)
-#             if gcf_dfs:
-#                 gcf_combined = pd.concat(gcf_dfs, ignore_index=True)
-#                 gcf_combined = gcf_combined[gcf_combined['GBK'].str.startswith(('GCA','GCF'), na=False)]
-#                 gcf_map = dict(zip(gcf_combined['GBK'], gcf_combined['Family']))
-# 
-#                 og_gcf_votes_local = defaultdict(Counter)
-#                 for col_name in genome_cols:
-#                     strain = col_name.replace('.proteins', '')
-#                     as_json = os.path.join(as_dir, strain, f'{strain}.json')
-#                     if not os.path.exists(as_json): continue
-#                     g2o_local = {}
-#                     for _, row in og.iterrows():
-#                         genes = str(row[col_name])
-#                         if genes == 'nan': continue
-#                         for g in genes.split(', '):
-#                             g2o_local[g.replace('-T1', '')] = row['Orthogroup']
-# 
-#                     with open(as_json) as fh:
-#                         data = _json.load(fh)
-#                     for rec in data['records']:
-#                         areas = rec.get('areas', [])
-#                         if not areas: continue
-#                         scaffold = rec['id']
-#                         features = rec.get('features', [])
-#                         for area_idx, area in enumerate(areas):
-#                             a_s, a_e = area['start'], area['end']
-#                             region_gbk = f"{strain}_{scaffold}.region{area_idx+1:03d}"
-#                             gcf_id = gcf_map.get(region_gbk)
-#                             if gcf_id is None:
-#                                 for k in gcf_map:
-#                                     if strain in k and scaffold in k and f"region{area_idx+1:03d}" in k:
-#                                         gcf_id = gcf_map[k]
-#                                         break
-#                             if gcf_id:
-#                                 for feat in features:
-#                                     if feat.get('type') != 'CDS': continue
-#                                     loc = feat.get('location', '')
-#                                     nums = re.findall(r'\d+', loc)
-#                                     if not nums: continue
-#                                     cs, ce = int(nums[0]), int(nums[-1])
-#                                     if cs < a_e and ce > a_s:
-#                                         quals = feat.get('qualifiers', {})
-#                                         locus = quals.get('locus_tag', ['?'])
-#                                         locus = locus[0] if isinstance(locus, list) else locus
-#                                         og_id = g2o_local.get(locus)
-#                                         if og_id:
-#                                             og_gcf_votes_local[og_id][gcf_id] += 1
-# 
-#                 gcf_rows = []
-#                 for og_id in primary_sig:
-#                     votes = og_gcf_votes_local.get(og_id, {})
-#                     if votes:
-#                         top_gcf = votes.most_common(1)[0][0]
-#                         gcf_rows.append({
-#                             'OG': og_id, 'GCF': top_gcf,
-#                             'beta': primary_beta.get(og_id, 0),
-#                             'species': SPECIES_SHORT
-#                         })
-#                 if gcf_rows:
-#                     pd.DataFrame(gcf_rows).to_csv(
-#                         f"{RESULTS_DIR}/{SPECIES_SHORT}_sig_og_gcf.csv", index=False)
-#                     print(f"  Saved: {RESULTS_DIR}/{SPECIES_SHORT}_sig_og_gcf.csv")
-# 
-# else:
-#     print("  OrthoFinder or antiSMASH output not found — skipping BGC analysis")
-
-# print(f"\n{'='*70}")
-# print(f"Section 7 complete for A. {SPECIES_SHORT}")
-# print(f"{'='*70}")
-
-
-# ── 7.3 Functional annotation overlap with other species (record) ────
-# For the current species' significant OGs, list which Pfam/COG/CAZy/GO
-# terms they carry. This is saved so that NB3 can compute the
-# set-intersection overlap between species' hit annotation sets.
-
-# if gwas_files:
-#     print(f"\n{'='*70}")
-#     print(f"SECTION 7.3: FUNCTIONAL ANNOTATION SETS FOR CROSS-SPECIES OVERLAP")
-#     print(f"{'='*70}")
-#     
-#     primary = pd.read_csv(gwas_files[0], sep='\t')
-#     contrast_name = os.path.basename(gwas_files[0]).replace('pav_assoc_','').replace('.tsv','')
-#     sig_ogs_set = set(primary.loc[primary['fdr'] < 0.1, 'feature'])
-#     sig_annot = og_consensus[og_consensus['Orthogroup'].isin(sig_ogs_set)]
-#     
-#     annotation_sets = {}
-#     for layer_name, col, mode in [('COG', 'COG_category', 'single'),
-#                                     ('Pfam', 'PFAMs', 'multi'),
-#                                     ('CAZy', 'CAZy', 'multi'),
-#                                     ('GO', 'GOs', 'multi'),
-#                                     ('KEGG_Pathway', 'KEGG_Pathway', 'multi'),
-#                                     ('KEGG_KO', 'KEGG_ko', 'multi'),
-#                                     ('InterPro', 'interpro_IPR', 'multi')]:
-#         if col not in sig_annot.columns:
-#             continue
-#         terms = set()
-#         for val in sig_annot[col].dropna():
-#             if mode == 'single':
-#                 for ch in str(val).strip():
-#                     if ch.strip():
-#                         terms.add(ch.strip())
-#             else:
-#                 for t in str(val).replace(';', ',').split(','):
-#                     t = t.strip()
-#                     if t:
-#                         terms.add(t)
-#         annotation_sets[layer_name] = terms
-#         print(f"  {layer_name}: {len(terms)} unique terms in {len(sig_ogs_set)} sig OGs")
-#     
-    # Save as CSV for NB3 cross-species overlap
-#     rows = []
-#     for layer, terms in annotation_sets.items():
-#         for t in sorted(terms):
-#             rows.append({'layer': layer, 'term': t, 'species': SPECIES_SHORT, 'contrast': contrast_name})
-#     if rows:
-#         out_path = f"{RESULTS_DIR}/{SPECIES_SHORT}_{contrast_name}_annotation_sets.csv"
-#         pd.DataFrame(rows).to_csv(out_path, index=False)
-#         print(f"\n  Saved: {out_path}")
-
-
-# =============================================================================
-# NB2 REFACTORED FUNCTIONS (notebook cell extractions)
-# =============================================================================
 
 def load_all_species_gwas_data(species_list, nb0_results, nb1_results,
                                annotation_layers):
@@ -3023,7 +698,7 @@ def load_all_species_gwas_data(species_list, nb0_results, nb1_results,
                 sp_data['phenotype'] = df
                 break
 
-        # Standard matrices — named like {sp}_{type}.tsv in NB1_Results/{sp}/
+        # Standard matrices, named like {sp}_{type}.tsv in NB1_Results/{sp}/
         # Each is loaded then filtered to drop ANI-excluded genomes at runtime.
         matrix_keys = [
             ('pav',     f'{sp}_pav.tsv',     'cols'),
@@ -3333,7 +1008,7 @@ def run_power_analysis_grid(species_list, species_contrasts, nb2_results,
                     'power': round(power, 4),
                 })
 
-            # Minimum detectable odds ratio at 80% power — take best-case across
+            # Minimum detectable odds ratio at 80% power, take best-case across
             # gene_freq range (0.1 / 0.2 / 0.3) since the best frequency
             # reflects the true detectability ceiling.
             min_or_vals = []
@@ -3537,7 +1212,7 @@ def _build_bgc_og_mapping(species, genus='Aspergillus'):
     if not og_tsvs or not os.path.isdir(as_base):
         return pd.DataFrame()
 
-    # Load OrthoFinder — build gene_id -> orthogroup lookup
+    # Load OrthoFinder, build gene_id -> orthogroup lookup
     og_df = pd.read_csv(sorted(og_tsvs)[-1], sep='\t')
     gene_to_og = {}
     # Build gene_id -> orthogroup with aliases. antiSMASH JSON qualifiers and
@@ -3658,7 +1333,7 @@ def run_bgc_colocalisation(species_list, all_results, nb1_results,
         if not sig_ogs:
             continue
 
-        # Load BGC-to-OG mapping — build on the fly if not cached
+        # Load BGC-to-OG mapping, build on the fly if not cached
         bgc_og_map_path = Path(nb1_results) / sp / 'bgc_og_mapping.tsv'
         if not bgc_og_map_path.exists():
             print(f'{sp}: building BGC-OG mapping from antiSMASH output + OrthoFinder...')
@@ -3741,7 +1416,7 @@ def compile_gwas_summary(species_list, all_results, enrichment_results):
         row['n_significant_PAV'] = n_sig_pav
         row['n_significant_CNV'] = n_sig_cnv
 
-        # Top enriched terms — prefer FDR-significant; fall back to top by p-value
+        # Top enriched terms, prefer FDR-significant; fall back to top by p-value
         if sp in enrichment_results and not enrichment_results[sp].empty:
             df_enr = enrichment_results[sp]
             sig_terms = df_enr[df_enr['significant'] == True] if 'significant' in df_enr.columns else df_enr.iloc[0:0]
@@ -3751,7 +1426,7 @@ def compile_gwas_summary(species_list, all_results, enrichment_results):
                 row['top_enriched (FDR<0.05)'] = '; '.join(top['term'].astype(str).tolist())
                 row['top_p_values'] = '; '.join(f'{p:.1e}' for p in top['pvalue'])
             else:
-                # No FDR-sig — show top 5 by raw p-value, flagged
+                # No FDR-sig, show top 5 by raw p-value, flagged
                 top = df_enr.nsmallest(5, 'pvalue') if 'pvalue' in df_enr.columns else df_enr.head(0)
                 if len(top) > 0:
                     row['top_enriched (FDR<0.05)'] = 'none survive FDR'
@@ -3768,3 +1443,676 @@ def compile_gwas_summary(species_list, all_results, enrichment_results):
         cross_species_rows.append(row)
 
     return pd.DataFrame(cross_species_rows)
+
+
+# =============================================================================
+# NB2 FIGURES, TABLES AND FIRST-RUN SUPPORT
+# =============================================================================
+
+def _label_feature_focus(name):
+    """Display-only shortening of a feature name (the data itself is untouched).
+
+    BGC features carry an assembly alias between the accession and the scaffold,
+    and the alias varies -- ASM221148v2, CSR3, and others. It is redundant with
+    the GCA/GCF accession right in front of it and only eats label width, so ANY
+    alias is dropped for plotting:
+        GCA_002211485.2_ASM221148v2_scaffold_22.region007.gbk_region_7
+          -> GCA_002211485.2_scaffold_22.region007.gbk_region_7
+        GCA_026261755.1_CSR3_scaffold_8.region009.gbk_region_9
+          -> GCA_026261755.1_scaffold_8.region009.gbk_region_9
+    Names without an accession + scaffold (PAV / CNV orthogroups) pass through.
+    """
+    return re.sub(r'^(GC[AF]_\d+\.\d+)_.+?(?=_(?:scaffold|contig))', r'\1',
+                  str(name), flags=re.IGNORECASE)
+
+def _safe_load_assoc_focus(path):
+    if not path.exists():
+        return None, 'missing'
+    if path.stat().st_size < 10:
+        return None, 'empty'
+    try:
+        df = pd.read_csv(path, sep='\t')
+    except Exception:
+        return None, 'empty'
+    if df.empty or 'beta' not in df.columns or 'pvalue' not in df.columns:
+        return None, 'empty'
+    df = df.dropna(subset=['beta', 'pvalue']).copy()
+    if df.empty:
+        return None, 'empty'
+    return df, 'ok'
+
+
+def plot_focus_volcano_grid(species_list, nb2_results, out_path=None,
+                            fontsize=30, dpi=800,
+                            fig_w_per_layer=10.0, fig_h_per_row=10.0,
+                            n_top_labels=5, q_threshold=0.05, y_max_clip=50,
+                            layers=('pav', 'cnv', 'bgc_pav'),
+                            exclude_contrasts=('environmental_vs_rest',),
+                            jitter_x=0.06, jitter_y=0.06, jitter_seed=0,
+                            y_min_half_range=1.0, gap_trigger_factor=1.25,
+                            upper_height_ratio=0.30, overflow_padding=0.05,
+                            species_colors=None):
+    """Volcano matrix of the phenotype-of-interest contrasts.
+
+    Rows are (species, contrast) pairs found in
+    ``{nb2_results}/{sp}/pangwas_results/{layer}_assoc_{contrast}.tsv``; columns
+    are ``layers``. Contrasts in ``exclude_contrasts`` are skipped.
+
+    - Jitter spreads stacked points and is visual only.
+    - The x-axis is symmetric around beta = 0.
+    - The BH cutoff line is centred on the y-axis. When significant points sit
+      far above that range, the panel is split into a lower and a smaller upper
+      sub-axis, each with accurate -log10(p) ticks, and a wave marks the gap.
+    - ``gap_trigger_factor`` sets when the split happens (y_max above factor x
+      the centred upper limit); ``upper_height_ratio`` is the share of panel
+      height given to the upper sub-axis.
+
+    Returns the Figure, or None when no contrast is found.
+    """
+    import matplotlib.gridspec as gridspec
+    from matplotlib.lines import Line2D
+
+    SPECIES = list(species_list)
+    NB2_RESULTS = Path(nb2_results)
+    FS_FOCUS = fontsize
+    DPI_FOCUS = dpi
+    FIG_W_PER_LAYER_FOCUS = fig_w_per_layer
+    FIG_H_PER_ROW_FOCUS = fig_h_per_row
+    N_TOP_LABELS_FOCUS = n_top_labels
+    Q_THRESHOLD_FOCUS = q_threshold
+    Y_MAX_CLIP_FOCUS = y_max_clip
+    LAYERS_FOCUS = list(layers)
+    EXCLUDE_CONTRASTS = list(exclude_contrasts)
+    JITTER_X = jitter_x
+    JITTER_Y = jitter_y
+    JITTER_SEED = jitter_seed
+    Y_MIN_HALF_RANGE = y_min_half_range
+    GAP_TRIGGER_FACTOR = gap_trigger_factor
+    UPPER_HEIGHT_RATIO = upper_height_ratio
+    OVERFLOW_PADDING = overflow_padding
+    fig = None
+
+    # ----- Pre-compute panel data and decide broken vs single axis -----
+    panel_specs = []   # list of dicts: sp, contrast, df, status, sig_mask, cutoff_y,
+                       # p_cutoff, y_data_max, ylim_lo, ylim_lower_top, broken,
+                       # upper_lo, upper_hi
+    row_keys_focus = []
+    for sp in SPECIES:
+        sp_dir = NB2_RESULTS / sp / 'pangwas_results'
+        if not sp_dir.exists():
+            continue
+        contrasts_seen = set()
+        for layer in LAYERS_FOCUS:
+            for f in sorted(sp_dir.glob(f'{layer}_assoc_*.tsv')):
+                c = f.stem.replace(f'{layer}_assoc_', '')
+                if c in EXCLUDE_CONTRASTS:
+                    continue
+                contrasts_seen.add(c)
+        for c in sorted(contrasts_seen):
+            row_keys_focus.append((sp, c))
+
+    if not row_keys_focus:
+        print('No phenotype-of-interest contrasts found.')
+    else:
+        nrows = len(row_keys_focus)
+        ncols = len(LAYERS_FOCUS)
+        fig = plt.figure(figsize=(FIG_W_PER_LAYER_FOCUS * ncols,
+                                  FIG_H_PER_ROW_FOCUS * nrows))
+        outer_gs = gridspec.GridSpec(nrows, ncols, figure=fig,
+                                      hspace=0.2, wspace=0.1)
+        SP_COLORS = species_colors if species_colors is not None else SPECIES_COLORS
+        rng_master = np.random.default_rng(JITTER_SEED)
+
+        for ri, (sp, contrast) in enumerate(row_keys_focus):
+            color = SP_COLORS.get(sp, '#444444')
+            for ci, layer in enumerate(LAYERS_FOCUS):
+                spec = outer_gs[ri, ci]
+                path = NB2_RESULTS / sp / 'pangwas_results' / f'{layer}_assoc_{contrast}.tsv'
+                df, status = _safe_load_assoc_focus(path)
+
+                # Empty / missing panel
+                if status != 'ok':
+                    ax = fig.add_subplot(spec)
+                    msg = 'no TSV' if status == 'missing' else 'no features tested'
+                    ax.text(0.5, 0.5, msg, transform=ax.transAxes,
+                            ha='center', va='center',
+                            fontsize=FS_FOCUS - 2, color='#666')
+                    ax.set_xticks([]); ax.set_yticks([])
+                    if ri == 0:
+                        ax.set_title(layer.upper(), fontsize=FS_FOCUS + 2,
+                                     fontweight='bold', color='#222')
+                    if ci == 0:
+                        ax.text(-0.27, 0.5,
+                                f"A. {sp}\n{contrast.replace('_', ' ')}",
+                                transform=ax.transAxes,
+                                rotation=90, ha='center', va='center',
+                                fontsize=FS_FOCUS + 1, fontweight='bold', color=color)
+                    continue
+
+                df['pvalue_clip'] = df['pvalue'].clip(lower=1e-300)
+                df['neglog10p']   = -np.log10(df['pvalue_clip'])
+                if Y_MAX_CLIP_FOCUS is not None:
+                    df['neglog10p'] = df['neglog10p'].clip(upper=Y_MAX_CLIP_FOCUS)
+                if 'significant' in df.columns:
+                    sig_mask = df['significant'].astype(bool)
+                elif 'qvalue' in df.columns:
+                    sig_mask = df['qvalue'].fillna(1.0) < Q_THRESHOLD_FOCUS
+                else:
+                    sig_mask = pd.Series(False, index=df.index)
+
+                if sig_mask.any():
+                    p_cutoff = float(df.loc[sig_mask, 'pvalue'].max())
+                    cutoff_y = -np.log10(max(p_cutoff, 1e-300))
+                    if Y_MAX_CLIP_FOCUS is not None:
+                        cutoff_y = min(cutoff_y, Y_MAX_CLIP_FOCUS)
+                else:
+                    p_cutoff = None; cutoff_y = None
+
+                y_data_max = float(df['neglog10p'].max())
+
+                # Decide if we need a broken axis (real gap between regular cloud
+                # and a separate cluster of extreme outliers).
+                broken = False
+                if cutoff_y is not None:
+                    half = max(cutoff_y, Y_MIN_HALF_RANGE)
+                    ylim_lo = max(0.0, cutoff_y - half)
+                    lower_top = cutoff_y + half  # cutoff centered top
+                    if y_data_max > lower_top * GAP_TRIGGER_FACTOR:
+                        broken = True
+                        # Define the overflow band exactly around the high points.
+                        overflow_vals = df.loc[df['neglog10p'] > lower_top, 'neglog10p']
+                        upper_lo = float(overflow_vals.min())
+                        upper_hi = float(overflow_vals.max())
+                        span = max(upper_hi - upper_lo, 1.0)
+                        upper_lo -= span * OVERFLOW_PADDING
+                        upper_hi += span * OVERFLOW_PADDING
+                else:
+                    half = max(Y_MIN_HALF_RANGE, y_data_max / 2 if y_data_max > 0 else Y_MIN_HALF_RANGE)
+                    ylim_lo = 0.0
+                    lower_top = max(y_data_max * 1.10, Y_MIN_HALF_RANGE * 2)
+
+                # ----- Build axes for this panel -----
+                if broken:
+                    inner = gridspec.GridSpecFromSubplotSpec(
+                        2, 1, subplot_spec=spec,
+                        height_ratios=[UPPER_HEIGHT_RATIO, 1.0 - UPPER_HEIGHT_RATIO],
+                        hspace=0.07)
+                    ax_lower = fig.add_subplot(inner[1])
+                    ax_upper = fig.add_subplot(inner[0], sharex=ax_lower)
+                else:
+                    ax_lower = fig.add_subplot(spec)
+                    ax_upper = None
+
+                # Column header on the top row, on whichever axis is uppermost
+                if ri == 0:
+                    top_ax = ax_upper if ax_upper is not None else ax_lower
+                    top_ax.set_title(layer.upper(), fontsize=FS_FOCUS + 2,
+                                     fontweight='bold', color='#222', pad=8)
+                # Row label on the left column, on the lower axis
+                if ci == 0:
+                    ax_lower.text(-0.27, 0.5,
+                                  f"A. {sp}\n{contrast.replace('_', ' ')}",
+                                  transform=ax_lower.transAxes,
+                                  rotation=90, ha='center', va='center',
+                                  fontsize=FS_FOCUS + 1, fontweight='bold', color=color)
+
+                # ----- Jitter (visual only; raw values unchanged) -----
+                n = len(df)
+                jx = rng_master.uniform(-JITTER_X, JITTER_X, size=n) if JITTER_X else np.zeros(n)
+                jy = rng_master.uniform(-JITTER_Y, JITTER_Y, size=n) if JITTER_Y else np.zeros(n)
+                beta_plot = df['beta'].values + jx
+                nlp_plot  = df['neglog10p'].values + jy
+
+                # Plot on both sub-axes; matplotlib's clip will handle ranges.
+                for axx in ([ax_lower] if not broken else [ax_lower, ax_upper]):
+                    axx.scatter(beta_plot[~sig_mask.values], nlp_plot[~sig_mask.values],
+                                s=12, color='#9e9e9e', alpha=0.7, edgecolor='none')
+                    axx.scatter(beta_plot[sig_mask.values], nlp_plot[sig_mask.values],
+                                s=30, color=color, alpha=0.78,
+                                edgecolor='white', linewidth=0.4)
+                    if cutoff_y is not None:
+                        axx.axhline(cutoff_y, color='#3f3f3f', linestyle='--',
+                                    linewidth=1.2, alpha=0.9)
+                    axx.axvline(0, color='#7a7a7a', linestyle=':',
+                                linewidth=1.0, alpha=0.85)
+                    axx.grid(True, linestyle=':', alpha=0.55, color='#8f8f8f')
+                    axx.tick_params(axis='both', labelsize=FS_FOCUS - 3)
+
+                # X-limits: symmetric around beta = 0, shared across both sub-axes
+                x_max_abs = float(np.nanmax(np.abs(df['beta'].values)))
+                x_max_abs = max(x_max_abs + abs(JITTER_X), 0.5)
+                xlim = (-x_max_abs * 1.10, x_max_abs * 1.10)
+                ax_lower.set_xlim(xlim)
+                if ax_upper is not None:
+                    ax_upper.set_xlim(xlim)
+
+                # Y-limits
+                ax_lower.set_ylim(ylim_lo, lower_top)
+                if ax_upper is not None:
+                    ax_upper.set_ylim(upper_lo, upper_hi)
+
+                # Hide the spines at the broken edges and draw the wave there
+                if ax_upper is not None:
+                    ax_lower.spines['top'].set_visible(False)
+                    ax_upper.spines['bottom'].set_visible(False)
+                    ax_upper.tick_params(labeltop=False, top=False, bottom=False)
+                    ax_upper.set_xticklabels([])
+
+                    # Draw TWO PARALLEL waves in figure coords across the gap.
+                    # Both waves use the same +sin phase (same direction) so peaks
+                    # of one align with peaks of the other -- they're parallel.
+                    # The vertical offset keeps them visibly separated.
+                    import matplotlib.lines as _mlines
+                    bbox_up = ax_upper.get_position()
+                    bbox_lo = ax_lower.get_position()
+                    gap_lo = bbox_lo.y1
+                    gap_hi = bbox_up.y0
+                    gap_y  = (gap_lo + gap_hi) / 2.0
+                    gap_h  = max(gap_hi - gap_lo, 1e-6)
+                    x_left  = max(bbox_up.x0, bbox_lo.x0)
+                    x_right = min(bbox_up.x1, bbox_lo.x1)
+                    _xs   = np.linspace(x_left, x_right, 240)
+                    _phase = np.sin(12 * np.pi * (_xs - x_left) / (x_right - x_left))
+                    _off  = gap_h * 0.12           # separation between the two parallel waves
+                    _amp  = gap_h * 0.14           # shared amplitude
+                    _y_top = (gap_y + _off) + _amp * _phase           # upper wave
+                    _y_bot = (gap_y - _off) + _amp * _phase           # lower wave, SAME phase = parallel
+                    for _ys in (_y_top, _y_bot):
+                        fig.add_artist(_mlines.Line2D(_xs, _ys, color='white',
+                                                      linewidth=4.0, solid_capstyle='round',
+                                                      zorder=10, transform=fig.transFigure))
+                        fig.add_artist(_mlines.Line2D(_xs, _ys, color="#0000004D",
+                                                      linewidth=1, solid_capstyle='round',
+                                                      zorder=11, transform=fig.transFigure))
+
+                # Top-hit labels (use actual beta / -log10p; matplotlib will place them
+                # on whichever sub-axis the point falls in, automatically clipped)
+                if sig_mask.any() and N_TOP_LABELS_FOCUS > 0:
+                    top = (df[sig_mask]
+                           .assign(absbeta=df.loc[sig_mask, 'beta'].abs())
+                           .sort_values('absbeta', ascending=False)
+                           .head(N_TOP_LABELS_FOCUS))
+                    STEP_PTS = 27         # initial stagger between pairs (pts)
+                    MIN_SEP_PTS = 16     # min vertical separation between any two labels (pts)
+                    _placed_y_fig = []    # fig-y positions of labels placed in THIS panel
+                    _ppx = fig.dpi / 72.0
+                    _fh = fig.get_figheight()
+                    _min_sep_figy = MIN_SEP_PTS / (_fh * 72.0)
+                    for _i, (_, r) in enumerate(top.iterrows()):
+                        target_ax = ax_lower
+                        if ax_upper is not None and r['neglog10p'] >= upper_lo:
+                            target_ax = ax_upper
+                        _pair = _i // 2
+                        _side = _i % 2
+                        if r['beta'] >= 0:
+                            _xoff = -3; _ha = 'right'
+                        else:
+                            _xoff =  3; _ha = 'left'
+                        if _side == 0:
+                            _yoff =  6 + _pair * STEP_PTS
+                            _va = 'bottom'
+                            _dir = +1
+                        else:
+                            _yoff = -6 - _pair * STEP_PTS
+                            _va = 'top'
+                            _dir = -1
+                        _disp_dot = target_ax.transData.transform((r['beta'], r['neglog10p']))
+                        _disp = (_disp_dot[0] + _xoff * _ppx, _disp_dot[1] + _yoff * _ppx)
+                        _bb = target_ax.get_position()
+                        _figxy = fig.transFigure.inverted().transform(_disp)
+                        _mx, _my = 0.004, 0.005
+                        # Flip side once if initially out of bounds
+                        if _figxy[1] > _bb.y1 - _my:
+                            _yoff = -abs(_yoff); _va = 'top'; _dir = -1
+                            _disp = (_disp_dot[0] + _xoff*_ppx, _disp_dot[1] + _yoff*_ppx)
+                            _figxy = fig.transFigure.inverted().transform(_disp)
+                        elif _figxy[1] < _bb.y0 + _my:
+                            _yoff = abs(_yoff); _va = 'bottom'; _dir = +1
+                            _disp = (_disp_dot[0] + _xoff*_ppx, _disp_dot[1] + _yoff*_ppx)
+                            _figxy = fig.transFigure.inverted().transform(_disp)
+                        # Greedy collision: push along _dir until far enough from
+                        # every label already placed on this panel
+                        _y = _figxy[1]
+                        for _attempt in range(20):
+                            _collide = any(abs(_y - yp) < _min_sep_figy for yp in _placed_y_fig)
+                            if not _collide:
+                                break
+                            _y += _dir * _min_sep_figy
+                            # If we've wandered out of the panel along _dir, flip
+                            if _y > _bb.y1 - _my or _y < _bb.y0 + _my:
+                                _dir = -_dir
+                                _y = _figxy[1] + _dir * _min_sep_figy
+                                _va = 'bottom' if _dir > 0 else 'top'
+                        _figx = min(max(_figxy[0], _bb.x0 + _mx), _bb.x1 - _mx)
+                        _figy = min(max(_y, _bb.y0 + _my), _bb.y1 - _my)
+                        _placed_y_fig.append(_figy)
+                        fig.text(_figx, _figy, _label_feature_focus(r['feature']),
+                                 ha=_ha, va=_va,
+                                 fontsize=FS_FOCUS - 4, color=color, alpha=0.95,
+                                 fontweight='bold', zorder=200)
+
+                n_total = len(df); n_sig = int(sig_mask.sum())
+                note = f'n={n_total:,}  •  sig={n_sig:,}'
+                if p_cutoff is not None:
+                    note += f'\nBH p≤{p_cutoff:.1e}'
+                # Place the note on the lower axis (always present)
+                ax_lower.text(0.02, 0.02, note, transform=ax_lower.transAxes,
+                              ha='left', va='bottom', fontsize=FS_FOCUS - 3,
+                              color='#1f1f1f',
+                              bbox=dict(boxstyle='round,pad=0.25', fc='white',
+                                        ec='none', alpha=0.85))
+
+                # Axis labels: x on the bottom (lower axis) of bottom-most row,
+                # y label on whichever lower axis is in column 0
+                if ri == nrows - 1:
+                    ax_lower.set_xlabel(r'$\beta$', fontsize=FS_FOCUS - 1)
+                if ci == 0:
+                    ax_lower.set_ylabel(r'$-\log_{10}(p)$', fontsize=FS_FOCUS - 1)
+                    if ax_upper is not None:
+                        ax_upper.set_ylabel(r'$-\log_{10}(p)$', fontsize=FS_FOCUS - 1)
+
+        jitter_note = (f"  •  jitter ±{JITTER_X:g}β / ±{JITTER_Y:g} -log10(p)"
+                       if (JITTER_X or JITTER_Y) else '')
+        fig.suptitle("Phenotype-of-interest volcano matrix",
+                     fontsize=FS_FOCUS + 1, fontweight='bold', y=0.995)
+
+        if out_path:
+            fig.savefig(out_path, dpi=DPI_FOCUS, bbox_inches='tight')
+            print(f'Saved: {out_path}')
+        print(f"Rows (species x phenotype-of-interest): {nrows}   "
+              f"Columns (layers): {ncols}")
+
+    return fig
+
+
+def association_summary_table(all_results):
+    """Tested and significant counts, plus genomic inflation, per test.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per (species, contrast, feature layer), sorted.
+    """
+    rows = []
+    for (sp, contrast, layer), res in all_results.items():
+        n_tested = len(res)
+        n_sig = int(res.get('significant', pd.Series(dtype=bool)).sum()) if 'significant' in res.columns else 0
+        lambda_gc = calculate_genomic_inflation(res['pvalue'].dropna().values) \
+            if 'pvalue' in res.columns and len(res['pvalue'].dropna()) > 0 else np.nan
+        rows.append({
+            'species': sp,
+            'contrast': contrast,
+            'feature_layer': layer,
+            'n_tested': n_tested,
+            'n_significant': n_sig,
+            'lambda_gc': round(lambda_gc, 3) if not np.isnan(lambda_gc) else np.nan,
+        })
+    return (pd.DataFrame(rows)
+            .sort_values(['species', 'contrast', 'feature_layer'])
+            .reset_index(drop=True))
+
+
+def plot_significance_heatmap(all_results, out_path=None, figsize=(6, 3.5),
+                              dpi=800, cmap='YlOrRd'):
+    """Heatmap of significant associations per species and feature layer.
+
+    Counts are summed over contrasts.
+
+    Returns
+    -------
+    fig, heatmap_df : Figure (None if there are no results) and the counts.
+    """
+    import seaborn as sns
+
+    sig_counts = {}
+    for (sp, contrast, layer), res in all_results.items():
+        key = (sp, layer)
+        n = int(res['significant'].sum()) if 'significant' in res.columns else 0
+        sig_counts[key] = sig_counts.get(key, 0) + n
+    if not sig_counts:
+        return None, pd.DataFrame()
+
+    heatmap_df = pd.Series(sig_counts).unstack(fill_value=0)
+    fig, ax = plt.subplots(figsize=figsize)
+    sns.heatmap(heatmap_df, annot=True, fmt='d', cmap=cmap, ax=ax, linewidths=0.5)
+    ax.set_title('Number of Significant Associations per Feature Layer', fontweight='bold')
+    ax.set_xlabel('Feature Layer')
+    ax.set_ylabel('Species')
+    plt.tight_layout()
+    if out_path:
+        fig.savefig(out_path, dpi=dpi, bbox_inches='tight')
+        print(f'Saved: {out_path}')
+    return fig, heatmap_df
+
+
+def compute_power_curves(species_list, species_contrasts, nb2_results,
+                         fdr_threshold=0.05, or_range=None, gene_freq=0.2,
+                         n_sim=2000, force=False):
+    """Fisher's exact test power against odds ratio for every contrast.
+
+    Cached to ``{nb2_results}/power_curves.tsv``; pass ``force=True`` to rerun.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns species, contrast, n_case, n_control, odds_ratio, power.
+    """
+    cache = Path(nb2_results) / 'power_curves.tsv'
+    if or_range is None:
+        or_range = np.arange(1.5, 15.5, 0.5)
+
+    if not force and cache.exists():
+        curves_df = pd.read_csv(cache, sep='\t')
+        print(f'Loaded cached power curves from {cache}')
+        return curves_df
+
+    plot_configs = []
+    for sp in species_list:
+        if sp in species_contrasts:
+            for cname, pheno in species_contrasts[sp].items():
+                ph = pheno['phenotype'] if hasattr(pheno, 'columns') else pheno
+                n_c = int(ph.sum())
+                n_ctrl = int((~ph.astype(bool)).sum())
+                plot_configs.append((sp, cname, n_c, n_ctrl))
+
+    print('Computing power curves...')
+    rows = []
+    for sp, cname, n_c, n_ctrl in plot_configs:
+        for or_val in or_range:
+            p = power_fisher(n_case=n_c, n_control=n_ctrl,
+                             gene_freq=gene_freq, odds_ratio=float(or_val),
+                             alpha=fdr_threshold, n_sim=n_sim)
+            rows.append({'species': sp, 'contrast': cname,
+                         'n_case': n_c, 'n_control': n_ctrl,
+                         'odds_ratio': or_val, 'power': p})
+    curves_df = pd.DataFrame(rows)
+    curves_df.to_csv(cache, sep='\t', index=False)
+    print(f'Saved power curves to {cache}')
+    return curves_df
+
+
+def plot_power_curves(curves_df, out_path=None, figsize=(8, 5), dpi=150):
+    """Power against odds ratio, one line per species and contrast."""
+    fig, ax = plt.subplots(figsize=figsize)
+    for (sp, cname), grp in curves_df.groupby(['species', 'contrast']):
+        n_c = grp['n_case'].iloc[0]; n_ctrl = grp['n_control'].iloc[0]
+        ax.plot(grp['odds_ratio'], grp['power'],
+                label=f'{sp} ({cname}, {n_c}:{n_ctrl})', linewidth=1.5)
+    ax.axhline(0.8, color='grey', linestyle='--', alpha=0.6, label='80% power')
+    ax.set_xlabel('Odds Ratio')
+    ax.set_ylabel('Statistical Power')
+    ax.set_title("Power Analysis: Fisher's Exact Test per Species/Contrast")
+    ax.legend(fontsize=7, loc='lower right')
+    ax.set_ylim(-0.05, 1.05)
+    plt.tight_layout()
+    if out_path:
+        fig.savefig(out_path, dpi=dpi, bbox_inches='tight')
+        print(f'Saved: {out_path}')
+    return fig
+
+
+def plot_underpowered_contrasts(nb2_results, out_path=None, fontsize=14, dpi=800,
+                                figsize=(6.0, 5.0),
+                                exclude_contrasts=('environmental_vs_rest',),
+                                underpowered_threshold=10.0):
+    """Minimum detectable odds ratio at 80% power per contrast.
+
+    Reads ``{nb2_results}/power_analysis_results.tsv``. Bars above
+    ``underpowered_threshold`` are grey, the rest green.
+
+    Returns
+    -------
+    fig, table : Figure and the plotted rows, or (None, None) if there is
+    nothing to plot.
+    """
+    FS_UP = fontsize
+    path = Path(nb2_results) / 'power_analysis_results.tsv'
+    if not path.exists():
+        print(f'No power-analysis TSV at {path}; run the power analysis first.')
+        return None, None
+
+    pa = pd.read_csv(path, sep='\t')
+    mde = pa[pa['target_OR'] == 'min_OR@80%power'].copy()
+    mde['min_OR'] = pd.to_numeric(mde['power'], errors='coerce')
+    mde = mde.dropna(subset=['min_OR'])
+    mde = mde[~mde['contrast'].isin(list(exclude_contrasts))].copy()
+    if mde.empty:
+        print('No phenotype-of-interest contrasts left after filtering.')
+        return None, None
+
+    mde['label'] = ('A. ' + mde['species'] + '\n'
+                    + mde['contrast'].str.replace('_', ' ', regex=False)
+                    + '\n(ratio ' + mde['ratio'] + ')')
+    mde = mde.sort_values('min_OR')
+    colors = ['#888888' if v > underpowered_threshold else '#2ca02c'
+              for v in mde['min_OR']]
+
+    fig, ax = plt.subplots(figsize=figsize)
+    bars = ax.barh(mde['label'], mde['min_OR'], color=colors,
+                   edgecolor='white', linewidth=0.6)
+    xmax = max(mde['min_OR'].max(), underpowered_threshold) * 1.05
+    for b, v in zip(bars, mde['min_OR']):
+        ax.text(v + xmax * 0.01, b.get_y() + b.get_height() / 2,
+                f'{v:.1f}', va='center', ha='left', fontsize=FS_UP - 2,
+                color='#888888' if v > underpowered_threshold else '#2ca02c',
+                fontweight='bold')
+    ax.axvline(underpowered_threshold, color='grey', linestyle='--', linewidth=1.0,
+               label=f'OR = {underpowered_threshold:g} (underpowered above)')
+    ax.set_xlim(0, xmax * 1.18)
+    ax.set_xlabel('Min. detectable OR at 80% power', fontsize=FS_UP)
+    ax.set_title('Power Analysis Results', fontsize=FS_UP + 2, fontweight='bold')
+    ax.tick_params(axis='x', labelsize=FS_UP - 1)
+    ax.tick_params(axis='y', labelsize=FS_UP - 2)
+    ax.legend(frameon=True, fontsize=FS_UP - 2, loc='lower right', framealpha=0.95)
+    ax.grid(True, axis='x', linestyle=':', alpha=0.5)
+    plt.tight_layout()
+    if out_path:
+        fig.savefig(out_path, dpi=dpi, bbox_inches='tight')
+        print(f'Saved: {out_path}')
+
+    table = mde[['species', 'contrast', 'ratio', 'min_OR']].reset_index(drop=True)
+    table['underpowered'] = table['min_OR'] > underpowered_threshold
+    return fig, table
+
+
+def nb2_preflight(species_list, nb0_results, nb1_results, nb2_results, verbose=True):
+    """Check NB2's inputs exist and create the output directories.
+
+    Looks for NB0's phenotype table and, per species, the NB1 matrices the
+    association tests read. Nothing is computed or written beyond directories.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per species with a boolean per required NB1 input.
+    """
+    nb1_results = Path(nb1_results)
+    nb2_results = Path(nb2_results)
+    nb2_results.mkdir(parents=True, exist_ok=True)
+
+    needed = ['pav', 'cnv', 'kinship', 'bgc_pav', 'gcf_pav', 'gcf_cnv', 'og_consensus']
+    rows = []
+    for sp in species_list:
+        (nb2_results / sp / 'pangwas_results').mkdir(parents=True, exist_ok=True)
+        row = {'species': sp}
+        for key in needed:
+            row[key] = (nb1_results / sp / f'{sp}_{key}.tsv').exists()
+        rows.append(row)
+    status = pd.DataFrame(rows).set_index('species')
+
+    pheno = Path(nb0_results) / 'phenotype_classified_for_gwas.csv'
+    if verbose:
+        print('NB2 inputs')
+        print('=' * 60)
+        print(f'  NB0 phenotype table: {"found" if pheno.exists() else "MISSING, run NB0 first"}')
+        print(f'  -> {pheno}')
+        print(f'  NB1 matrices under: {nb1_results}')
+        print()
+        print(status.replace({True: 'ok', False: 'MISSING'}).to_string())
+        missing = int((~status).sum().sum())
+        print()
+        if missing or not pheno.exists():
+            print(f'{missing} missing NB1 input(s); run NB1 before the sections that need them.')
+        else:
+            print('All inputs present.')
+    return status
+
+
+def print_nb2_summary(all_results, species_list, nb2_results):
+    """Print every NB2 output with its full path, and the significant-hit counts.
+
+    Returns
+    -------
+    counts : pd.DataFrame
+        Significant associations per (species, contrast) and feature layer.
+    files : pd.DataFrame
+        Every expected output with its full path and whether it exists.
+    """
+    import glob
+
+    nb2_results = Path(nb2_results)
+    summary = association_summary_table(all_results)
+    counts = (summary.pivot_table(index=['species', 'contrast'],
+                                  columns='feature_layer',
+                                  values='n_significant', aggfunc='sum')
+              .fillna(0).astype(int))
+    counts.columns.name = None
+
+    top_level = ['power_analysis_results.tsv', 'power_curves.tsv',
+                 'power_analysis_curves.png', 'underpowered_contrasts_nonenv.png',
+                 'volcano_grid_focus.png', 'summary_heatmap.png']
+    per_species = ['{sp}/phenotypes/pheno_*.tsv',
+                   '{sp}/pangwas_results/*_assoc_*.tsv',
+                   '{sp}/{sp}_functional_enrichment.csv',
+                   '{sp}/{sp}_sig_ogs_in_bgc_detail.csv']
+
+    rows = []
+    for name in top_level:
+        path = nb2_results / name
+        rows.append({'species': 'all', 'path': str(path), 'n': int(path.exists()),
+                     'exists': path.exists()})
+    for sp in species_list:
+        for pattern in per_species:
+            path = nb2_results / pattern.format(sp=sp)
+            if '*' in path.name:
+                n = len(glob.glob(str(path)))
+                rows.append({'species': sp, 'path': str(path), 'n': n, 'exists': n > 0})
+            else:
+                rows.append({'species': sp, 'path': str(path), 'n': int(path.exists()),
+                             'exists': path.exists()})
+    files = pd.DataFrame(rows)
+
+    print(f'{"=" * 70}')
+    print('NB2 Pan-GWAS complete.')
+    print(f'All outputs saved to: {nb2_results}')
+    for _, r in files.iterrows():
+        mark = ' ' if r['exists'] else '!'
+        extra = f"  ({r['n']} files)" if '*' in r['path'] else ''
+        print(f"  {mark} {r['path']}{extra}")
+    n_missing = int((~files['exists']).sum())
+    if n_missing:
+        print(f'\n  ! = missing ({n_missing} path(s))')
+    print('=' * 70)
+    print('\nSignificant associations per contrast and feature layer:')
+
+    return counts, files

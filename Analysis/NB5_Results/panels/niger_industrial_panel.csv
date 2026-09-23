@@ -1,0 +1,64 @@
+gene,category,description,locus_tag,uniprot,source_key
+glaA,Glucoamylase,Major industrial glucoamylase GH15,An03g06550,,Pel2007
+agdA,Alpha-glucosidase,Alpha-glucosidase A GH31,An04g06920,,Yuan2008
+pgaII,Pectinase,Endo-polygalacturonase II,An02g12450,,Pel2007
+pgaI,Pectinase,Endo-polygalacturonase I,An12g07500,,Pel2007
+abfA,Arabinofuranosidase,Alpha-arabinofuranosidase A,An09g00880,,Pel2007
+abfB,Arabinofuranosidase,Alpha-arabinofuranosidase B,An15g02300,,Pel2007
+abfC,Arabinofuranosidase,Alpha-arabinofuranosidase C,An02g00140,,Pel2007
+lacA,Hemicellulase,Beta-galactosidase A,An01g12150,,Pel2007
+xlnA,Xylanase,Endo-1.4-beta-xylanase A GH10,An11g02100,,Pel2007
+xlnB,Xylanase,Endo-1.4-beta-xylanase B GH11,An01g00780,,Pel2007
+xlnC,Xylanase,Endo-1.4-beta-xylanase C GH11,An15g04550,,Pel2007
+xlnD,Hemicellulase,Beta-xylosidase D GH3,An01g09960,,Pel2007
+axhA,Hemicellulase,Arabinoxylan arabinofuranohydrolase,An12g00120,,Pel2007
+faeA,Esterase,Feruloyl esterase A,An01g00330,,Pel2007
+faeB,Esterase,Feruloyl esterase B,An09g00120,,deVries2002
+axeA,Esterase,Acetyl xylan esterase A,An12g05010,,Pel2007
+aguA,Hemicellulase,Alpha-glucuronidase A,An14g05800,,Pel2007
+cutA,Cutinase,Cutinase A,An07g08940,,Pel2007
+inuA,Inulinase,Endo-inulinase A,An11g03200,,Yuan2006
+inuE,Inulinase,Exo-inulinase E,An12g08280,,Yuan2006
+sucA,Invertase,Invertase beta-fructofuranosidase,An09g03130,,Pel2007
+pepA,Protease,Aspergillopepsin A acid protease,An14g04710,,Pel2007
+pepB,Protease,Aspergillopepsin B glutamic protease,An01g00530,,vandenHombergh1997
+prtT,Transcription regulator,Protease regulator Zn2Cys6,An04g06940,,Punt2008
+phyA,Phytase,3-phytase A,An01g14700,,Pel2007
+phyB,Phytase,3-phytase B pH 2.5 optimum,An11g04200,,Pel2007
+tanA,Tannase,Tannase / feruloyl esterase,An04g04200,,Pel2007
+goxC,Glucose oxidase,Glucose oxidase structural gene,An01g14740,,Pel2007
+goxB,Oxidoreductase,Thioredoxin reductase regulator of GOX,An03g04150,,Linde2018
+oahA,Oxalic acid,Oxaloacetate acetylhydrolase oxalic acid,An10g00820,,Pel2007
+cexA,Carboxylic acid transporter,Citrate exporter MFS H+ antiporter,An17g01710,,Yin2017
+dmtA,Pump,NRAMP Mn2+ transporter affects citrate,An12g05710,,Fejes2020
+gatA,Sugar transporter,D-galacturonic acid transporter,An14g04280,,Sloothaak2014
+xltA,Sugar transporter,D-xylose transporter,An06g00560,,Sloothaak2018
+mstA,Sugar transporter,High-affinity glucose H+ symporter,An06g02270,,VanKuyk2004
+mstC,Sugar transporter,Low-affinity D-glucose transporter,An02g03540,,Sloothaak2015
+mstE,Sugar transporter,Low-affinity D-glucose transporter,An03g02190,,Sloothaak2015
+mstG,Sugar transporter,High-affinity D-glucose transporter,An05g01290,,Sloothaak2015
+mstH,Sugar transporter,High-affinity D-glucose transporter,An15g03940,,Sloothaak2015
+creA,Carbon catabolite,Carbon catabolite repressor C2H2,An02g03830,,Pel2007
+xlnR,Transcription regulator,Xylanolytic transcription activator,An15g05810,,vanPeij1998
+amyR,Transcription regulator,Amylolytic transcription regulator,An04g06910,,Pel2007
+araR,Transcription regulator,Arabinolytic transcription regulator,An04g08600,,Battaglia2011
+gaaR,Transcription regulator,D-galacturonic acid regulator,An02g07810,,Alazi2016
+rhaR,Transcription regulator,L-rhamnose regulator,An13g00910,,Gruben2014
+inuR,Transcription regulator,Inulinolytic regulator,An12g08260,,Yuan2008b
+farA,Transcription regulator,Fatty acid utilization regulator,An12g04210,,Kunze2023
+hacA,UPR/secretion,Bzip UPR transcription factor,An01g08420,,Mulder2004
+bipA,UPR/secretion,ER chaperone BiP HSP70,An11g04180,,Pel2007
+pdiA,UPR/secretion,Protein disulfide isomerase,An02g14800,,Mulder2004
+cypB,UPR/secretion,ER peptidyl-prolyl cis-trans isomerase B,An08g05300,,Mulder2006
+sec61,UPR/secretion,ER translocon Sec61 alpha,An11g07440,,Pel2007
+srpA,UPR/secretion,Signal recognition particle subunit,An18g03840,,Pel2007
+prpA,UPR/secretion,UPR-induced peptidyl-prolyl isomerase,An02g07210,,Mulder2006
+tigA,UPR/secretion,Trigger factor ER chaperone,An18g04260,,Mulder2006
+chsA,Cell wall,Chitin synthase A class II,An02g02340,,Muller2024
+agsE,Cell wall,Alpha-1.3-glucan synthase E major,An09g03070,,Vugt2023
+gelA,Cell wall,Beta-1.3-glucanotransferase A GPI,An11g04130,,Pel2007
+fksA,Cell wall,Beta-1.3-glucan synthase catalytic,An01g03350,,Pel2007
+fum1,Other-SM,Fumonisin polyketide synthase,An01g06930,,Pel2010
+fum8,Other-SM,Fumonisin alpha-oxoamine synthase,An01g06820,,Pel2010
+fum21,Other-SM,Fumonisin cluster Zn2Cys6 regulator,An01g06860,,Niehaus2014
+otaA,Other-SM,Ochratoxin A polyketide synthase,An15g07920,,Susca2016

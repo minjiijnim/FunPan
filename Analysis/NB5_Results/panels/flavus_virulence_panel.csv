@@ -1,0 +1,36 @@
+gene,category,description,locus_tag,uniprot,source_key
+aflR,Aflatoxin,Zn2Cys6 transcriptional activator of the aflatoxin cluster,AFLA_139360,,Yu2004
+aflS,Aflatoxin,Aflatoxin cluster co-activator (aflJ) modulating aflR,AFLA_139370,,Yu2004
+aflA,Aflatoxin,Fatty acid synthase alpha subunit (fas-2) for polyketide starter,AFLA_139380,,Yu2004
+aflB,Aflatoxin,Fatty acid synthase beta subunit (fas-1) for polyketide starter,AFLA_139390,,Yu2004
+aflC,Aflatoxin,Polyketide synthase pksA initiating aflatoxin biosynthesis,AFLA_139410,,Yu2004
+aflD,Aflatoxin,Reductase (nor-1) for norsolorinic acid conversion,AFLA_139440,,Yu2004
+aflE,Aflatoxin,NorA aryl alcohol dehydrogenase,AFLA_139450,,Yu2004
+aflF,Aflatoxin,NorB norsolorinic acid reductase paralog,AFLA_139460,,Yu2004
+aflG,Aflatoxin,AvnA cytochrome P450 monooxygenase,AFLA_139470,,Yu2004
+aflH,Aflatoxin,AdhA alcohol dehydrogenase,AFLA_139480,,Yu2004
+aflI,Aflatoxin,AvfA cytochrome P450 monooxygenase,AFLA_139490,,Yu2004
+aflJ,Aflatoxin,EstA esterase in aflatoxin biosynthesis,AFLA_139500,,Yu2004
+aflK,Aflatoxin,VBS / versiconal hemiacetal acetate cyclase,AFLA_139510,,Yu2004
+aflL,Aflatoxin,VerB cytochrome P450 monooxygenase,AFLA_139520,,Yu2004
+aflM,Aflatoxin,Versicolorin A dehydrogenase ver-1,AFLA_139530,,Yu2004
+aflN,Aflatoxin,VerA cytochrome P450 monooxygenase,AFLA_139540,,Yu2004
+aflO,Aflatoxin,O-methyltransferase B (omtB / dmtA),AFLA_139550,,Yu2004
+aflP,Aflatoxin,O-methyltransferase A (omtA),AFLA_139560,,Yu2004
+aflQ,Aflatoxin,Oxidoreductase ordA catalyzing late aflatoxin steps,AFLA_139570,,Yu2004
+aflU,Aflatoxin,CypA cytochrome P450 monooxygenase,AFLA_139580,,Yu2004
+aflV,Aflatoxin,CypX cytochrome P450 monooxygenase,AFLA_139420,,Yu2004
+aflW,Aflatoxin,MoxY monooxygenase in aflatoxin biosynthesis,AFLA_139430,,Yu2004
+aflX,Aflatoxin,OrdB oxidoreductase in aflatoxin biosynthesis,AFLA_139590,,Yu2004
+cpaA,Cyclopiazonic-acid,PKS-NRPS hybrid synthetase (cpaS) for cyclopiazonic acid,,,Chang2009
+atmG,Aflatrem,Geranylgeranyl diphosphate synthase in aflatrem,,,Nicholson2009
+atmM,Aflatrem,Indole prenyltransferase / methyltransferase,,,Nicholson2009
+kojA,Kojic-acid,FAD-dependent oxidoreductase for kojic acid biosynthesis,,,Marui2011
+kojR,Kojic-acid,Transcription factor regulating the kojic acid cluster,,,Marui2011
+kojT,Kojic-acid,MFS transporter exporting kojic acid,,,Marui2011
+veA,Velvet/development,Velvet complex regulator coupling development and SM,AFLA_066460,,Calvo2002
+velB,Velvet/development,Velvet-family regulator,,,Calvo2008
+laeA,SM regulator,Global secondary metabolism regulator methyltransferase,AFLA_033290,,Bok2004
+sclR,Sclerotia,Sclerotia regulator helix-loop-helix TF,,,Jin2011
+sclB,Sclerotia,Sclerotia formation regulator,,,Cary2012
+cyp51A,Azole/ergosterol,Sterol 14-alpha-demethylase azole drug target,AFLA_074630,,Mellado2007

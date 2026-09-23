@@ -1,0 +1,210 @@
+species,gene,pident,qcov,combined_og,category,description,class_fumigatus,class_flavus,class_niger,class_oryzae,native_class,kind,n_core,n_present,type
+fumigatus,sidI,100.0,94.6,OG0005435,Siderophore/iron,Mevalonyl-CoA ligase,Core,Core,Core,Core,Core,virulence,4,4,A
+niger,agsE,100.0,100.0,OG0000336,Cell wall,Alpha-1.3-glucan synthase E major,Core,Core,Core,Core,Core,industrial,4,4,B
+fumigatus,hasA,100.0,99.2,OG0001150,Hexadehydroastechrome,Nonribosomal peptide synthetase HAS cluster,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,pksP,100.0,100.0,OG0005729,Melanin/conidia,Polyketide synthase / DHN-melanin heptaketide synthase / alb1,Core,Core,Core,Core,Core,virulence,4,4,A
+flavus,aflC,100.0,100.0,OG0010952,Aflatoxin,Polyketide synthase pksA initiating aflatoxin biosynthesis,Absent,Accessory,Absent,Accessory,Accessory,virulence,0,2,A
+fumigatus,gliP,100.0,100.0,OG0001150,Gliotoxin,Bimodular NRPS / Phe-Ser dipeptide synthesis,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,acyA,100.0,98.1,OG0003798,Signaling,Adenylate cyclase,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,sidD,100.0,100.0,OG0003575,Siderophore/iron,NRPS for fusarinine C biosynthesis,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,fks1,100.0,100.0,OG0003278,Cell wall/glucan,Beta-1-3-glucan synthase catalytic subunit,Core,Core,Core,Core,Core,virulence,4,4,A
+flavus,aflB,99.2,100.8,OG0010969,Aflatoxin,Fatty acid synthase beta subunit (fas-1) for polyketide starter,Absent,Accessory,Absent,Accessory,Accessory,virulence,0,2,A
+niger,chsA,100.0,100.0,OG0006079,Cell wall,Chitin synthase A class II,Core,Core,Core,Core,Core,industrial,4,4,A
+flavus,aflA,100.0,96.7,OG0010970,Aflatoxin,Fatty acid synthase alpha subunit (fas-2) for polyketide starter,Absent,Accessory,Absent,Accessory,Accessory,virulence,0,2,A
+fumigatus,cdr1B,100.0,100.0,OG0000034,Azole/ergosterol,ABC transporter / azole efflux,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,cnaB,99.0,100.0,OG0000413,Calcineurin,Calcineurin regulatory subunit B,Core,Core,Core,Core,Core,virulence,4,4,A
+niger,axhA,100.0,93.9,OG0006506,Hemicellulase,Arabinoxylan arabinofuranohydrolase,Core,Core,Core,Core,Core,industrial,4,4,A
+niger,inuR,100.0,100.0,OG0003054,Transcription regulator,Inulinolytic regulator,Core,Core,Core,Core,Core,industrial,4,4,A
+fumigatus,hmg1,100.0,100.0,OG0000309,Azole/ergosterol,HMG-CoA reductase / ergosterol pathway,Core,Core,Core,Core,Core,virulence,4,4,A
+niger,lacA,100.0,100.0,OG0000182,Hemicellulase,Beta-galactosidase A,Core,Core,Core,Core,Core,industrial,4,4,A
+niger,agdA,100.0,100.0,OG0006173,Alpha-glucosidase,Alpha-glucosidase A GH31,Core,Core,Core,Core,Core,industrial,4,4,A
+fumigatus,srbA,100.0,100.0,OG0004199,Hypoxia,SREBP transcription factor / hypoxia and ergosterol regulator,Core,Core,Core,Core,Core,virulence,4,4,A
+oryzae,agdA,98.6,100.0,OG0006173,Alpha-glucosidase,Alpha-glucosidase A secreted GH31 enzyme,Core,Core,Core,Core,Core,industrial,4,4,A
+fumigatus,chsG,100.0,100.0,OG0000125,Cell wall/chitin,Chitin synthase G,Core,Core,Core,Core,Core,virulence,4,4,A
+niger,xlnR,100.0,100.0,OG0004846,Transcription regulator,Xylanolytic transcription activator,Core,Core,Core,Core,Core,industrial,4,4,A
+niger,aguA,100.0,100.0,OG0006130,Hemicellulase,Alpha-glucuronidase A,Core,Core,Core,Core,Core,industrial,4,4,A
+niger,rhaR,97.9,101.7,OG0005991,Transcription regulator,L-rhamnose regulator,Core,Core,Core,Core,Core,industrial,4,4,A
+niger,xlnD,100.0,100.0,OG0002477,Hemicellulase,Beta-xylosidase D GH3,Core,Core,Core,Core,Core,industrial,4,4,A
+fumigatus,velB,100.0,100.0,OG0001675,SM regulator,Velvet-family regulator,Core,Core,Core,Core,Core,virulence,4,4,A
+niger,araR,96.3,100.0,OG0002902,Transcription regulator,Arabinolytic transcription regulator,Core,Core,Core,Core,Core,industrial,4,4,A
+niger,sucA,100.0,100.0,OG0004147,Invertase,Invertase beta-fructofuranosidase,Core,Core,Core,Core,Core,industrial,4,4,A
+fumigatus,crzA,100.0,100.0,OG0003807,Calcineurin,Calcineurin-responsive transcription factor,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,fos1,100.0,100.0,OG0001520,Signaling,Histidine kinase / two-component signaling,Core,Core,Core,Core,Core,virulence,4,4,A
+niger,cypB,100.0,100.0,OG0003930,UPR/secretion,ER peptidyl-prolyl cis-trans isomerase B,Core,Core,Core,Core,Core,industrial,4,4,A
+fumigatus,agd3,100.0,85.6,OG0003984,GAG,Deacetylase / GalNAc to GalN,Core,Core,Core,Core,Core,virulence,4,4,A
+oryzae,gtaA,100.0,99.9,OG0005596,Glutaminase,Salt-tolerant glutaminase A umami flavor in koji,Core,Core,Core,Core,Core,industrial,4,4,A
+fumigatus,medA,100.0,100.0,OG0006663,GAG,Transcription factor / GAG and adhesion regulator,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,pacC,100.0,100.0,OG0002088,pH/stress,Zinc finger TF / pH-responsive regulator,Core,Core,Core,Core,Core,virulence,4,4,A
+niger,bipA,100.0,100.0,OG0006749,UPR/secretion,ER chaperone BiP HSP70,Core,Core,Core,Core,Core,industrial,4,4,A
+niger,prtT,100.0,100.0,OG0001499,Transcription regulator,Protease regulator Zn2Cys6,Core,Core,Core,Core,Core,industrial,4,4,A
+fumigatus,stuA,100.0,100.0,OG0004427,Conidia/development,APSES TF / development and SM,Core,Core,Core,Core,Core,virulence,4,4,A
+niger,glaA,100.0,100.0,OG0000295,Glucoamylase,Major industrial glucoamylase GH15,Core,Core,Core,Core,Core,industrial,4,4,A
+niger,faeA,100.0,100.0,OG0000353,Esterase,Feruloyl esterase A,Core,Core,Core,Core,Core,industrial,4,4,A
+oryzae,amyR,100.0,100.0,OG0002874,Transcription regulator,Zn2Cys6 TF amylolytic gene activator,Core,Core,Core,Core,Core,industrial,4,4,A
+niger,goxC,97.5,100.0,OG0007642,Glucose oxidase,Glucose oxidase structural gene,Absent,Core,Core,Core,Core,industrial,3,3,A
+oryzae,veA,100.0,100.0,OG0006631,Velvet/development,Velvet protein VeA light-dependent development regulator,Core,Core,Core,Accessory,Accessory,industrial,3,4,A
+niger,abfB,100.0,100.0,OG0012251,Arabinofuranosidase,Alpha-arabinofuranosidase B,Absent,Absent,Core,Absent,Core,industrial,1,1,A
+niger,xlnA,100.0,100.0,OG0012017,Xylanase,Endo-1.4-beta-xylanase A GH10,Absent,Absent,Core,Absent,Core,industrial,1,1,A
+fumigatus,cnaA,100.0,100.0,OG0005669,Calcineurin,Calcineurin catalytic subunit A,Core,Core,Core,Core,Core,virulence,4,4,A
+niger,amyR,99.3,98.3,OG0002874,Transcription regulator,Amylolytic transcription regulator,Core,Core,Core,Core,Core,industrial,4,4,A
+niger,mstA,100.0,100.0,OG0012493,Sugar transporter,High-affinity glucose H+ symporter,Absent,Absent,Core,Absent,Core,industrial,1,1,A
+niger,xltA,100.0,100.0,OG0001149,Sugar transporter,D-xylose transporter,Core,Core,Core,Core,Core,industrial,4,4,A
+flavus,veA,100.0,100.0,OG0003406,Velvet/development,Velvet complex regulator coupling development and SM,Core,Core,Core,Core,Core,virulence,4,4,A
+flavus,kojR,99.8,99.5,OG0000955,Kojic-acid,Transcription factor regulating the kojic acid cluster,Core,Core,Core,Core,Core,virulence,4,4,A
+niger,hacA,100.0,100.0,OG0003340,UPR/secretion,Bzip UPR transcription factor,Core,Core,Core,Core,Core,industrial,4,4,A
+niger,fum1,100.0,100.0,OG0003041,Other-SM,Fumonisin polyketide synthase,Core,Core,Core,Core,Core,industrial,4,4,B
+fumigatus,hasE,100.0,100.0,OG0000565,Hexadehydroastechrome,Cytochrome P450 monooxygenase,Core,Core,Core,Core,Core,virulence,4,4,A
+niger,farA,100.0,100.0,OG0001578,Transcription regulator,Fatty acid utilization regulator,Core,Core,Core,Core,Core,industrial,4,4,A
+niger,inuE,100.0,100.0,OG0001133,Inulinase,Exo-inulinase E,Core,Core,Core,Core,Core,industrial,4,4,A
+flavus,aflQ,100.0,100.0,OG0000015,Aflatoxin,Oxidoreductase ordA catalyzing late aflatoxin steps,Accessory,Core,Core,Core,Core,virulence,3,4,A
+fumigatus,gel4,100.0,100.0,OG0000049,Cell wall/glucan,Beta-1-3-glucanosyltransferase 4 / essential,Core,Core,Core,Core,Core,virulence,4,4,A
+niger,abfC,100.0,100.0,OG0005905,Arabinofuranosidase,Alpha-arabinofuranosidase C,Core,Core,Core,Core,Core,industrial,4,4,A
+fumigatus,gliA,100.0,100.0,OG0000280,Gliotoxin,MFS transporter / gliotoxin efflux,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,sidL,100.0,100.0,OG0002727,Siderophore/iron,Transacetylase / ferricrocin biosynthesis,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,cyp51A,100.0,100.0,OG0001065,Azole/ergosterol,Lanosterol 14-alpha-demethylase / azole target,Core,Core,Core,Core,Core,virulence,4,4,A
+niger,mstH,100.0,100.0,OG0000535,Sugar transporter,High-affinity D-glucose transporter,Core,Core,Core,Core,Core,industrial,4,4,A
+niger,cexA,100.0,100.0,OG0007049,Carboxylic acid transporter,Citrate exporter MFS H+ antiporter,Absent,Core,Core,Core,Core,industrial,3,3,A
+niger,mstG,99.8,100.0,OG0007049,Sugar transporter,High-affinity D-glucose transporter,Absent,Core,Core,Core,Core,industrial,3,3,A
+niger,inuA,100.0,100.0,OG0008858,Inulinase,Endo-inulinase A,Core,Absent,Core,Absent,Core,industrial,2,2,A
+niger,gatA,100.0,100.0,OG0000392,Sugar transporter,D-galacturonic acid transporter,Core,Core,Core,Core,Core,industrial,4,4,A
+fumigatus,zrfC,100.0,100.0,OG0007468,Zinc homeostasis,ZIP zinc transporter C / alkaline zinc-limiting,Core,Core,Absent,Core,Core,virulence,3,3,A
+flavus,cyp51A,100.0,98.8,OG0001065,Azole/ergosterol,Sterol 14-alpha-demethylase azole drug target,Core,Core,Core,Core,Core,virulence,4,4,A
+niger,pdiA,100.0,100.0,OG0005328,UPR/secretion,Protein disulfide isomerase,Core,Core,Core,Core,Core,industrial,4,4,A
+fumigatus,sidA,100.0,100.0,OG0004436,Siderophore/iron,L-ornithine N5-monooxygenase / first committed step,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,gliK,100.0,100.0,OG0000220,Gliotoxin,Gamma-glutamyl cyclotransferase,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,mkk2,100.0,100.0,OG0002143,MAP kinase,MAPKK / cell wall integrity pathway,Core,Core,Core,Core,Core,virulence,4,4,A
+oryzae,amyB,100.0,99.8,OG0000404,Taka-amylase,Alpha-amylase isoform B major taka-amylase,Core,Core,Core,Core,Core,industrial,4,4,A
+fumigatus,ireA,100.0,100.0,OG0007675,Secretion/UPR,ER stress sensor / IRE1 ortholog,Core,Accessory,Accessory,Accessory,Core,virulence,1,4,A
+fumigatus,pkaC1,100.0,100.0,OG0006037,Signaling,cAMP-dependent protein kinase catalytic subunit,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,hapX,100.0,100.0,OG0005192,Iron homeostasis,bZIP transcription factor / iron starvation response,Core,Core,Core,Core,Core,virulence,4,4,A
+niger,phyB,100.0,100.0,OG0007962,Phytase,3-phytase B pH 2.5 optimum,Absent,Core,Core,Core,Core,industrial,3,3,A
+fumigatus,hasB,100.0,100.0,OG0000262,Hexadehydroastechrome,Dimethylallyl tryptophan synthase,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,gel2,100.0,100.0,OG0005410,Cell wall/glucan,Beta-1-3-glucanosyltransferase 2,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,hasD,100.0,100.0,OG0010444,Hexadehydroastechrome,FAD binding domain protein,Core,Absent,Absent,Absent,Core,virulence,1,1,A
+fumigatus,sidF,100.0,100.0,OG0003577,Siderophore/iron,Transacylase / TAFC biosynthesis,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,gliF,100.0,100.0,OG0000565,Gliotoxin,Cytochrome P450 monooxygenase,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,gliZ,100.0,96.1,OG0000180,Gliotoxin,Zn2Cys6 transcription factor of gli cluster,Core,Core,Core,Core,Core,virulence,4,4,A
+flavus,kojT,99.8,78.2,OG0001956,Kojic-acid,MFS transporter exporting kojic acid,Rare,Core,Core,Core,Core,virulence,3,4,A
+flavus,aflR,100.0,100.0,OG0000613,Aflatoxin,Zn2Cys6 transcriptional activator of the aflatoxin cluster,Core,Core,Core,Core,Core,virulence,4,4,A
+niger,dmtA,95.5,100.0,OG0001497,Pump,NRAMP Mn2+ transporter affects citrate,Core,Core,Core,Core,Core,industrial,4,4,A
+flavus,atmM,99.3,100.0,OG0000262,Aflatrem,Indole prenyltransferase / methyltransferase,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,vosA,100.0,100.0,OG0000945,SM regulator,Velvet-family regulator / conidial maturation,Core,Core,Core,Core,Core,virulence,4,4,A
+niger,abfA,100.0,66.6,OG0000353,Arabinofuranosidase,Alpha-arabinofuranosidase A,Core,Core,Core,Core,Core,industrial,4,4,A
+fumigatus,gliJ,100.0,100.0,OG0007541,Gliotoxin,Dipeptidase,Core,Core,Absent,Core,Core,virulence,3,3,A
+niger,pgaI,100.0,100.0,OG0003697,Pectinase,Endo-polygalacturonase I,Core,Core,Core,Core,Core,industrial,4,4,A
+fumigatus,hasC,100.0,100.0,OG0010445,Hexadehydroastechrome,O-methyltransferase,Core,Absent,Absent,Absent,Core,virulence,1,1,A
+flavus,kojA,100.0,100.0,OG0008954,Kojic-acid,FAD-dependent oxidoreductase for kojic acid biosynthesis,Absent,Core,Rare,Core,Core,virulence,2,3,A
+oryzae,aflS,100.0,100.0,OG0000135,Aflatoxin-cluster-relic,aflJ co-activator nonfunctional in A. oryzae RIB40,Core,Core,Core,Core,Core,industrial,4,4,B
+fumigatus,gliC,100.0,100.0,OG0000341,Gliotoxin,Cytochrome P450 monooxygenase,Core,Core,Absent,Core,Core,virulence,3,3,A
+flavus,aflS,98.4,100.0,OG0000135,Aflatoxin,Aflatoxin cluster co-activator (aflJ) modulating aflR,Core,Core,Core,Core,Core,virulence,4,4,A
+flavus,aflP,100.0,100.0,OG0000768,Aflatoxin,O-methyltransferase A (omtA),Core,Core,Absent,Core,Core,virulence,3,3,A
+oryzae,aflP,97.9,102.2,OG0000768,Aflatoxin-cluster-relic,O-methyltransferase A omtA cluster relic,Core,Core,Absent,Core,Core,industrial,3,3,B
+niger,creA,100.0,100.0,OG0006016,Carbon catabolite,Carbon catabolite repressor C2H2,Core,Core,Core,Core,Core,industrial,4,4,B
+fumigatus,hasF,100.0,100.0,OG0000180,Hexadehydroastechrome,Zn2Cys6 transcription factor / HAS regulator,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,ayg1,100.0,100.0,OG0005955,Melanin/conidia,YWA1 hydrolase / heptaketide shortening,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,mnt1,100.0,100.0,OG0006596,Cell wall,Alpha-1-2-mannosyltransferase,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,erg6,100.0,100.0,OG0005450,Azole/ergosterol,Sterol C-24 methyltransferase,Core,Core,Core,Core,Core,virulence,4,4,A
+niger,prpA,100.0,100.0,OG0001000,UPR/secretion,UPR-induced peptidyl-prolyl isomerase,Core,Core,Core,Core,Core,industrial,4,4,A
+oryzae,alpA,100.0,100.0,OG0002785,Alkaline protease,Oryzin alkaline serine protease subtilisin-like koji workhorse,Core,Core,Core,Core,Core,industrial,4,4,A
+fumigatus,sidH,100.0,99.2,OG0003578,Siderophore/iron,Mevalonyl-CoA hydratase,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,sidJ,100.0,99.2,OG0003578,Siderophore/iron,Esterase / intracellular siderophore hydrolysis,Core,Core,Core,Core,Core,virulence,4,4,A
+oryzae,aflR,100.0,100.0,OG0009549,Aflatoxin-cluster-relic,Zn2Cys6 TF aflatoxin cluster regulator silenced in RIB40,Rare,Core,Absent,Core,Core,industrial,2,3,B
+niger,pepA,100.0,100.0,OG0003895,Protease,Aspergillopepsin A acid protease,Core,Core,Core,Core,Core,industrial,4,4,A
+niger,gelA,97.0,100.0,OG0012028,Cell wall,Beta-1.3-glucanotransferase A GPI,Absent,Absent,Core,Absent,Core,industrial,1,1,A
+fumigatus,mpkC,100.0,100.0,OG0000211,MAP kinase,MAPK / cooperates with sakA,Core,Core,Core,Core,Core,virulence,4,4,A
+flavus,laeA,100.0,100.0,OG0001942,SM regulator,Global secondary metabolism regulator methyltransferase,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,sakA,100.0,100.0,OG0000211,MAP kinase,Hog1-like stress-activated MAPK,Core,Core,Core,Core,Core,virulence,4,4,A
+niger,pgaII,99.5,89.3,OG0002230,Pectinase,Endo-polygalacturonase II,Core,Core,Core,Core,Core,industrial,4,4,A
+fumigatus,hacA,100.0,100.0,OG0005008,Secretion/UPR,bZIP TF / unfolded protein response,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,ganB,100.0,100.0,OG0004952,Signaling,Galpha subunit / conidial germination,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,rho1,100.0,100.0,OG0005884,Cell wall,Rho1 GTPase / glucan synthase regulator,Core,Core,Core,Core,Core,virulence,4,4,A
+flavus,velB,100.0,100.0,OG0005809,Velvet/development,Velvet-family regulator,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,erg3,100.0,100.0,OG0000242,Azole/ergosterol,C-5 sterol desaturase,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,gliT,100.0,100.0,OG0000305,Gliotoxin,Gliotoxin oxidoreductase / self-protection,Core,Core,Core,Core,Core,virulence,4,4,A
+flavus,atmG,100.0,100.0,OG0000030,Aflatrem,Geranylgeranyl diphosphate synthase in aflatrem,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,sidC,100.0,54.1,OG0005436,Siderophore/iron,NRPS for ferricrocin biosynthesis,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,ega3,100.0,100.0,OG0003983,GAG,Endo-alpha-1-4-galactosaminidase,Core,Core,Core,Core,Core,virulence,4,4,A
+flavus,sclR,100.0,100.0,OG0005902,Sclerotia,Sclerotia regulator helix-loop-helix TF,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,sph3,100.0,100.0,OG0006309,GAG,Glycoside hydrolase / GAG biosynthesis,Core,Core,Core,Core,Core,virulence,4,4,A
+niger,oahA,100.0,100.0,OG0006358,Oxalic acid,Oxaloacetate acetylhydrolase oxalic acid,Core,Core,Core,Core,Core,industrial,4,4,A
+fumigatus,srbB,100.0,100.0,OG0005902,Hypoxia,SREBP-related transcription factor / hypoxia,Core,Core,Core,Core,Core,virulence,4,4,A
+niger,faeB,100.0,100.0,OG0008381,Esterase,Feruloyl esterase B,Absent,Core,Core,Core,Core,industrial,3,3,A
+fumigatus,gliN,100.0,100.0,OG0010378,Gliotoxin,N-methyltransferase,Core,Absent,Absent,Absent,Core,virulence,1,1,A
+fumigatus,pyrG,100.0,100.0,OG0001909,Amino acid biosynth,Orotidine-5-monophosphate decarboxylase / uridine biosynthesis,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,laeA,100.0,73.2,OG0001942,SM regulator,Putative methyltransferase / global SM regulator,Core,Core,Core,Core,Core,virulence,4,4,A
+niger,pepB,100.0,100.0,OG0001525,Protease,Aspergillopepsin B glutamic protease,Core,Core,Core,Core,Core,industrial,4,4,A
+flavus,aflD,100.0,93.8,OG0010971,Aflatoxin,Reductase (nor-1) for norsolorinic acid conversion,Absent,Accessory,Absent,Accessory,Accessory,virulence,0,2,A
+fumigatus,gliI,100.0,100.0,OG0007501,Gliotoxin,Aminocyclopropane carboxylate synthase,Core,Core,Absent,Core,Core,virulence,3,3,A
+fumigatus,rasB,100.0,100.0,OG0004431,Signaling,Ras-family GTPase,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,cpcA,93.7,106.7,OG0003398,Amino acid biosynth,Cross-pathway control bZIP TF / amino acid starvation,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,gliG,100.0,100.0,OG0000341,Gliotoxin,Glutathione S-transferase / sulfurization,Core,Core,Absent,Core,Core,virulence,3,3,A
+oryzae,aflQ,42.6,97.0,OG0000015,Aflatoxin-cluster-relic,Cytochrome P450 ordA cluster relic,Accessory,Core,Core,Core,Core,industrial,3,4,B
+niger,fksA,100.0,100.0,OG0002724,Cell wall,Beta-1.3-glucan synthase catalytic,Core,Core,Core,Core,Core,industrial,4,4,A
+oryzae,aflD,100.0,79.0,OG0010971,Aflatoxin-cluster-relic,Norsolorinic acid reductase nor-1 cluster relic,Absent,Accessory,Absent,Accessory,Accessory,industrial,0,2,B
+fumigatus,rasA,100.0,100.0,OG0003678,Signaling,Ras GTPase / morphogenesis and virulence,Core,Core,Core,Core,Core,virulence,4,4,A
+oryzae,aflT,100.0,100.0,OG0000011,Aflatoxin-cluster-relic,MFS transporter aflatoxin cluster relic,Core,Core,Core,Core,Core,industrial,4,4,B
+fumigatus,zafA,99.0,35.3,OG0006244,Zinc homeostasis,Zinc-responsive transcription factor,Core,Core,Core,Core,Core,virulence,4,4,A
+oryzae,nptB,100.0,100.0,OG0002746,Neutral protease,Neutral metalloprotease II major koji protease,Core,Core,Core,Core,Core,industrial,4,4,A
+fumigatus,gliH,100.0,100.0,OG0010379,Gliotoxin,Hypothetical protein required for gliotoxin biosynthesis,Core,Absent,Absent,Absent,Core,virulence,1,1,A
+fumigatus,aspf1,100.0,100.0,OG0007384,Protease/allergen,Ribotoxin / mitogillin / Asp f 1,Core,Core,Absent,Core,Core,virulence,3,3,A
+oryzae,hsbA,100.0,100.0,OG0000243,Domestication-related,Hydrophobic surface binding protein A,Core,Core,Core,Core,Core,industrial,4,4,A
+oryzae,vosA,71.4,114.5,OG0000945,Velvet/development,Velvet protein VosA conidia maturation viability,Core,Core,Core,Core,Core,industrial,4,4,A
+fumigatus,cgrA,100.0,95.8,OG0006934,Thermotolerance,Nucleolar protein / 37C growth,Core,Core,Core,Core,Core,virulence,4,4,A
+oryzae,srgA,43.7,100.0,OG0005800,UPR/secretion,Secretion-related GTPase Rab-family vesicle transport,Core,Core,Core,Core,Core,industrial,4,4,A
+oryzae,laeA,93.4,68.4,OG0001238,Velvet/development,Global SM regulator methyltransferase velvet complex,Absent,Core,Absent,Core,Core,industrial,2,2,A
+fumigatus,atrR,100.0,98.4,OG0012801,Transcription regulator,DeltaatrR sensitises and attenuates virulence,Accessory,Rare,Accessory,Rare,Accessory,virulence,0,4,A
+fumigatus,arp2,100.0,100.0,OG0000186,Melanin/conidia,KO white-conidia and immune-evasion phenotype,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,ags3,100.0,100.0,OG0007689,Cell wall/glucan,Deltaags3 attenuated in murine IPA,Core,Accessory,Core,Core,Core,virulence,3,4,B
+fumigatus,glfA,100.0,100.0,OG0001506,Cell wall,DeltaglfA attenuated in mouse model,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,uge3,100.0,100.0,OG0003982,GAG,Deltauge3 attenuated; GAG biosynthesis required,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,aspf3,100.0,100.0,OG0006192,Oxidative stress,Attenuated under iron limitation,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,aspf2,63.4,99.0,OG0007467,Zinc homeostasis,Deltaaspf2 attenuated in zinc-limited host,Core,Core,Absent,Core,Core,virulence,3,3,A
+fumigatus,pabaA,100.0,100.0,OG0006332,Amino acid biosynth,Auxotrophy avirulence; PABA synthesis,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,hsp90,100.0,100.0,OG0002018,Thermotolerance,Required for drug tolerance and stress,Core,Core,Core,Core,Core,virulence,4,4,A
+fumigatus,pes3,100.0,100.0,OG0003145,Other-SM,Deltapes3 hypervirulent in murine IPA,Core,Core,Core,Core,Core,virulence,4,4,B
+fumigatus,ppoA,100.0,100.0,OG0001122,Oxidative stress,Triple silencing hypervirulent,Core,Core,Core,Core,Core,virulence,4,4,B
+fumigatus,ppoB,100.0,100.0,OG0000532,Oxidative stress,Triple silencing hypervirulent,Core,Core,Core,Core,Core,virulence,4,4,B
+fumigatus,ppoC,99.8,100.0,OG0000455,Oxidative stress,Triple silencing hypervirulent,Core,Core,Core,Core,Core,virulence,4,4,B
+flavus,aflE,100.0,100.0,OG0000018,Aflatoxin,NorA aryl alcohol dehydrogenase; cluster KO eliminates aflatoxin,Core,Core,Core,Core,Core,virulence,4,4,A
+flavus,aflF,95.9,66.4,OG0013303,Aflatoxin,NorB paralog reductase; cluster KO eliminates aflatoxin,Absent,Rare,Absent,Rare,Rare,virulence,0,2,A
+flavus,aflG,100.0,100.0,OG0000639,Aflatoxin,AvnA P450 monooxygenase; cluster KO eliminates aflatoxin,Absent,Core,Core,Core,Core,virulence,3,3,A
+flavus,aflH,100.0,100.0,OG0010846,Aflatoxin,AdhA alcohol dehydrogenase; cluster KO eliminates aflatoxin,Absent,Accessory,Absent,Accessory,Accessory,virulence,0,2,A
+flavus,aflI,100.0,100.0,OG0009991,Aflatoxin,AvfA P450 monooxygenase; cluster KO eliminates aflatoxin,Absent,Core,Rare,Accessory,Core,virulence,1,3,A
+flavus,aflJ,100.0,100.0,OG0000301,Aflatoxin,EstA esterase; cluster KO eliminates aflatoxin,Core,Core,Core,Core,Core,virulence,4,4,A
+flavus,aflK,100.0,100.0,OG0009668,Aflatoxin,VBS cyclase; cluster KO eliminates aflatoxin,Absent,Core,Absent,Core,Core,virulence,2,2,A
+flavus,aflL,100.0,93.5,OG0008020,Aflatoxin,VerB P450; cluster KO eliminates aflatoxin,Rare,Core,Absent,Accessory,Core,virulence,1,3,A
+flavus,aflM,100.0,100.0,OG0000186,Aflatoxin,Versicolorin A dehydrogenase ver-1; cluster KO eliminates aflatoxin,Core,Core,Core,Core,Core,virulence,4,4,A
+flavus,aflN,98.3,100.0,OG0000337,Aflatoxin,VerA P450; cluster KO eliminates aflatoxin,Core,Core,Core,Core,Core,virulence,4,4,A
+flavus,aflO,100.0,100.0,OG0000296,Aflatoxin,O-methyltransferase B omtB; cluster KO eliminates aflatoxin,Core,Core,Core,Core,Core,virulence,4,4,A
+flavus,aflU,81.8,80.6,OG0010180,Aflatoxin,CypA P450; cluster KO eliminates aflatoxin,Absent,Accessory,Absent,Accessory,Accessory,virulence,0,2,A
+flavus,aflV,100.0,100.0,OG0009869,Aflatoxin,CypX P450; cluster KO eliminates aflatoxin,Absent,Core,Absent,Core,Core,virulence,2,2,A
+flavus,aflW,99.5,91.7,OG0009868,Aflatoxin,MoxY monooxygenase; cluster KO eliminates aflatoxin,Absent,Core,Absent,Core,Core,virulence,2,2,A
+flavus,aflX,100.0,100.0,OG0000008,Aflatoxin,OrdB oxidoreductase; cluster KO eliminates aflatoxin,Core,Core,Core,Core,Core,virulence,4,4,A
+flavus,cpaA,100.0,100.0,OG0000218,Cyclopiazonic-acid,DeltacpaA reduces kernel colonisation aggressiveness,Core,Core,Core,Core,Core,virulence,4,4,A
+niger,phyA,100.0,100.0,OG0014475,Phytase,Industrial phytase; KO loses activity,Absent,Absent,Accessory,Absent,Accessory,industrial,0,1,A
+niger,fum8,100.0,100.0,OG0000315,Other-SM,Fumonisin synthase; industrial liability; absence = clean strain,Core,Core,Core,Core,Core,industrial,4,4,B
+niger,fum21,100.0,100.0,OG0000274,Other-SM,Fumonisin cluster TF; absence/silencing = clean strain,Core,Core,Core,Core,Core,industrial,4,4,B
+niger,otaA,99.8,98.9,OG0013675,Other-SM,Ochratoxin PKS; industrial liability; absence = clean strain,Absent,Absent,Accessory,Absent,Accessory,industrial,0,1,B
+oryzae,glaA,100.0,100.0,OG0000295,Glucoamylase,Secreted glucoamylase liquid-culture isoform required for starch saccharification,Core,Core,Core,Core,Core,industrial,4,4,A
+oryzae,glaB,100.0,100.0,OG0000295,Glucoamylase,Solid-state koji-specific glucoamylase; dominant glucoamylase activity on rice koji,Core,Core,Core,Core,Core,industrial,4,4,A
+oryzae,cutL,100.0,100.0,OG0002996,Cutinase,Cutinase CutL1; KO loses PBSA polyester degradation; rolA-cutL synergy validated,Core,Core,Core,Core,Core,industrial,4,4,A
+oryzae,xynG2,100.0,100.0,OG0000861,Xylanase,Major GH10 endo-xylanase in koji; supports hemicellulose hydrolysis,Core,Core,Core,Core,Core,industrial,4,4,A
+oryzae,xynF1,94.5,100.0,OG0000340,Xylanase,Major endo-xylanase F1; koji xylan degradation,Core,Core,Core,Core,Core,industrial,4,4,A
+oryzae,kojA,100.0,100.0,OG0008954,Kojic-acid,FAD-dependent oxidoreductase; KO eliminates kojic acid production,Absent,Core,Rare,Core,Core,industrial,2,3,A
+oryzae,kojR,100.0,100.0,OG0000955,Kojic-acid,Zn2Cys6 TF kojic acid cluster regulator; KO eliminates kojic acid production,Core,Core,Core,Core,Core,industrial,4,4,A
+oryzae,kojT,100.0,100.0,OG0001956,Kojic-acid,MFS transporter kojic acid efflux; KO reduces kojic acid output,Rare,Core,Core,Core,Core,industrial,3,4,A
+oryzae,aflC,100.0,99.2,OG0010952,Aflatoxin-cluster-relic,Aflatoxin PKS pksA relic; absence required for food-grade safety,Absent,Accessory,Absent,Accessory,Accessory,industrial,0,2,B
+oryzae,aflM,100.0,100.0,OG0000186,Aflatoxin-cluster-relic,ver-1 versicolorin dehydrogenase relic; absence required for food safety,Core,Core,Core,Core,Core,industrial,4,4,B
+oryzae,aflO,100.0,100.0,OG0000296,Aflatoxin-cluster-relic,O-methyltransferase B aflatoxin relic; absence required for food safety,Core,Core,Core,Core,Core,industrial,4,4,B
+oryzae,velB,100.0,74.1,OG0001942,Velvet/development,Velvet protein VelB; required for development and SM,Core,Core,Core,Core,Core,industrial,4,4,A
+oryzae,xlnR,100.0,100.0,OG0004846,Transcription regulator,Master xylanolytic/cellulolytic activator; KO loses xylanase expression,Core,Core,Core,Core,Core,industrial,4,4,A
+oryzae,manR,100.0,100.0,OG0006620,Transcription regulator,Mannanolytic regulator; KO loses mannanase expression,Core,Core,Core,Core,Core,industrial,4,4,A
+oryzae,prtR,97.2,100.0,OG0001499,Transcription regulator,Master proteolytic gene regulator; KO loses koji protease expression,Core,Core,Core,Core,Core,industrial,4,4,A
+oryzae,farA,96.5,100.0,OG0004800,Transcription regulator,Fatty-acid/lipase regulator; KO loses lipase induction,Core,Core,Core,Core,Core,industrial,4,4,A
+oryzae,creA,100.0,100.0,OG0006016,Carbon catabolite,C2H2 carbon catabolite repressor; KO derepresses koji enzyme promoters,Core,Core,Core,Core,Core,industrial,4,4,B
+oryzae,creB,97.6,100.0,OG0003344,Carbon catabolite,Deubiquitinating CCR component; KO derepresses koji promoters,Core,Core,Core,Core,Core,industrial,4,4,B
+oryzae,creC,100.0,100.0,OG0000724,Carbon catabolite,WD40 CCR component; KO derepresses koji promoters,Core,Core,Core,Core,Core,industrial,4,4,B
+oryzae,creD,100.0,87.6,OG0001505,Carbon catabolite,Arrestin-domain CCR component; KO derepresses koji promoters,Core,Core,Core,Core,Core,industrial,4,4,A
+oryzae,hacA,92.5,100.0,OG0005269,UPR/secretion,bZIP UPR master TF; required for high-level enzyme secretion,Core,Core,Core,Core,Core,industrial,4,4,A
+oryzae,ireA,100.0,100.0,OG0005817,UPR/secretion,ER stress sensor kinase/endoribonuclease; required for secretion under load,Core,Core,Core,Core,Core,industrial,4,4,A
+oryzae,rolA,100.0,100.0,OG0001556,Domestication-related,Class I hydrophobin RolA; recruits CutL1 to PBSA; KO loses polyester degradation synergy,Core,Core,Core,Core,Core,industrial,4,4,A
