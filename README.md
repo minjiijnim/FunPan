@@ -11,11 +11,11 @@ A comprehensive pipeline for downloading, quality-filtering, annotating, and ana
 3. [Quick Start](#quick-start)
 4. [Pipeline Architecture](#pipeline-architecture)
 5. [Tools & Scripts Documentation](#tools--scripts-documentation)
-6. [Parameters & Configuration](#parameters--configuration)
+6. [Tool-Specific Parameters](#tool-specific-parameters)
 7. [Output Structure](#output-structure)
 8. [Additional Standalone Scripts](#additional-standalone-scripts)
-9. [Analysis Notebooks](#analysis-notebooks)
-10. [Troubleshooting](#troubleshooting)
+9. [Analysis Notebooks & Python Modules](#analysis-notebooks--python-modules)
+10. [Log File Locations](#log-file-locations)
 
 ---
 
@@ -227,24 +227,6 @@ bash run_iqtree_gubbins.sh
             │ SNV-based Phylogeny     │
             └─────────────────────────┘
 ```
-
-### Dependency Summary
-
-| Step | Script | Depends On | Input From |
-|------|--------|------------|------------|
-| 1 | `download_genome_and_BUSCO.sh` | - | NCBI |
-| 2 | `ani_and_filter_genome_QC.sh` | Step 1 | `metadata.csv`, `genome/`, `protein/` |
-| 3 | `run_funannotate.sh` | Step 2 | `filtered_genome/`, `filtered_protein/`, `gff3/`, `rna/` |
-| 4 | `run_eggnog.sh` | Step 3 | `funannotate_output/*/predict_results/*.proteins.fa` |
-| 5 | `run_orthofinder.sh` | Step 3 | `funannotate_output/*/predict_results/*.proteins.fa` |
-| 6 | `run_antismash.sh` | Step 3 | `funannotate_output/*/predict_results/*.gbk` |
-| 7 | `run_interproscan.sh` | Step 3 | `funannotate_output/*/predict_results/*.proteins.fa` |
-| 8 | `run_signalp.sh` | Step 3 | `funannotate_output/*/predict_results/*.proteins.fa` |
-| 9 | `run_dbcan.sh` | Step 3 | `funannotate_output/*/predict_results/*.proteins.fa` |
-| 10 | `run_parsnp.sh` | Step 3 | `funannotate_output/*/*.clean.fa` |
-| 11 | `run_bigscape.sh` | Step 6 | `antismash_output/*.region*.gbk` |
-| 12 | `run_gubbins.sh` | Step 10 | `parsnp_output/parsnp.xmfa` |
-| 13 | `run_iqtree_gubbins.sh` | Step 12 | `gubbins_output/gubbins.filtered_polymorphic_sites.fasta` |
 
 ### Checkpointing System
 
@@ -644,44 +626,7 @@ iqtree_output_snv/
 
 ---
 
-## Parameters & Configuration
-
-### Global Settings
-
-**Thread Configuration:**
-```bash
-# Automatic detection (default)
-THREADS = (total_cores - 4) or 1 if < 4 cores
-
-# Manual override
-export PIPELINE_THREADS=16
-bash run_complete_pipeline.sh
-```
-
-**BUSCO Configuration:**
-```bash
-# Automatic lineage detection (default)
-BUSCO_MODE=auto
-
-# Eukaryote-specific
-BUSCO_MODE=auto_euk
-
-# Force specific lineage
-export BUSCO_LINEAGE=eurotiomycetes_odb10
-
-# Offline mode (requires pre-downloaded lineages)
-export BUSCO_OFFLINE=1
-```
-
-**Database Locations:**
-```bash
-# Default: ../Data/ (relative to /datadrive/Code)
-FUNANNOTATE_DB=../Data/Funannotate
-data_dir=../Data/EggNOG
-PFAM_PATH=../Data/BiG-SCAPE/Pfam-A.hmm
-```
-
-### Tool-Specific Parameters
+## Tool-Specific Parameters
 
 **Funannotate:**
 - Augustus training: automatic per species
@@ -765,8 +710,9 @@ datadrive/
 │   ├── funpan_classify.py                   # Phenotype classification (NB0)
 │   ├── funpan_pangenome.py                  # Pangenome construction (NB1)
 │   ├── funpan_gwas.py                       # Pan-GWAS / LMM testing (NB2)
-│   ├── funpan_convergence.py                # Convergence testing (NB3, NB5)
+│   ├── funpan_convergence.py                # Convergence testing (NB3)
 │   ├── funpan_phylo.py                      # Rare-genome & phylogenetics (NB4)
+│   ├── funpan_core.py                       # Core-genome trait panels (NB5)
 │   ├── NB0_DataPrep.ipynb                   # Data prep, QC, ANI, phenotypes
 │   ├── NB1_Pangenome.ipynb                  # Pangenome architecture
 │   ├── NB2_PanGWAS.ipynb                    # Pan-GWAS & enrichment
@@ -829,35 +775,6 @@ datadrive/
     └── busco_updated.jsonl                 # JSONL format
 ```
 
-### Key Output Files
-
-**Metadata:**
-- `metadata.csv`: Comprehensive table with 44 columns including assembly info, taxonomy, statistics, BUSCO scores, source information, and comments
-
-**Annotations:**
-- `*.gff3`: Standard GFF3 format (coordinates, features, attributes)
-- `*.gbk`: GenBank format (sequences + annotations)
-- `*.proteins.fa`: Protein sequences (FASTA)
-- `*.emapper.annotations`: Tab-delimited with GO, KEGG, COG
-- InterProScan TSV/GFF3/XML: Protein domain annotations
-- SignalP predictions: Signal peptide locations
-- dbCAN overview: CAZyme family assignments
-
-**Comparative Genomics:**
-- `Orthogroups.tsv`: Gene-to-orthogroup mapping
-- `SpeciesTree_rooted.txt`: Newick phylogenetic tree
-
-**BGC Analysis:**
-- antiSMASH HTML reports: Interactive cluster visualization
-- BiG-SCAPE network files: Cytoscape-compatible
-
-**Phylogenetics:**
-- `parsnp.tree`: Core genome tree
-- `gubbins.final_tree.tre`: Recombination-corrected tree
-- `gubbins_tree.treefile`: SNV-based ML tree with bootstrap support
-
----
-
 ## Additional Standalone Scripts
 
 ### `orthofinder_on_all_species.sh` - Cross-Species OrthoFinder
@@ -880,7 +797,7 @@ Run all six analysis notebooks in sequence from the command line:
 
 ```bash
 conda activate funpan
-cd /datadrive/Analysis
+cd /datadrive/Code
 bash run_analysis_notebooks.sh
 ```
 
@@ -904,24 +821,25 @@ jupyter notebook NB0_DataPrep.ipynb
 | Notebook | Description |
 |---|---|
 | `NB0_DataPrep.ipynb` | QC filtering, ANI species verification, two-tier phenotype classification, geographic mapping |
-| `NB1_Pangenome.ipynb` | OrthoFinder pangenome construction, Core/Accessory/Rare classification, Heap's law openness, functional annotation loading & enrichment, SNP PCA/GRM, BGC/GCF matrices |
-| `NB2_PanGWAS.ipynb` | One-vs-rest LMM association testing per species, diagnostic plots, functional enrichment of significant hits, BGC co-localisation, power analysis |
-| `NB3_Convergence.ipynb` | Cross-species convergence testing, multi-layer convergence (OG/functional/BGC), permutation null model, CAZy/protease/secretome comparisons |
-| `NB4_RareGenome.ipynb` | Rare genome composition & burden by phenotype, deep characterisation (gene length, GC, BLAST, xenolog detection), phylogenetic signal, ancestral niche reconstruction, Mash clustering |
-| `NB5_CoreGenome.ipynb` | Cross-species conservation of literature-curated virulence and industrial genes; core-compartment counterpart of NB4 |
+| `NB1_Pangenome.ipynb` | PAV/CNV matrices, Core/Accessory/Rare classification by S-curve inflection, Heap's law openness, orthogroup annotation tables, functional enrichment, kinship matrices, BGC/GCF matrices |
+| `NB2_PanGWAS.ipynb` | One-vs-rest phenotype contrasts, EMMA-style LMM association testing per species and feature layer, power analysis, functional enrichment of significant hits, BGC co-localisation |
+| `NB3_Convergence.ipynb` | Species-to-genus orthogroup mapping, convergence of the significant sets, directional convergence across jointly tested orthogroups, permutation null model, CAZy/protease/secretome comparisons, functional convergence |
+| `NB4_RareGenome.ipynb` | DIAMOND reclassification of the rare compartment, truly-rare filter, compartment characterisation (protein length, Pfam coverage, ORF completeness), COG enrichment, xenolog screen, phylogenetic signal, Mash clustering, kinship-corrected burden models |
+| `NB5_CoreGenome.ipynb` | Curated literature trait panels anchored to genus orthogroups by blastp, then cross-species conservation of the experimentally validated subset |
 
 ### Python Modules
 
-All analysis functions live in six `.py` modules in `/datadrive/Analysis/`. Notebooks import these at the top and contain only configuration, function calls, visualization, and interpretation.
+All analysis functions live in seven `.py` modules in `/datadrive/Analysis/`. Notebooks import these at the top and contain only configuration, function calls and visualization. Each notebook section opens with a standalone bootstrap cell that sets the paths, imports the modules and reloads that section's inputs, so any section runs on its own from a fresh kernel.
 
 | Module | Functions | Used by |
 |---|---|---|
 | `funpan_utils.py` | Shared constants, metadata loaders, annotation parsers, QC visualization | All notebooks |
 | `funpan_classify.py` | Weighted rules-based phenotype classification, NCBI BioProject enrichment, geocoding | NB0 |
-| `funpan_pangenome.py` | Pangenome construction, classification, enrichment, Heap's law, SNP PCA/GRM, BGC/GCF matrices | NB1, NB5 |
+| `funpan_pangenome.py` | Pangenome construction, classification, enrichment, Heap's law, SNP PCA/GRM, BGC/GCF matrices | NB1 |
 | `funpan_gwas.py` | LMM association testing (EMMA-style), diagnostic plotting, functional enrichment, power analysis | NB2 |
-| `funpan_convergence.py` | Combined pangenome loading, convergent hit identification, meta-analysis, annotation transfer | NB3, NB5 |
+| `funpan_convergence.py` | Combined pangenome loading, convergent hit identification, annotation transfer | NB3 |
 | `funpan_phylo.py` | Rare genome characterisation, phylogenetic signal, ancestral reconstruction, gain/loss, Mash clustering | NB4 |
+| `funpan_core.py` | Curated trait panels, orthogroup anchoring by blastp, cross-species core conservation | NB5 |
 
 ### Result Folders
 
@@ -937,77 +855,19 @@ Analysis/
 └── NB5_Results/         # Cross-species core-genome conservation (figures & tables)
 ```
 
+`NB*_Results/` contents are generated and are not tracked, with one exception: the
+hand-curated literature inputs under `NB5_Results/` are tracked, because no code
+regenerates them.
+
+```
+NB5_Results/panels/*_panel.csv                           # curated trait panels, one per species
+NB5_Results/panel_pmid_audit.csv                          # per-gene PMID verification
+NB5_Results/filtered/panel_cross_species_conservation_SUP.csv
+```
+
 ---
 
-## Troubleshooting
-
-### Common Issues
-
-**1. BUSCO Database Download Fails**
-```bash
-cd /datadrive/Data/BUSCO/busco_downloads
-wget https://busco-data.ezlab.org/v5/data/lineages/eurotiomycetes_odb10.2024-01-08.tar.gz
-tar -xzf eurotiomycetes_odb10.2024-01-08.tar.gz
-```
-
-**2. No Genomes Pass Quality Filter**
-```bash
-# The script will automatically include best GCF genome
-# To manually adjust thresholds, edit filter_genome_QC.sh lines 56-82
-```
-
-**3. Funannotate Augustus Training Fails**
-```bash
-export AUGUSTUS_CONFIG_PATH=$CONDA_PREFIX/config
-cp -r $CONDA_PREFIX/config $HOME/augustus_config
-export AUGUSTUS_CONFIG_PATH=$HOME/augustus_config
-```
-
-**4. RepeatModeler "BuildDatabase not found"**
-```bash
-conda install -c bioconda repeatmodeler
-# Script auto-detects BuildDatabase in RepeatModeler bin/
-```
-
-**5. antiSMASH Database Issues**
-```bash
-rm -rf .envs/antismash8
-bash run_antismash.sh  # Will recreate env and download databases
-```
-
-**6. BiG-SCAPE Installation Fails**
-```bash
-cd /datadrive/Data
-git clone https://github.com/medema-group/BiG-SCAPE.git
-cd BiG-SCAPE
-pip install -e .
-```
-
-**7. InterProScan Java Version**
-```bash
-# InterProScan requires Java 11+
-conda install -c conda-forge openjdk=11 -y
-```
-
-**8. Out of Memory Errors**
-```bash
-export PIPELINE_THREADS=4
-# Or run steps individually with fewer threads
-```
-
-**9. Permission Denied Errors**
-```bash
-sudo chown -R $USER:$USER /datadrive
-chmod +x /datadrive/Code/*.sh
-```
-
-**10. Pipeline Resume Not Working**
-```bash
-ls -la /datadrive/Code/.pipeline_checkpoints/
-rm -rf /datadrive/Code/.pipeline_checkpoints/
-```
-
-### Log File Locations
+## Log File Locations
 
 **Pipeline Logs:**
 ```bash
@@ -1025,21 +885,6 @@ Species/{genus}/{species}/busco_output/{genome}/logs/
 # Gubbins
 Species/{genus}/{species}/gubbins_output/gubbins.log
 ```
-
-### Performance Tips
-
-**Optimize for Speed:**
-1. Use SSD for `/datadrive` if possible
-2. Increase `PIPELINE_THREADS` on high-core systems
-3. Use `--offline` flags when databases are complete
-
-**Optimize for Memory:**
-1. Reduce threads if memory-limited
-2. Process species individually instead of all-at-once
-3. Clear intermediate files between steps
-4. Monitor with `htop` or `free -h`
-
----
 
 ## Citation
 
@@ -1060,5 +905,5 @@ If you use FunPan in your research, please cite the individual tools:
 
 ---
 
-**Last Updated:** 2026-04-16
+**Last Updated:** 2026-09-24
 **Tested With:** Aspergillus oryzae, A. niger, A. flavus, A. fumigatus pangenomes
