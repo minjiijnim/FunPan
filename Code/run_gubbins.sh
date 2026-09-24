@@ -39,10 +39,10 @@ ensure_gubbins_env() {
     echo "> Creating Gubbins side env at $GUBBINS_ENV_PATH ..."
     if command -v mamba >/dev/null 2>&1; then
       mamba create -y -p "$GUBBINS_ENV_PATH" $CONDA_CHANNELS \
-        "python=${GUBBINS_PY}" gubbins raxmlng iqtree fasttree harvesttools
+        "python=${GUBBINS_PY}" gubbins raxml-ng iqtree fasttree harvesttools "setuptools<81"
     else
       conda create -y -p "$GUBBINS_ENV_PATH" $CONDA_CHANNELS \
-        "python=${GUBBINS_PY}" gubbins raxmlng iqtree fasttree harvesttools
+        "python=${GUBBINS_PY}" gubbins raxml-ng iqtree fasttree harvesttools "setuptools<81"
     fi
   fi
 
