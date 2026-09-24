@@ -16,15 +16,17 @@ and comparative genomics.
 
 ## Overview
 
-Given a genus and species, FunPan downloads every NCBI assembly, filters it to a
-high-quality non-redundant set, annotates it structurally and functionally, and
-builds a pangenome with biosynthetic gene clusters and a recombination-filtered
-phylogeny. Six notebooks then analyse the result.
+Given a genus and species, FunPan downloads every NCBI assembly for that
+species, filters them to a high-quality, non-redundant set, and annotates each
+genome structurally and functionally. It then builds a pangenome, predicts
+biosynthetic gene clusters, and infers a phylogeny from a recombination-filtered
+core alignment. Six Jupyter notebooks analyse the results.
 
-Thirteen shell steps do the genomics; the notebooks do the statistics. Execution
-is checkpointed and resumable, threads scale to the machine, RNA-seq evidence is
-pulled from SRA automatically where it exists, and each assembly carries 44
-columns of metadata through to the analysis.
+The pipeline is 13 shell scripts, one per step. Each finished step writes a
+checkpoint, so an interrupted run resumes where it stopped. Scripts set their
+thread count from the machine's core count. Where SRA has RNA-seq data for a
+strain, step 1 downloads it as annotation evidence. Assembly metadata (44
+columns, in `metadata.csv`) stays with each genome through to the notebooks.
 
 ## Documentation
 
