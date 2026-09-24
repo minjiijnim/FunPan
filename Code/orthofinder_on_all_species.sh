@@ -10,7 +10,7 @@ set -euo pipefail
 # Usage:
 #   bash orthofinder_from_funannotate.sh
 #   # or override ROOT:
-#   ROOT="/datadrive/Species" bash orthofinder_from_funannotate.sh
+#   ROOT="/path/to/FunPan/Species" bash orthofinder_from_funannotate.sh
 # ============================================================
 
 ROOT="${ROOT:-../Species}"

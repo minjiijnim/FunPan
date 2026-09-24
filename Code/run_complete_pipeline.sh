@@ -433,8 +433,9 @@ run_script_with_species() {
             set -e
             log_message "Filter script exited with code $exit_code"
             # Check if files were actually created (success indicator)
-            if [[ -d "/datadrive/Species/$GENUS/$SPECIES_NAME/filtered_genome" ]] &&
-               [[ $(ls -1 "/datadrive/Species/$GENUS/$SPECIES_NAME/filtered_genome" 2>/dev/null | wc -l) -gt 0 ]]; then
+            FILTERED_DIR="${SCRIPT_DIR}/../Species/$GENUS/$SPECIES_NAME/filtered_genome"
+            if [[ -d "$FILTERED_DIR" ]] &&
+               [[ $(ls -1 "$FILTERED_DIR" 2>/dev/null | wc -l) -gt 0 ]]; then
                 success=true
                 log_message "Filter script produced output files - treating as successful"
             else

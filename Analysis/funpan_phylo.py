@@ -385,7 +385,7 @@ warnings.filterwarnings('ignore')
 sns.set_style('whitegrid')
 plt.rcParams.update({'font.size': 11, 'figure.dpi': 120})
 
-# sys.path.insert(0, '/datadrive/Analysis')
+# sys.path.insert(0, str(ANALYSIS_ROOT))
 
 
 import pandas as pd
@@ -1148,7 +1148,7 @@ def run_diamond_rare_vs_nonrare(species_list, species_data, species_config,
         Must contain ``og_consensus`` per species with ``Pangenome_Class`` column.
     species_config : dict
     base_path : str
-        Path to the species directory (e.g. ``/datadrive/Species/Aspergillus``)
+        Path to the species directory (e.g. ``<repo>/Species/Aspergillus``)
         whose subdirectories contain ``orthofinder_output/Results_*/Orthogroup_Sequences``.
     results_dir : str
         NB4 results directory; one subfolder per species is created.
@@ -1844,8 +1844,8 @@ def run_phylogenetic_analysis_all_species(species_list, species_data, species_co
 
         # Load IQ-TREE tree
         tree_candidates = [
-            f'/datadrive/Species/{genus}/{sp}/iqtree_output_snv/gubbins_tree.contree',
-            f'/datadrive/Species/{genus}/{sp}/iqtree_output_snv/gubbins_tree.treefile',
+            str(species_path(genus, sp) / 'iqtree_output_snv' / 'gubbins_tree.contree'),
+            str(species_path(genus, sp) / 'iqtree_output_snv' / 'gubbins_tree.treefile'),
         ]
         tree_file = None
         for tc in tree_candidates:
@@ -2052,7 +2052,7 @@ def run_mash_per_species(species_list_mash, species_display_mash,
         print(f'  {species_display_mash[species]} - Mash Distance Computation')
         print(f"{'='*60}")
 
-        genome_dir = f'/datadrive/Species/{genus}/{species}/filtered_genome'
+        genome_dir = str(species_path(genus, species) / 'filtered_genome')
 
         _exc_bases = set()
         if species in ani_excluded:
@@ -2221,7 +2221,7 @@ def run_mash_all_species(species_list_mash, species_display_mash,
     genome_to_species = {}
 
     for species in species_list_mash:
-        genome_dir = f'/datadrive/Species/{genus}/{species}/filtered_genome'
+        genome_dir = str(species_path(genus, species) / 'filtered_genome')
 
         _exc_bases = set()
         if species in ani_excluded:

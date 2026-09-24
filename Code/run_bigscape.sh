@@ -16,7 +16,7 @@ ANTISMASH_DIR="../Species/$species/antismash_output"
 RENAMED_DIR="$ANTISMASH_DIR/antismash_gbk_unique"
 BIGSCAPE_DIR="../Species/$species/bigscape_output"
 PFAM_PATH="../Data/BiG-SCAPE/Pfam-A.hmm"                  # auto-download/index if missing
-BIGSCAPE_SRC="${BIGSCAPE_SRC:-/datadrive/Data/BiG-SCAPE}" # local BiG-SCAPE clone
+BIGSCAPE_SRC="${BIGSCAPE_SRC:-../Data/BiG-SCAPE}"        # local BiG-SCAPE clone
 
 # ---------------------------
 # Helpers
@@ -60,7 +60,7 @@ ensure_pfam() {
 
 
 ensure_bigscape_src() {
-  local target_dir="/datadrive/Data/BiG-SCAPE"
+  local target_dir="$BIGSCAPE_SRC"
   if [[ -d "$target_dir" && -f "$target_dir/bigscape.py" ]]; then
     echo "BiG-SCAPE source found at $target_dir"
     return 0

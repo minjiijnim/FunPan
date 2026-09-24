@@ -45,6 +45,30 @@ except ImportError:
 # CONSTANTS
 # =============================================================================
 
+# ---- Repository location ----
+# Paths are derived from where this file sits, so the repository runs from any
+# directory. Set FUNPAN_ROOT to override, or pass a directory to the functions
+# that accept one.
+
+FUNPAN_ROOT = Path(os.environ.get('FUNPAN_ROOT') or Path(__file__).resolve().parent.parent)
+ANALYSIS_ROOT = FUNPAN_ROOT / 'Analysis'
+SPECIES_ROOT = FUNPAN_ROOT / 'Species'
+DATA_ROOT = FUNPAN_ROOT / 'Data'
+
+
+def species_path(genus, species, root=None):
+    """Return the pipeline output directory for one species.
+
+    Parameters
+    ----------
+    root : str or Path, optional
+        Directory holding the per-genus species folders. Defaults to
+        ``SPECIES_ROOT``.
+    """
+    base = Path(root) if root is not None else SPECIES_ROOT
+    return base / genus / species
+
+
 ACC_RE = re.compile(r"(GC[AF]_\d+\.\d+)")
 
 # EggNOG annotation fields to keep
@@ -324,8 +348,7 @@ def load_all_metadata(genus, species_list, json_basename="busco_updated.jsonl"):
     """Load metadata for ALL downloaded genomes (before filtering)."""
     frames = []
     for species in species_list:
-        species_dir = os.path.join(f"/datadrive/Species/{genus}", species)
-        json_path = os.path.join(species_dir, json_basename)
+        json_path = os.path.join(species_path(genus, species), json_basename)
 
         if not os.path.isfile(json_path):
             print(f"[warn] No metadata found for {species}")
@@ -377,7 +400,7 @@ def get_filtered_accessions(genus, species_list):
     acc_re = re.compile(r"(GC[AF]_\d+\.\d+)")
 
     for species in species_list:
-        funannotate_dir = os.path.join(f"/datadrive/Species/{genus}", species, "funannotate_output")
+        funannotate_dir = os.path.join(species_path(genus, species), "funannotate_output")
         accs = set()
         if os.path.isdir(funannotate_dir):
             for folder in os.listdir(funannotate_dir):
@@ -395,7 +418,7 @@ def get_proteome_accessions(genus, species_list):
     acc_re = re.compile(r"(GC[AF]_\d+\.\d+)")
 
     for species in species_list:
-        protein_dir = os.path.join(f"/datadrive/Species/{genus}", species, "filtered_protein")
+        protein_dir = os.path.join(species_path(genus, species), "filtered_protein")
         accs = set()
         if os.path.isdir(protein_dir):
             for f in os.listdir(protein_dir):
@@ -1202,7 +1225,7 @@ def _run_fastani_for_species(species, genus='Aspergillus', threads=8):
 
     Returns list of dicts with 'accession' and 'ani', or empty list on failure.
     """
-    genome_dir = f'/datadrive/Species/{genus}/{species}/filtered_genome'
+    genome_dir = str(species_path(genus, species) / 'filtered_genome')
     if not os.path.isdir(genome_dir):
         print(f'  {species}: No filtered_genome directory')
         return []
@@ -1515,7 +1538,7 @@ def check_section_nigri(results_base, species_root=None, species='niger', genus=
         Where to write ``nigri_check/`` and the summary CSV.
     species_root : str or Path, optional
         Directory holding the species genomes. Defaults to
-        ``/datadrive/Species/<genus>/<species>``; pass it explicitly to point at
+        ``<repo>/Species/<genus>/<species>``; pass it explicitly to point at
         your own layout.
 
     Returns
@@ -1529,7 +1552,7 @@ def check_section_nigri(results_base, species_root=None, species='niger', genus=
     if nigri_refs is None:
         nigri_refs = NIGRI_REFS
     if species_root is None:
-        species_root = f'/datadrive/Species/{genus}/{species}'
+        species_root = species_path(genus, species)
 
     species_root = Path(species_root)
     out_dir = Path(results_base) / 'nigri_check'
@@ -1950,7 +1973,7 @@ def print_nb0_summary(df_classified, df_analysis, species_list, results_base):
 # artefacts it needs, so any section can run from a fresh kernel without first
 # executing the sections above it.
 
-NB0_RESULTS_BASE = '/datadrive/Analysis/NB0_Results'
+NB0_RESULTS_BASE = str(ANALYSIS_ROOT / 'NB0_Results')
 
 # Species exclusions applied to the QC-passed set in NB0 Section 2.
 # Accessions carry the assembly VERSION suffix, unlike the module-level

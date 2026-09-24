@@ -24,6 +24,11 @@ See also: [notebooks](README.md), [shell pipeline](../Code/README.md).
 - **Paths are parameters.** Functions take their input and output directories as
   arguments, supplied by the notebook's path block. No module hard-codes a data
   directory.
+- **Defaults are relative to the repository.** `funpan_utils` derives
+  `FUNPAN_ROOT` from its own file location, giving `SPECIES_ROOT`, `ANALYSIS_ROOT`
+  and `DATA_ROOT`. Functions that take no explicit directory fall back to these,
+  so the modules work wherever the repository is cloned. Set the `FUNPAN_ROOT`
+  environment variable to override, or call `species_path(genus, species, root=...)`.
 - **Caches take a `force` argument.** The docstring names the cache file.
 - **Plotting functions save a PNG and return the figure.** The notebook calls
   `plt.show()`.

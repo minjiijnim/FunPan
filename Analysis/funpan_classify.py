@@ -2147,8 +2147,11 @@ try:
 except ImportError:
     HAS_CARTOPY = False
 
-# Default paths for geographic data (stored in NB0_Results)
-RESULTS_BASE = '/datadrive/Analysis/NB0_Results'
+# Default paths for geographic data (stored in NB0_Results). Derived from this
+# file's location so the repository runs from any directory; FUNPAN_ROOT overrides.
+_FUNPAN_ROOT = os.environ.get('FUNPAN_ROOT') or os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__)))
+RESULTS_BASE = os.path.join(_FUNPAN_ROOT, 'Analysis', 'NB0_Results')
 GEOCODE_CACHE_PATH = os.path.join(RESULTS_BASE, 'geocode_cache.json')
 MANUAL_LATLON_PATH = os.path.join(RESULTS_BASE, 'manual_latlon_additions.txt')
 

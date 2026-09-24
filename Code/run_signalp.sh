@@ -81,7 +81,7 @@ if $IS_V6; then
     MODEL_WEIGHTS_DIR="$SIGNALP_PACKAGE/model_weights"
     EXPECTED_MODEL="$MODEL_WEIGHTS_DIR/distilled_model_signalp6.pt"
     # Adjust this source path if your model file is elsewhere:
-    SOURCE_MODEL="/datadrive/Data/SignalP/models/distilled_model_signalp6.pt"
+    SOURCE_MODEL="../Data/SignalP/models/distilled_model_signalp6.pt"
 
     if [[ ! -f "$EXPECTED_MODEL" ]]; then
       echo "> Model file missing in site-packages: $EXPECTED_MODEL"

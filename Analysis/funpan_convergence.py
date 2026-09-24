@@ -1103,7 +1103,7 @@ def build_species_to_combined_og_map(species_list, species_root, combined_og_lon
         Species keys.
     species_root : pathlib.Path or str
         Root directory containing per-species OrthoFinder outputs
-        (e.g. ``/datadrive/Species/Aspergillus``).
+        (e.g. ``<repo>/Species/Aspergillus``).
     combined_og_long : pd.DataFrame
         Long-format combined OrthoFinder table with columns
         ``Protein_ID`` and ``Orthogroup``.

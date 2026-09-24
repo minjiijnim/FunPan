@@ -10,7 +10,7 @@ See also: [project overview](../README.md), [shell pipeline](../Code/README.md),
 
 ```bash
 conda activate funpan
-cd /datadrive/Code
+cd FunPan/Code
 bash run_analysis_notebooks.sh            # all six
 bash run_analysis_notebooks.sh --from NB2 # start at NB2
 bash run_analysis_notebooks.sh --only NB3 # one notebook
@@ -19,7 +19,7 @@ bash run_analysis_notebooks.sh --only NB3 # one notebook
 Outputs are saved into the notebooks in place. To work interactively:
 
 ```bash
-cd /datadrive/Analysis && jupyter notebook NB0_DataPrep.ipynb
+cd FunPan/Analysis && jupyter notebook NB0_DataPrep.ipynb
 ```
 
 ## Order
@@ -45,10 +45,17 @@ Every bootstrap cell starts with the path block:
 
 ```python
 # --- Paths: edit these to point at your own data ---
-ANALYSIS_DIR = Path('/datadrive/Analysis')
-SPECIES_DIR  = Path('/datadrive/Species')
+FUNPAN_ROOT  = next(p for p in [Path.cwd(), *Path.cwd().parents]
+                 if (p / 'Analysis').is_dir() and (p / 'Code').is_dir())
+ANALYSIS_DIR = FUNPAN_ROOT / 'Analysis'
+SPECIES_DIR  = FUNPAN_ROOT / 'Species'
 GENUS        = 'Aspergillus'
 ```
+
+`FUNPAN_ROOT` is found by walking up from the working directory to the folder
+holding both `Analysis/` and `Code/`, so the notebooks work from wherever the
+repository is cloned, with nothing to edit. Point `SPECIES_DIR` somewhere else to
+read genomes from outside the repository.
 
 ## The notebooks
 

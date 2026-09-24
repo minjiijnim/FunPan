@@ -36,7 +36,7 @@ echo "  Mash dedup threshold: $MASH_THRESHOLD"
 echo "==========================================================================="
 
 metadata_file="../Species/${species_name}/metadata.csv"
-base_dir="/datadrive/Species/${species_name}"
+base_dir="../Species/${species_name}"
 genome_dir="${base_dir}/genome"
 protein_dir="${base_dir}/protein"
 busco_dir="${base_dir}/busco_output"

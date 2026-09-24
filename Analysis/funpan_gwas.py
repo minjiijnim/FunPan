@@ -1205,7 +1205,7 @@ def _build_bgc_og_mapping(species, genus='Aspergillus'):
     scaffold, product, mibig, region_start, region_end
     """
     import json as _json, re, glob
-    species_dir = f'/datadrive/Species/{genus}/{species}'
+    species_dir = str(species_path(genus, species))
     as_base = os.path.join(species_dir, 'antismash_output')
     og_tsvs = glob.glob(os.path.join(species_dir, 'orthofinder_output',
                                       '*', 'Orthogroups', 'Orthogroups.tsv'))
