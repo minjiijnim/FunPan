@@ -1,481 +1,94 @@
 # FunPan Pipeline Scripts
 
-Reference for the 13-step shell pipeline in `Code/`. Run it end to end with
-`run_complete_pipeline.sh`, or run any step on its own.
+Thirteen steps, one script each, run per species. Every path below is relative to
+`Species/{genus}/{species}/`.
 
-For an overview of the project, environment setup and quick start, see the
-[main README](../README.md). For the downstream analysis notebooks, see
-[Analysis/README.md](../Analysis/README.md).
+See also: [project overview](../README.md), [analysis notebooks](../Analysis/README.md).
 
----
+## Running
 
-## Table of Contents
-
-1. [Tools & Scripts Documentation](#tools--scripts-documentation)
-2. [Tool-Specific Parameters](#tool-specific-parameters)
-3. [Additional Standalone Scripts](#additional-standalone-scripts)
-4. [Log File Locations](#log-file-locations)
-
----
-
-## Tools & Scripts Documentation
-
-### 1. `run_complete_pipeline.sh` - Master Pipeline Controller
-
-**Purpose:** Orchestrates all 13 pipeline steps with progress tracking and error handling.
-
-**Key Features:**
-- Interactive step selection (resume, fresh start, specific step)
-- Real-time progress bar with colored output
-- Automatic CPU detection (uses 75% of available cores)
-- Checkpoint-based resumption
-- Comprehensive logging to `.pipeline_logfiles/`
-
-**Environment Variables:**
-- `PIPELINE_THREADS`: Number of threads to use (default: auto-detected)
-
-**Usage:**
 ```bash
 bash run_complete_pipeline.sh
 ```
 
-**Checkpoint Files:**
-```
-.pipeline_checkpoints/
-├── step_1.completed
-├── step_2.completed
-├── ...
-└── pipeline_inputs.txt  # Saved genus, species, lineage
-```
-
----
-
-### 2. `download_genome_and_BUSCO.sh` - Genome Acquisition & QC
-
-**Purpose:** Download genomes from NCBI and assess quality with BUSCO.
-
-**Parameters:**
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `PIPELINE_THREADS` | auto (total-4) | CPU threads for BUSCO |
-| `BUSCO_THREADS` | `PIPELINE_THREADS` | BUSCO-specific threads |
-| `BUSCO_MODE` | `auto` | Lineage detection: `auto`, `auto_euk`, `auto_prok` |
-| `BUSCO_OFFLINE` | `0` | Set to `1` for offline mode |
-| `BUSCO_LINEAGE` | auto-detected | Force specific lineage (e.g., `eurotiomycetes_odb10`) |
-
-**Process Flow:**
-1. **Download:** Uses NCBI Datasets CLI to fetch:
-   - Genome assemblies (`.fna`)
-   - Protein sequences (`.faa`)
-   - GenBank files (`.gbk`)
-   - GFF3 annotations (`.gff3`)
-
-2. **RNA-seq Discovery:**
-   - Extracts BioSample IDs from assembly metadata
-   - Queries SRA for linked RNA-seq runs
-   - Downloads FASTQ files from ENA
-   - Organizes by strain: `rna/{strain_name}/`
-
-3. **Duplicate Handling:**
-   - Identifies GCA/GCF pairs (same genome, GenBank vs RefSeq)
-   - Keeps GCF (RefSeq), removes GCA
-   - Cleans up orphaned BUSCO results
-
-4. **BUSCO Analysis:**
-   - Auto-detects lineage from first genome
-   - Reuses lineage for all subsequent genomes
-   - Saves lineage to `pipeline_inputs.txt`
-   - Cleans up redundant lineage results
-
-5. **Metadata Generation:**
-   - Merges BUSCO scores into assembly metadata
-   - Extracts isolation source, location, collection date
-   - Outputs `metadata.csv` and `busco_updated.jsonl`
-
-**Output:**
-```
-Species/{genus}/{species}/
-├── genome/                      # Genome FASTA files
-├── protein/                     # Protein FASTA files
-├── genbank/                     # GenBank format files
-├── gff3/                        # GFF3 annotation files
-├── rna/{strain_name}/           # RNA-seq FASTQ files
-│   ├── runs.txt                # List of SRA run IDs
-│   └── {SRR}.fastq.gz          # Downloaded reads
-├── busco_output/{genome_name}/  # BUSCO results per genome
-├── metadata.csv                 # Comprehensive metadata table
-├── busco_updated.jsonl          # JSONL with BUSCO scores
-└── biosamples.tsv               # Assembly-BioSample mapping
-```
-
----
-
-### 3. `ani_and_filter_genome_QC.sh` - ANI Species Check, Deduplication & QC Filtering
-
-**Purpose:** Verify species identity, remove near-identical duplicates, and filter genomes by assembly quality metrics.
-
-**Usage:**
-```bash
-bash ani_and_filter_genome_QC.sh Aspergillus/flavus [ANI_THRESHOLD] [MASH_THRESHOLD]
-```
-
-**Process Flow:**
-
-1. **ANI Species Verification (fastANI):**
-   - Compares all genomes against the GCF reference genome
-   - Removes genomes below the ANI threshold (default: 95%)
-   - Genomes too divergent to compute ANI are also removed
-
-2. **Mash Deduplication:**
-   - Sketches ANI-passed genomes with Mash (sketch size 10,000)
-   - Computes all-vs-all Mash distances
-   - Clusters near-identical genomes (default threshold: 0.0001 = 99.99% identity)
-   - Keeps the highest-quality representative per cluster
-
-3. **QC Filtering (same criteria as before):**
-
-| Metric | Threshold | Rationale |
-|--------|-----------|-----------|
-| **BUSCO Complete** | > 95% | Ensures genome completeness |
-| **Contig Count** | ≤ median | Prefers more contiguous assemblies |
-| **Contig N50** | ≥ 75th percentile | Prefers longer contigs |
-| **GCF Requirement** | ≥ 1 | Always includes at least one RefSeq genome |
-
-**Parameters:**
-
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `ANI_THRESHOLD` | 95 | Minimum ANI% to GCF reference |
-| `MASH_THRESHOLD` | 0.0001 | Maximum Mash distance for duplicate detection (~99.99% identity) |
-
-**Dependencies:** `fastANI`, `mash` — auto-installed via conda/mamba if not found on PATH.
-
-**Input:**
-- `metadata.csv` from Step 1
-- Genome files in `genome/`
-- Protein files in `protein/`
-
-**Output:**
-```
-filtered_genome/     # High-quality genome assemblies
-filtered_protein/    # Corresponding protein sequences
-qc_work/             # Intermediate files (ANI results, Mash distances, dedup lists)
-```
-
----
-
-### 4. `run_funannotate.sh` - Structural & Functional Annotation
-
-**Purpose:** Predict genes and annotate genomes using ab initio and evidence-based methods.
-
-**Process Flow:**
-
-1. **FASTA Header Renaming:** Converts contig names to `scaffold_1`, `scaffold_2`, etc.
-2. **GFF3 Validation:** Checks for contig mismatches, mRNA features, duplicate IDs
-3. **Assembly Cleaning:** Removes short contigs (`funannotate clean`)
-4. **Repeat Masking:** De novo RepeatModeler library + RepeatMasker soft-masking
-5. **Protein Evidence Selection:** Best GCF proteome as reference + strain-specific
-6. **RNA-seq Evidence:** Auto-detects RNA-seq files per strain
-7. **Gene Prediction:** EvidenceModeler integration with ab initio predictors
-
-**Output:**
-```
-funannotate_output/{genome}/
-├── {genome}.clean.fa            # Cleaned assembly
-├── {genome}.softmasked.fa       # Repeat-masked assembly
-├── predict_results/
-│   ├── {genome}.gbk            # GenBank annotation
-│   ├── {genome}.gff3           # GFF3 annotation
-│   ├── {genome}.proteins.fa    # Predicted proteins
-│   └── {genome}.transcripts.fa # Predicted transcripts
-└── logfiles/
-```
-
----
-
-### 5. `run_eggnog.sh` - Functional Annotation
-
-**Purpose:** Assign functional annotations (GO terms, KEGG pathways, domains) via orthology.
-
-**Input:** `*.proteins.fa` from Funannotate predict results
-
-**Output:**
-```
-eggnog_output/
-├── {genome}.emapper.annotations  # Tab-delimited functional annotations
-├── {genome}.emapper.hits         # DIAMOND hits
-└── {genome}.emapper.seed_orthologs
-```
-
-**Annotation Fields:** GO terms, KEGG KO numbers and pathways, COG functional categories
-
----
-
-### 6. `run_orthofinder.sh` - Comparative Genomics
-
-**Purpose:** Identify orthogroups and infer evolutionary relationships.
-
-**Input:** `*.proteins.fa` from Funannotate predict results
-
-**Options:** `-S diamond -M msa -A mafft`
-
-**Output:**
-```
-orthofinder_output/Results_{date}/
-├── Orthogroups/
-│   ├── Orthogroups.tsv              # Gene-to-orthogroup mapping
-│   ├── Orthogroups.GeneCount.tsv    # Counts per species
-│   └── Orthogroups_SingleCopyOrthologues.txt
-├── MultipleSequenceAlignments/      # MSA per orthogroup
-├── Species_Tree/
-│   └── SpeciesTree_rooted.txt       # Newick format
-└── Gene_Trees/                      # Individual gene trees
-```
-
----
-
-### 7. `run_antismash.sh` - Secondary Metabolite Detection
-
-**Purpose:** Identify and characterize biosynthetic gene clusters (BGCs).
-
-**Isolated Environment:** Creates separate conda env at `.envs/antismash8` to avoid conflicts.
-
-**antiSMASH Options:**
-- `--taxon fungi`: Fungal-specific gene cluster detection
-- `--genefinding-tool none`: Uses existing Funannotate annotations
-- `--asf`, `--cb-knownclusters`, `--cb-general`, `--cb-subclusters`, `--pfam2go`
-
-**Input:** GenBank files (`.gbk`) from Funannotate predict results
-
-**Output:**
-```
-antismash_output/{genome}/
-├── index.html                   # Interactive report
-├── {genome}.gbk                 # Annotated GenBank with BGCs
-├── *.region001.gbk              # Individual BGC GenBank files
-└── knownclusterblast/           # MIBiG comparisons
-```
-
----
-
-### 8. `run_interproscan.sh` - Protein Domain Annotation
-
-**Purpose:** Scan protein sequences against InterPro signature databases (Pfam, SMART, CDD, PANTHER, etc.).
-
-**Features:**
-- Auto-installs InterProScan if not found (downloads ~2.5 GB)
-- Optimized tool set by default (excludes Hamap, ProSitePatterns, PRINTS for ~30-40% speedup)
-- `TEST_MODE=1` to process only first file for testing
-
-**Input:** `*.proteins.fa` from Funannotate predict results
-
-**Output:**
-```
-interproscan_output/{genome}/
-├── {genome}.tsv                 # Tab-separated annotations
-├── {genome}.gff3                # GFF3 format annotations
-└── {genome}.xml                 # XML format annotations
-```
-
----
-
-### 9. `run_signalp.sh` - Signal Peptide Prediction
-
-**Purpose:** Predict signal peptides in protein sequences using SignalP 6.
-
-**Features:**
-- Auto-tunes parallel jobs and torch threads based on CPU cores
-- Supports both SignalP 6.x and legacy versions
-- `TEST_MODE=1` to process only first file for testing
-
-**Input:** `*.proteins.fa` from Funannotate predict results
-
-**Output:**
-```
-signalp_output/{genome}/
-├── prediction_results.txt       # Signal peptide predictions
-└── signalp.log                  # Run log
-```
-
----
-
-### 10. `run_dbcan.sh` - CAZyme Annotation
-
-**Purpose:** Annotate carbohydrate-active enzymes (CAZymes) using the dbCAN database.
-
-**Features:**
-- Auto-downloads dbCAN database if not present
-- Supports multiple detection methods (HMM, DIAMOND, dbCANsub)
-- Skips completed samples automatically
-
-**Input:** `*.proteins.fa` from Funannotate predict results
-
-**Output:**
-```
-dbcan_output/{genome}/
-└── overview.tsv                 # CAZyme annotations summary
-```
-
----
-
-### 11. `run_parsnp.sh` - Core Genome Alignment
-
-**Purpose:** Perform rapid core genome alignment using Parsnp.
-
-**Features:**
-- Auto-selects best quality reference genome (prefers GCF/RefSeq)
-- Requires at least 3 genomes
-- Uses funannotate cleaned genomes (`*.clean.fa`)
-
-**Input:** `*.clean.fa` from Funannotate output directories
-
-**Output:**
-```
-parsnp_output/
-├── parsnp.tree                  # Newick phylogenetic tree
-├── parsnp.xmfa                  # Core genome alignment (XMFA)
-└── parsnp.ggr                   # Gingr visualization file
-```
-
----
-
-### 12. `run_bigscape.sh` - BGC Network Analysis
-
-**Purpose:** Compare BGCs across genomes and group into Gene Cluster Families (GCFs).
-
-**Dependencies:** Auto-clones BiG-SCAPE from GitHub, downloads Pfam-A.hmm
-
-**Process Flow:**
-1. Collect `*.region*.gbk` from antiSMASH output
-2. Rename with genome accession prefix into `antismash_gbk_unique/`
-3. Run BiG-SCAPE clustering (GCF cutoff: 0.3)
-
-**Output:**
-```
-bigscape_output/
-├── index.html                   # Interactive network viewer
-├── data_sqlite.db               # SQLite database of results
-└── network_files/               # Cytoscape-compatible networks
-```
-
----
-
-### 13. `run_gubbins.sh` - Recombination Detection
-
-**Purpose:** Detect and remove recombination regions from core genome alignment.
-
-**Isolated Environment:** Creates separate conda env at `.envs/gubbins` with Gubbins, IQ-TREE, RAxML-NG, FastTree, and harvesttools.
-
-**Features:**
-- Converts Parsnp XMFA to FASTA via harvesttools
-- Tries IQ-TREE first, falls back to RAxML-NG if it fails
-- Requires at least 3 sequences
-
-**Input:** `parsnp_output/parsnp.xmfa` from Step 10
-
-**Output:**
-```
-gubbins_output/
-├── gubbins.final_tree.tre                       # Recombination-corrected tree
-├── gubbins.recombination_predictions.gff        # Detected recombination regions
-├── gubbins.filtered_polymorphic_sites.fasta     # Filtered alignment
-└── gubbins.node_labelled.final_tree.tre         # Node-labeled tree
-```
-
----
-
-### 14. `run_iqtree_gubbins.sh` - SNV-based Phylogeny
-
-**Purpose:** Build phylogenetic tree from recombination-filtered SNVs using IQ-TREE 2.
-
-**Features:**
-- ModelFinder for optimal substitution model selection
-- 1000 ultrafast bootstrap replicates with BNNI correction
-- Requires IQ-TREE 2.x specifically
-
-**Input:** `gubbins_output/gubbins.filtered_polymorphic_sites.fasta` from Step 12
-
-**Output:**
-```
-iqtree_output_snv/
-├── gubbins_tree.treefile        # Maximum likelihood tree
-├── gubbins_tree.iqtree          # Full IQ-TREE report
-└── gubbins_tree.log             # Run log
-```
-
----
-
-## Tool-Specific Parameters
-
-**Funannotate:**
-- Augustus training: automatic per species
-- Protein evidence weight: best quality proteome + strain-specific
-- GFF3 evidence weight: 10 (high confidence)
-- Minimum protein length: 50 aa (Funannotate default)
-
-**OrthoFinder:**
-- Inflation parameter: 1.5 (MCL default)
-- E-value threshold: 1e-3
-- MSA tool: MAFFT
-- Tree inference: FastTree (default) or IQ-TREE
-
-**antiSMASH:**
-- Detection strictness: relaxed (default)
-- Minimum cluster size: follows antiSMASH defaults
-- All detection modules enabled
-
-**BiG-SCAPE:**
-- Cutoff: 0.3 (balanced)
-  - 0.1-0.2: very strict (many small GCFs)
-  - 0.3-0.5: moderate (recommended)
-  - 0.6-0.9: loose (few large GCFs)
-
-**InterProScan:**
-- Default applications: AntiFam, CDD, Coils, FunFam, Gene3D, MobiDBLite, NCBIfam, PANTHER, Pfam, PIRSF, PIRSR, ProSiteProfiles, SFLD, SMART, SUPERFAMILY
-- Override with `INTERPRO_APPS="Pfam,SMART,CDD"`
-
-**SignalP:**
-- Organism: `euk` (eukaryote, default)
-- Torch threads per job: 3 (default)
-- Override parallel jobs with `SIGNALP_JOBS=30`
-
-**dbCAN:**
-- Methods: HMM, DIAMOND, dbCANsub (all by default)
-- Override with `DBCAN_METHODS="hmm,diamond"`
-
----
-
-## Additional Standalone Scripts
-
-### `orthofinder_on_all_species.sh` - Cross-Species OrthoFinder
-
-Runs OrthoFinder on protein files from multiple species simultaneously. Required before NB3 (convergence analysis).
+`run_complete_pipeline.sh` first offers a fresh start, a resume, or one step, then
+asks for genus and species. It sets `PIPELINE_THREADS` to 75% of the cores and
+exports it, writes a `.pipeline_checkpoints/step_N.completed` marker per step and
+logs to `.pipeline_logfiles/pipeline_*.log`. Saved answers, including the BUSCO
+lineage, go to `.pipeline_checkpoints/pipeline_inputs.txt`.
+
+Any step also runs on its own. Step 1 prompts for genus and species on separate
+lines, step 2 takes `genus/species` as an argument, and steps 3 to 13 prompt for
+`genus/species`:
 
 ```bash
-bash orthofinder_on_all_species.sh
-# Prompts for: genus, space-separated species list
-# Output: Species/{genus}/all_combined/orthofinder_output/
+echo Aspergillus/flavus | bash run_funannotate.sh
+bash ani_and_filter_genome_QC.sh Aspergillus/flavus
 ```
 
----
+## Steps
 
-## Log File Locations
+| # | Script | Does | Input | Output |
+|---|---|---|---|---|
+| 1 | `download_genome_and_BUSCO.sh` | NCBI Datasets download, SRA/ENA RNA-seq fetch, GCA/GCF deduplication, BUSCO | genus + species | `genome/`, `protein/`, `genbank/`, `gff3/`, `rna/{strain}/`, `busco_output/`, `metadata.csv` |
+| 2 | `ani_and_filter_genome_QC.sh` | fastANI species check, Mash deduplication, quality filter | `metadata.csv`, `genome/`, `protein/` | `filtered_genome/`, `filtered_protein/`, `qc_work/` |
+| 3 | `run_funannotate.sh` | Contig renaming, GFF3 validation, RepeatModeler/RepeatMasker, EvidenceModeler gene prediction | `filtered_genome/`, `gff3/`, `rna/` | `funannotate_output/{genome}/predict_results/` |
+| 4 | `run_eggnog.sh` | eggNOG-mapper: GO, KEGG KO and pathway, COG category | `*.proteins.fa` | `eggnog_output/{genome}.emapper.annotations` |
+| 5 | `run_orthofinder.sh` | Orthogroups and species tree (`-S diamond -M msa -A mafft`) | `*.proteins.fa` | `orthofinder_output/Results_*/` |
+| 6 | `run_antismash.sh` | Biosynthetic gene clusters, fungal taxon | `*.gbk` | `antismash_output/{genome}/` |
+| 7 | `run_interproscan.sh` | InterPro signatures: Pfam, SMART, CDD, PANTHER and others | `*.proteins.fa` | `interproscan_output/{genome}/{genome}.tsv` |
+| 8 | `run_signalp.sh` | SignalP 6 signal peptides | `*.proteins.fa` | `signalp_output/{genome}/prediction_results.txt` |
+| 9 | `run_dbcan.sh` | dbCAN CAZymes | `*.proteins.fa` | `dbcan_output/{genome}/overview.tsv` |
+| 10 | `run_parsnp.sh` | Core genome alignment, reference auto-selected | `*.clean.fa` | `parsnp_output/parsnp.{xmfa,tree,ggr}` |
+| 11 | `run_bigscape.sh` | BiG-SCAPE gene cluster families, cutoff 0.3 | `*.region*.gbk` | `bigscape_output/` |
+| 12 | `run_gubbins.sh` | Recombination detection on the core alignment | `parsnp_output/parsnp.xmfa` | `gubbins_output/gubbins.filtered_polymorphic_sites.fasta` |
+| 13 | `run_iqtree_gubbins.sh` | IQ-TREE 2 phylogeny, ModelFinder, 1000 UFBoot | `gubbins_output/gubbins.filtered_polymorphic_sites.fasta` | `iqtree_output_snv/gubbins_tree.treefile` |
 
-**Pipeline Logs:**
-```bash
-/datadrive/Code/.pipeline_logfiles/pipeline_YYYYMMDD_HHMMSS.log
+Steps 6 and 12 build their own conda environments under `.envs/` to keep
+antiSMASH and Gubbins off the main environment. Steps 2, 7, 9 and 11 install
+their tools or databases on first run if they are missing.
+
+## Parameters
+
+Set any of these in the environment before running a step.
+
+| Step | Variable | Default | Effect |
+|---|---|---|---|
+| all | `PIPELINE_THREADS` | 75% of cores under the controller, cores minus 4 standalone | Thread count |
+| 1 | `BUSCO_THREADS` | `PIPELINE_THREADS` | Threads for BUSCO only |
+| 1 | `BUSCO_MODE` | `auto` | `auto`, `auto_euk` or `auto_prok` |
+| 1 | `BUSCO_LINEAGE` | auto-detected | Forces a lineage, for example `eurotiomycetes_odb10` |
+| 1 | `BUSCO_OFFLINE` | `0` | `1` uses local lineage files only |
+| 7, 8 | `TEST_MODE` | `0` | `1` processes the first genome only |
+| 7 | `INTERPRO_APPS` | 15 applications | Comma-separated application list |
+| 8 | `SIGNALP_JOBS` | auto | Parallel jobs, 3 torch threads each |
+| 9 | `DBCAN_METHODS` | `hmm,diamond,dbcansub` | Detection methods |
+
+Step 2 also takes two optional arguments after the species:
+`ANI_THRESHOLD` (default 95, minimum ANI percent to the RefSeq reference) and
+`MASH_THRESHOLD` (default 0.0001, the distance below which two assemblies count
+as duplicates).
+
+Step 2 quality thresholds: BUSCO complete above 95%, contig count at or below the
+median, N50 at or above the 75th percentile, at least one RefSeq assembly kept.
+
+Fixed tool settings worth knowing: OrthoFinder inflation 1.5 and e-value 1e-3;
+Funannotate minimum protein length 50 aa and GFF3 evidence weight 10; SignalP
+organism `euk`; antiSMASH relaxed strictness with all detection modules on;
+BiG-SCAPE cutoff 0.3, where 0.1 to 0.2 is strict and 0.6 to 0.9 is loose.
+
+## Standalone scripts
+
+| Script | Does |
+|---|---|
+| `orthofinder_on_all_species.sh` | OrthoFinder across several species at once, into `Species/{genus}/all_combined/orthofinder_output/`. NB3 needs it. Prompts for genus and a species list |
+| `run_analysis_notebooks.sh` | Executes the six analysis notebooks. See [Analysis/README.md](../Analysis/README.md) |
+
+## Logs
+
 ```
-
-**Tool-Specific Logs:**
-```bash
-# Funannotate
+Code/.pipeline_logfiles/pipeline_YYYYMMDD_HHMMSS.log
 Species/{genus}/{species}/funannotate_output/{genome}/logfiles/
-
-# BUSCO
 Species/{genus}/{species}/busco_output/{genome}/logs/
-
-# Gubbins
 Species/{genus}/{species}/gubbins_output/gubbins.log
 ```
-
