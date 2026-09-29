@@ -4,6 +4,8 @@ A pipeline for downloading, quality-filtering, annotating and analysing
 filamentous fungi pangenomes, with a focus on secondary metabolite biosynthesis
 and comparative genomics.
 
+![FunPan pipeline overview](pipeline.png)
+
 ## Contents
 
 1. [Overview](#overview)
@@ -83,8 +85,6 @@ script's arguments, parameters and outputs, and
 [`Analysis/README.md`](Analysis/README.md) for the notebooks.
 
 ## Pipeline architecture
-
-![FunPan pipeline overview](pipeline.png)
 
 ```
 1  download_genome_and_BUSCO       NCBI assemblies, RNA-seq, BUSCO
