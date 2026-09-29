@@ -84,6 +84,8 @@ script's arguments, parameters and outputs, and
 
 ## Pipeline architecture
 
+![FunPan pipeline overview](pipeline.png)
+
 ```
 1  download_genome_and_BUSCO       NCBI assemblies, RNA-seq, BUSCO
 2  ani_and_filter_genome_QC        fastANI, Mash, quality filter
