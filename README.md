@@ -13,6 +13,7 @@ and comparative genomics.
 5. [Pipeline architecture](#pipeline-architecture)
 6. [Repository layout](#repository-layout)
 7. [Citation](#citation)
+8. [Contact](#contact)
 
 ## Overview
 
@@ -150,7 +151,13 @@ FunPan/
 
 ## Citation
 
-Cite the tools the pipeline calls:
+If you use FunPan, please cite the preprint:
+
+> Kim M, Ardalani O, Kerkhoven EJ, Phaneuf PV. Four-species *Aspergillus*
+> pan-GWAS reveals rare genome expansion in pathogenicity and contraction in
+> domestication. Preprint, 2026. https://doi.org/10.64898/2026.08.20.745736
+
+Also cite the tools the pipeline calls:
 
 - BUSCO: Manni et al., 2021. Molecular Biology and Evolution.
 - Funannotate: Palmer & Stajich, 2020. Funannotate v1.8.1. Zenodo.
@@ -167,3 +174,9 @@ Cite the tools the pipeline calls:
 
 Tested with *Aspergillus oryzae*, *A. niger*, *A. flavus* and *A. fumigatus*
 pangenomes.
+
+## Contact
+
+If you run into any problems, please
+[open an issue](https://github.com/minjiijnim/FunPan/issues) and we will try
+our best to help.
