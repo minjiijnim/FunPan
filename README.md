@@ -6,7 +6,7 @@ and comparative genomics.
 
 ![FunPan pipeline overview](pipeline.png)
 
-*Overview of the FunPan pipeline, from genome retrieval and annotation to pangenome construction and pan-GWAS. Figure from Kim et al., 2026 ([preprint](https://doi.org/10.64898/2026.08.20.745736)).*
+*Overview of the FunPan pipeline, from genome retrieval and annotation to pangenome construction and pan-GWAS
 
 ## Contents
 
