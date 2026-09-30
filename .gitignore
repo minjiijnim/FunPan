@@ -1,0 +1,22 @@
+# Input data (distributed separately)
+Data/
+Species/
+
+# Notebook outputs
+Analysis/NB*_Results/
+
+# Pipeline conda envs, checkpoints, logs
+Code/.envs/
+Code/.pipeline_checkpoints/
+Code/.pipeline_logfiles/
+
+# Python / Jupyter
+__pycache__/
+.ipynb_checkpoints/
+
+# Secrets (e.g. NCBI API key)
+.env
+
+# Editor / OS
+.vscode/
+.DS_Store
