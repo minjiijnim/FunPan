@@ -1,0 +1,53 @@
+cff-version: 1.2.0
+message: "If you use FunPan, please cite the preprint listed under preferred-citation, together with the tools listed in the README."
+title: "FunPan: Filamentous Fungi Pangenome Analysis Pipeline"
+abstract: >-
+  FunPan downloads, quality-filters, annotates and analyses filamentous fungi
+  pangenomes, with a focus on secondary metabolite biosynthesis and comparative
+  genomics. This software accompanies the manuscript "Four-species Aspergillus
+  pan-GWAS reveals rare genome expansion in pathogenicity and contraction in
+  domestication".
+type: software
+version: 1.0.0
+date-released: "2026-10-05"
+license: MIT
+repository-code: "https://github.com/minjiijnim/FunPan"
+keywords:
+  - Aspergillus
+  - pangenome
+  - pan-GWAS
+  - comparative genomics
+  - biosynthetic gene clusters
+  - fungi
+authors:
+  - family-names: Kim
+    given-names: Minji
+    affiliation: "The Novo Nordisk Foundation Biotechnology Research Institute for the Green Transition, Technical University of Denmark, Kongens Lyngby, Denmark"
+    orcid: "https://orcid.org/0009-0006-8989-8620"
+  - family-names: Ardalani
+    given-names: Omid
+    affiliation: "The Novo Nordisk Foundation Biotechnology Research Institute for the Green Transition, Technical University of Denmark, Kongens Lyngby, Denmark"
+    orcid: "https://orcid.org/0000-0002-0064-3802"
+  - family-names: Kerkhoven
+    given-names: Eduard J.
+    affiliation: "The Novo Nordisk Foundation Biotechnology Research Institute for the Green Transition, Technical University of Denmark, Kongens Lyngby, Denmark; Department of Life Sciences, Division of Systems and Synthetic Biology, Chalmers University of Technology, Göteborg, Sweden"
+    orcid: "https://orcid.org/0000-0002-3593-5792"
+  - family-names: Phaneuf
+    given-names: Patrick V.
+    affiliation: "The Novo Nordisk Foundation Biotechnology Research Institute for the Green Transition, Technical University of Denmark, Kongens Lyngby, Denmark"
+    orcid: "https://orcid.org/0000-0002-4122-6589"
+preferred-citation:
+  type: article
+  title: "Four-species Aspergillus pan-GWAS reveals rare genome expansion in pathogenicity and contraction in domestication"
+  year: 2026
+  doi: "10.64898/2026.08.20.745736"
+  notes: "Preprint"
+  authors:
+    - family-names: Kim
+      given-names: Minji
+    - family-names: Ardalani
+      given-names: Omid
+    - family-names: Kerkhoven
+      given-names: Eduard J.
+    - family-names: Phaneuf
+      given-names: Patrick V.
