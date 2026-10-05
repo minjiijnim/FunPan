@@ -163,18 +163,23 @@ If you use FunPan, please cite the preprint:
 
 Also cite the tools the pipeline calls:
 
-- BUSCO: Manni et al., 2021. Molecular Biology and Evolution.
-- Funannotate: Palmer & Stajich, 2020. Funannotate v1.8.1. Zenodo.
-- EggNOG-mapper: Cantalapiedra et al., 2021. eLife.
-- OrthoFinder: Emms & Kelly, 2019. Genome Biology.
-- antiSMASH: Blin et al., 2023. Nucleic Acids Research.
-- BiG-SCAPE: Navarro-Munoz et al., 2020. Nature Chemical Biology.
-- InterProScan: Jones et al., 2014. Bioinformatics.
-- SignalP: Teufel et al., 2022. Nature Biotechnology.
-- dbCAN: Zheng et al., 2023. Nucleic Acids Research.
-- Parsnp: Treangen et al., 2014. Genome Biology.
-- Gubbins: Croucher et al., 2015. Nucleic Acids Research.
-- IQ-TREE: Minh et al., 2020. Molecular Biology and Evolution.
+- NCBI Datasets: O'Leary et al., 2024. [Scientific Data](https://doi.org/10.1038/s41597-024-03571-y).
+- BUSCO: Tegenfeldt et al., 2025. [Nucleic Acids Research](https://doi.org/10.1093/nar/gkae987).
+- FastANI: Jain et al., 2018. [Nature Communications](https://doi.org/10.1038/s41467-018-07641-9).
+- Mash: Ondov et al., 2016. [Genome Biology](https://doi.org/10.1186/s13059-016-0997-x).
+- Funannotate: Palmer & Stajich, 2020. [Zenodo](https://doi.org/10.5281/zenodo.1134477).
+- eggNOG-mapper: Cantalapiedra et al., 2021. [Molecular Biology and Evolution](https://doi.org/10.1093/molbev/msab293).
+- eggNOG database: Huerta-Cepas et al., 2019. [Nucleic Acids Research](https://doi.org/10.1093/nar/gky1085).
+- OrthoFinder: Emms et al., 2026. [Nature Methods](https://doi.org/10.1038/s41592-026-03126-6).
+- antiSMASH: Blin et al., 2025. [Nucleic Acids Research](https://doi.org/10.1093/nar/gkaf334).
+- BiG-SCAPE: Draisma et al., 2026. [Nature Communications](https://doi.org/10.1038/s41467-026-68733-5).
+- MIBiG: Zdouc et al., 2025. [Nucleic Acids Research](https://doi.org/10.1093/nar/gkae1115).
+- InterProScan: Jones et al., 2014. [Bioinformatics](https://doi.org/10.1093/bioinformatics/btu031).
+- SignalP: Teufel et al., 2022. [Nature Biotechnology](https://doi.org/10.1038/s41587-021-01156-3).
+- dbCAN: Zheng et al., 2023. [Nucleic Acids Research](https://doi.org/10.1093/nar/gkad328).
+- Parsnp: Kille et al., 2024. [Bioinformatics](https://doi.org/10.1093/bioinformatics/btae311).
+- Gubbins: Croucher et al., 2015. [Nucleic Acids Research](https://doi.org/10.1093/nar/gku1196).
+- IQ-TREE: Minh et al., 2020. [Molecular Biology and Evolution](https://doi.org/10.1093/molbev/msaa015).
 
 Tested with *Aspergillus oryzae*, *A. niger*, *A. flavus* and *A. fumigatus*
 pangenomes.
