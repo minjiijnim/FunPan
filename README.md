@@ -1,5 +1,14 @@
 # FunPan - Filamentous Fungi Pangenome Analysis Pipeline
 
+
+[![Preprint](https://img.shields.io/badge/Preprint-10.64898%2F2026.08.20.745736-orange)](https://doi.org/10.64898/2026.08.20.745736)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.23161572-blue)](https://doi.org/10.5281/zenodo.23161572)
+[![Release](https://img.shields.io/github/v/release/minjiijnim/FunPan?color=blueviolet)](https://github.com/minjiijnim/FunPan/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](environment.yml)
+[![Conda](https://img.shields.io/badge/Environment-conda-44A833?logo=anaconda&logoColor=white)](environment.yml)
+
+
 A pipeline for downloading, quality-filtering, annotating and analysing
 filamentous fungi pangenomes, with a focus on secondary metabolite biosynthesis
 and comparative genomics.
